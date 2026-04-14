@@ -1,0 +1,52 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: reeva-postgres
+    environment:
+      POSTGRES_DB: reeva
+      POSTGRES_USER: reeva
+      POSTGRES_PASSWORD: reeva
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reeva"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: reeva-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: reeva-app
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/reeva
+      DB_USERNAME: reeva
+      DB_PASSWORD: reeva
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production-must-be-256-bits}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  uploads_data:
