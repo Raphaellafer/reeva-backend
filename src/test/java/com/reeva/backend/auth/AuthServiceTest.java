@@ -6,12 +6,6 @@ import com.reeva.backend.company.Company;
 import com.reeva.backend.company.CompanyRepository;
 import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.exception.BusinessException;
-<<<<<<< HEAD
-import com.reeva.backend.company.Company;
-import com.reeva.backend.company.CompanyRepository;
-import com.reeva.backend.user.User;
-=======
->>>>>>> 3557c5cabb99f186cfa41cf07d59920ab1dff57f
 import com.reeva.backend.user.UserRole;
 import com.reeva.backend.user.UserService;
 import org.junit.jupiter.api.Test;
@@ -48,21 +42,11 @@ class AuthServiceTest {
 
     @Test
     void register_shouldCreateUserAndReturnToken() {
-<<<<<<< HEAD
         var request = new RegisterRequest(COMPANY_ID, "João Silva", "joao@empresa.com", "senha123");
         var company = new Company("Reeva Demo", "00.000.000/0001-00", "demo@reeva.com.br", "PRO");
 
         when(userService.existsByEmail("joao@empresa.com")).thenReturn(false);
         when(companyRepository.findById(COMPANY_ID)).thenReturn(Optional.of(company));
-=======
-        var companyId = UUID.randomUUID();
-        var company = mock(Company.class);
-        var request = new RegisterRequest(companyId, "João Silva", "joao@empresa.com", "senha123");
-
-        when(userService.existsByEmail("joao@empresa.com")).thenReturn(false);
-        when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
-        when(company.getId()).thenReturn(companyId);
->>>>>>> 3557c5cabb99f186cfa41cf07d59920ab1dff57f
         when(passwordEncoder.encode("senha123")).thenReturn("hashed");
         when(userService.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(jwtService.generateToken(any())).thenReturn("jwt-token");
@@ -72,19 +56,11 @@ class AuthServiceTest {
         assertThat(response.token()).isEqualTo("jwt-token");
         assertThat(response.email()).isEqualTo("joao@empresa.com");
         assertThat(response.role()).isEqualTo(UserRole.EMPLOYEE);
-<<<<<<< HEAD
-=======
-        verify(auditService).log(eq(companyId), isNull(), eq("USER_REGISTERED"));
->>>>>>> 3557c5cabb99f186cfa41cf07d59920ab1dff57f
     }
 
     @Test
     void register_shouldThrowConflict_whenEmailAlreadyExists() {
-<<<<<<< HEAD
         var request = new RegisterRequest(COMPANY_ID, "João", "existente@empresa.com", "senha123");
-=======
-        var request = new RegisterRequest(UUID.randomUUID(), "João", "existente@empresa.com", "senha123");
->>>>>>> 3557c5cabb99f186cfa41cf07d59920ab1dff57f
         when(userService.existsByEmail("existente@empresa.com")).thenReturn(true);
 
         assertThatThrownBy(() -> authService.register(request))
