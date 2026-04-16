@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reeva
+    username: reeva
+    password: reeva
+
+security:
+  jwt:
+    secret: reeva-dev-secret-key-that-is-long-enough-for-hs256-256-bits-ok
+    expiration-ms: 86400000
+
+storage:
+  upload-dir: ./uploads

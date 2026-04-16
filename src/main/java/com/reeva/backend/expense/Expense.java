@@ -49,7 +49,7 @@ public class Expense {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
-    @Column(nullable = false, length = 3)
+    @Column(nullable = false, columnDefinition = "char(3)")
     private String currency = "BRL";
 
     @Enumerated(EnumType.STRING)
