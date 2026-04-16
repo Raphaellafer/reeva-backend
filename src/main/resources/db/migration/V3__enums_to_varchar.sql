@@ -4,6 +4,10 @@
 -- nativos do PostgreSQL ao salvar via JDBC
 -- ============================================================
 
+-- Índices/constraints que dependem diretamente de enums precisam ser
+-- recriados depois da conversão para evitar conflito de tipos durante ALTER TYPE.
+DROP INDEX IF EXISTS idx_expenses_pending_manager;
+
 -- users.role
 ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(20) USING role::text;
 ALTER TABLE users ALTER COLUMN role SET DEFAULT 'EMPLOYEE';
@@ -58,6 +62,10 @@ ALTER TABLE expense_policies ADD CONSTRAINT chk_policies_category
 
 -- audit_logs.ip_address: inet -> VARCHAR (Hibernate não suporta inet nativamente)
 ALTER TABLE audit_logs ALTER COLUMN ip_address TYPE VARCHAR(45) USING ip_address::text;
+
+-- Recria índice parcial após a conversão de expenses.status para VARCHAR.
+CREATE INDEX idx_expenses_pending_manager
+    ON expenses(manager_id, status) WHERE status = 'PENDING_REVIEW';
 
 -- Drop native enum types (já não são usados)
 DROP TYPE IF EXISTS user_role;
