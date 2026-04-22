@@ -7,3 +7,9 @@ uploads/
 *.iml
 .DS_Store
 .claude
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.vite/
+frontend/*.tsbuildinfo
+node_modules
