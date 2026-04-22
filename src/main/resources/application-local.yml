@@ -10,4 +10,5 @@ security:
     expiration-ms: 86400000
 
 storage:
+  provider: local
   upload-dir: ./uploads
