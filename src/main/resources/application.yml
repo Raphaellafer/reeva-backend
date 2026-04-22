@@ -37,8 +37,13 @@ security:
     expiration-ms: ${JWT_EXPIRATION:86400000}
 
 storage:
+  provider: ${STORAGE_PROVIDER:local}
   upload-dir: ${UPLOAD_DIR:./uploads}
   allowed-types: image/jpeg,image/png,image/webp,application/pdf
+  s3-bucket: ${AWS_S3_BUCKET:reeva-reembolsos}
+  s3-region: ${AWS_REGION:}
+  s3-endpoint: ${AWS_S3_ENDPOINT:}
+  s3-public-base-url: ${AWS_S3_PUBLIC_BASE_URL:}
 
 server:
   port: ${PORT:8080}
