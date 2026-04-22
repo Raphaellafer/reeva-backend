@@ -17,6 +17,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -43,6 +48,7 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
             .csrf(AbstractHttpConfigurer::disable)
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                 .anyRequest().authenticated()
@@ -71,5 +77,43 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000"
+        ));
+        configuration.setAllowedOriginPatterns(List.of(
+            "http://192.168.*:5173",
+            "http://10.*:5173",
+            "http://172.16.*:5173",
+            "http://172.17.*:5173",
+            "http://172.18.*:5173",
+            "http://172.19.*:5173",
+            "http://172.20.*:5173",
+            "http://172.21.*:5173",
+            "http://172.22.*:5173",
+            "http://172.23.*:5173",
+            "http://172.24.*:5173",
+            "http://172.25.*:5173",
+            "http://172.26.*:5173",
+            "http://172.27.*:5173",
+            "http://172.28.*:5173",
+            "http://172.29.*:5173",
+            "http://172.30.*:5173",
+            "http://172.31.*:5173"
+        ));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }
