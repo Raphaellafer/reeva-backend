@@ -1,6 +1,7 @@
 package com.reeva.backend.expense.dto;
 
 import com.reeva.backend.expense.*;
+import com.reeva.backend.expense.attachment.ExpenseAttachment;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -22,6 +23,17 @@ public record ExpenseResponse(
     ExpenseStatus status,
     Short aiScore,
     AiAlertLevel aiAlertLevel,
+    String aiAnalysis,
+    AiDecision aiDecision,
+    String aiDecisionReason,
+    Boolean policyCompliant,
+    String policyViolationReason,
+    SefazStatus sefazStatus,
+    String sefazValidationMessage,
+    boolean autoApprovalEligible,
+    String manualReviewReason,
+    String ocrData,
+    List<AttachmentItem> attachments,
     List<StatusHistoryItem> statusHistory,
     Instant createdAt,
     Instant updatedAt
@@ -34,10 +46,21 @@ public record ExpenseResponse(
         Instant changedAt
     ) {}
 
+    public record AttachmentItem(
+        UUID id,
+        String fileName,
+        String fileUrl,
+        String mimeType
+    ) {}
+
     public static ExpenseResponse from(Expense e) {
         List<StatusHistoryItem> history = e.getStatusHistory().stream()
             .map(h -> new StatusHistoryItem(
                 h.getFromStatus(), h.getToStatus(), h.getNotes(), h.getCreatedAt()))
+            .toList();
+
+        List<AttachmentItem> attachments = e.getAttachments().stream()
+            .map(a -> new AttachmentItem(a.getId(), a.getFileName(), a.getFileUrl(), a.getMimeType()))
             .toList();
 
         return new ExpenseResponse(
@@ -54,6 +77,17 @@ public record ExpenseResponse(
             e.getStatus(),
             e.getAiScore(),
             e.getAiAlertLevel(),
+            e.getAiAnalysis(),
+            e.getAiDecision(),
+            e.getAiDecisionReason(),
+            e.getPolicyCompliant(),
+            e.getPolicyViolationReason(),
+            e.getSefazStatus(),
+            e.getSefazValidationMessage(),
+            e.isAutoApprovalEligible(),
+            e.getManualReviewReason(),
+            e.getOcrData(),
+            attachments,
             history,
             e.getCreatedAt(),
             e.getUpdatedAt()

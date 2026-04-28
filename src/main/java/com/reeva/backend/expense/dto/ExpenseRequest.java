@@ -16,7 +16,6 @@ public record ExpenseRequest(
     @NotNull(message = "Category is required")
     ExpenseCategory category,
 
-    @NotNull(message = "Amount is required")
     @DecimalMin(value = "0.01", message = "Amount must be greater than zero")
     BigDecimal amount,
 

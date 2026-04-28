@@ -13,6 +13,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -100,6 +101,35 @@ public class StorageService {
             Files.deleteIfExists(target);
         } catch (IOException e) {
             log.warn("Could not delete file: {}", storedName, e);
+        }
+    }
+
+    public byte[] downloadBytes(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new IllegalArgumentException("fileUrl is blank");
+        }
+        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+            try {
+                var httpClient = java.net.http.HttpClient.newHttpClient();
+                var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(fileUrl)).GET().build();
+                return httpClient.send(req, java.net.http.HttpResponse.BodyHandlers.ofByteArray()).body();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to download file from URL: " + fileUrl, e);
+            }
+        }
+        if (fileUrl.startsWith("s3://")) {
+            String objectKey = extractObjectKey(fileUrl);
+            try (var response = s3Client.getObject(GetObjectRequest.builder()
+                    .bucket(storageProperties.s3Bucket()).key(objectKey).build())) {
+                return response.readAllBytes();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to download file from S3: " + fileUrl, e);
+            }
+        }
+        try {
+            return Files.readAllBytes(Paths.get(fileUrl));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read local file: " + fileUrl, e);
         }
     }
 

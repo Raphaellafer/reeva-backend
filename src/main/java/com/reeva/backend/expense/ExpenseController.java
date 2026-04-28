@@ -13,7 +13,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -117,6 +119,23 @@ public class ExpenseController {
         @PathVariable UUID id
     ) {
         return expenseService.listComments(currentUser, id);
+    }
+
+    @GetMapping("/attachments/{attachmentId}")
+    @Operation(summary = "View or download an expense attachment")
+    public ResponseEntity<byte[]> getAttachment(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID attachmentId
+    ) {
+        ExpenseService.AttachmentFile file = expenseService.getAttachmentFile(currentUser, attachmentId);
+        MediaType mediaType = file.mimeType() != null
+            ? MediaType.parseMediaType(file.mimeType())
+            : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok()
+            .contentType(mediaType)
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                "inline; filename*=UTF-8''" + file.encodedFileName())
+            .body(file.bytes());
     }
 
     public record StatusResponse(UUID expenseId, ExpenseStatus status) {}

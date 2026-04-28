@@ -1,8 +1,10 @@
 package com.reeva.backend.expense;
 
+import com.reeva.backend.ai.OcrService;
 import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.exception.BusinessException;
 import com.reeva.backend.expense.attachment.AttachmentType;
+import com.reeva.backend.expense.attachment.AttachmentRepository;
 import com.reeva.backend.expense.attachment.ExpenseAttachment;
 import com.reeva.backend.expense.comment.CommentService;
 import com.reeva.backend.expense.comment.dto.CommentRequest;
@@ -18,8 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.UUID;
 
 @Service
@@ -29,13 +34,18 @@ public class ExpenseService {
     private final StorageService storageService;
     private final CommentService commentService;
     private final AuditService auditService;
+    private final OcrService ocrService;
+    private final AttachmentRepository attachmentRepository;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
-                          CommentService commentService, AuditService auditService) {
+                          CommentService commentService, AuditService auditService,
+                          OcrService ocrService, AttachmentRepository attachmentRepository) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.commentService = commentService;
         this.auditService = auditService;
+        this.ocrService = ocrService;
+        this.attachmentRepository = attachmentRepository;
     }
 
     @Transactional
@@ -62,10 +72,14 @@ public class ExpenseService {
 
         expenseRepository.save(expense);
 
+        Map<String, Object> auditMetadata = new HashMap<>();
+        auditMetadata.put("title", request.title());
+        auditMetadata.put("amount", request.amount());
+
         auditService.log(
             currentUser.getCompany().getId(), currentUser.getId(),
             "EXPENSE_CREATED", "Expense", expense.getId(),
-            Map.of("title", request.title(), "amount", request.amount().toString()), null
+            auditMetadata, null
         );
 
         return ExpenseResponse.from(expense);
@@ -85,7 +99,9 @@ public class ExpenseService {
             new ExpenseStatusHistory(expense, from, ExpenseStatus.SUBMITTED, currentUser, "Submitted by employee")
         );
 
-        return ExpenseResponse.from(expenseRepository.save(expense));
+        Expense saved = expenseRepository.save(expense);
+        ocrService.processExpense(saved.getId());
+        return ExpenseResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -141,6 +157,26 @@ public class ExpenseService {
         return commentService.listByExpense(expenseId);
     }
 
+    @Transactional(readOnly = true)
+    public AttachmentFile getAttachmentFile(User currentUser, UUID attachmentId) {
+        ExpenseAttachment attachment = attachmentRepository.findById(attachmentId)
+            .orElseThrow(() -> BusinessException.notFound("Attachment not found"));
+        Expense expense = attachment.getExpense();
+
+        boolean owner = expense.getUser().getId().equals(currentUser.getId());
+        boolean manager = expense.getUser().getManager() != null
+            && expense.getUser().getManager().getId().equals(currentUser.getId());
+        boolean admin = currentUser.getRole().name().equals("ADMIN");
+        if (!owner && !manager && !admin) {
+            throw BusinessException.notFound("Attachment not found");
+        }
+
+        byte[] bytes = storageService.downloadBytes(attachment.getFileUrl());
+        String safeName = URLEncoder.encode(attachment.getFileName(), StandardCharsets.UTF_8)
+            .replace("+", "%20");
+        return new AttachmentFile(bytes, attachment.getMimeType(), attachment.getFileName(), safeName);
+    }
+
     private Expense getOwnedExpense(User user, UUID expenseId) {
         return expenseRepository.findByIdAndUserId(expenseId, user.getId())
             .orElseThrow(() -> BusinessException.notFound("Expense not found"));
@@ -154,4 +190,11 @@ public class ExpenseService {
             default -> AttachmentType.OTHER;
         };
     }
+
+    public record AttachmentFile(
+        byte[] bytes,
+        String mimeType,
+        String fileName,
+        String encodedFileName
+    ) {}
 }

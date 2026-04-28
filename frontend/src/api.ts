@@ -1,6 +1,7 @@
 import type {
   ApiError,
   AuthResponse,
+  DashboardResponse,
   ExpenseCategory,
   ExpenseResponse,
   PageResponse,
@@ -21,6 +22,20 @@ function resolveApiBaseUrl() {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+export async function getAttachmentBlob(token: string, attachmentId: string) {
+  const response = await fetch(`${API_BASE_URL}/expenses/attachments/${attachmentId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Falha ao carregar anexo.');
+  }
+
+  return response.blob();
+}
+
 const COMPANY_ID =
   import.meta.env.VITE_COMPANY_ID ??
   '00000000-0000-0000-0000-000000000001';
@@ -32,7 +47,7 @@ type RequestOptions = RequestInit & {
 interface ExpensePayload {
   title: string;
   category: ExpenseCategory;
-  amount: string;
+  amount: string | null;
   expenseDate: string;
   paymentMethod: PaymentMethod;
   description: string;
@@ -67,6 +82,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return (await response.json()) as T;
 }
 
+// ── Auth ─────────────────────────────────────────────────────────────
+
 export async function login(email: string, password: string) {
   return request<AuthResponse>('/auth/login', {
     method: 'POST',
@@ -85,6 +102,8 @@ export async function register(name: string, email: string, password: string) {
     })
   });
 }
+
+// ── Employee ─────────────────────────────────────────────────────────
 
 export async function getMyExpenses(token: string) {
   return request<PageResponse<ExpenseResponse>>('/expenses/my?size=50&sort=createdAt,desc', {
@@ -115,6 +134,45 @@ export async function createExpense(
 export async function submitExpense(token: string, expenseId: string) {
   return request<ExpenseResponse>(`/expenses/${expenseId}/submit`, {
     method: 'POST',
+    token
+  });
+}
+
+// ── Manager ──────────────────────────────────────────────────────────
+
+export async function getManagerDashboard(token: string) {
+  return request<DashboardResponse>('/manager/dashboard', { token });
+}
+
+export async function getTeamExpenses(token: string, status?: string, page = 0, size = 20) {
+  const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'createdAt,desc' });
+  if (status) params.set('status', status);
+  return request<PageResponse<ExpenseResponse>>(`/manager/expenses?${params}`, { token });
+}
+
+export async function getTeamExpenseDetail(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/manager/expenses/${expenseId}`, { token });
+}
+
+export async function approveExpense(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/manager/expenses/${expenseId}/approve`, {
+    method: 'POST',
+    token
+  });
+}
+
+export async function rejectExpense(token: string, expenseId: string, notes: string) {
+  return request<ExpenseResponse>(`/manager/expenses/${expenseId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+    token
+  });
+}
+
+export async function requestRevision(token: string, expenseId: string, notes: string) {
+  return request<ExpenseResponse>(`/manager/expenses/${expenseId}/request-revision`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
     token
   });
 }

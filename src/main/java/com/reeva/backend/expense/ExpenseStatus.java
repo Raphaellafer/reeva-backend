@@ -10,5 +10,6 @@ public enum ExpenseStatus {
     FINANCE_APPROVED,
     FINANCE_REJECTED,
     PAID,
-    CANCELLED
+    CANCELLED,
+    NEEDS_REVISION
 }

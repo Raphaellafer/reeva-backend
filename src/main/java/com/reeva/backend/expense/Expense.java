@@ -67,6 +67,9 @@ public class Expense {
 
     // ── Análise da IA ────────────────────────────────────────────────
 
+    @Column(name = "ocr_data", columnDefinition = "TEXT")
+    private String ocrData;
+
     @Column(name = "ai_score")
     private Short aiScore;
 
@@ -79,6 +82,32 @@ public class Expense {
 
     @Column(name = "ai_checked_at")
     private Instant aiCheckedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_decision", length = 40)
+    private AiDecision aiDecision;
+
+    @Column(name = "ai_decision_reason", columnDefinition = "TEXT")
+    private String aiDecisionReason;
+
+    @Column(name = "policy_compliant")
+    private Boolean policyCompliant;
+
+    @Column(name = "policy_violation_reason", columnDefinition = "TEXT")
+    private String policyViolationReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sefaz_status", length = 30)
+    private SefazStatus sefazStatus;
+
+    @Column(name = "sefaz_validation_message", columnDefinition = "TEXT")
+    private String sefazValidationMessage;
+
+    @Column(name = "auto_approval_eligible", nullable = false)
+    private boolean autoApprovalEligible = false;
+
+    @Column(name = "manual_review_reason", columnDefinition = "TEXT")
+    private String manualReviewReason;
 
     // ── Aprovação do gestor ──────────────────────────────────────────
 
@@ -172,8 +201,17 @@ public class Expense {
     public ExpenseStatus getStatus() { return status; }
     public Short getAiScore() { return aiScore; }
     public AiAlertLevel getAiAlertLevel() { return aiAlertLevel; }
+    public String getOcrData() { return ocrData; }
     public String getAiAnalysis() { return aiAnalysis; }
     public Instant getAiCheckedAt() { return aiCheckedAt; }
+    public AiDecision getAiDecision() { return aiDecision; }
+    public String getAiDecisionReason() { return aiDecisionReason; }
+    public Boolean getPolicyCompliant() { return policyCompliant; }
+    public String getPolicyViolationReason() { return policyViolationReason; }
+    public SefazStatus getSefazStatus() { return sefazStatus; }
+    public String getSefazValidationMessage() { return sefazValidationMessage; }
+    public boolean isAutoApprovalEligible() { return autoApprovalEligible; }
+    public String getManualReviewReason() { return manualReviewReason; }
     public User getManager() { return manager; }
     public Instant getManagerReviewedAt() { return managerReviewedAt; }
     public String getManagerNotes() { return managerNotes; }
@@ -193,11 +231,23 @@ public class Expense {
 
     public void setTitle(String title) { this.title = title; }
     public void setDescription(String description) { this.description = description; }
+    public void setAmount(java.math.BigDecimal amount) { this.amount = amount; }
+    public void setCategory(ExpenseCategory category) { this.category = category; }
+    public void setExpenseDate(java.time.LocalDate expenseDate) { this.expenseDate = expenseDate; }
+    public void setOcrData(String ocrData) { this.ocrData = ocrData; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public void setAiScore(Short aiScore) { this.aiScore = aiScore; }
     public void setAiAlertLevel(AiAlertLevel aiAlertLevel) { this.aiAlertLevel = aiAlertLevel; }
     public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
     public void setAiCheckedAt(Instant aiCheckedAt) { this.aiCheckedAt = aiCheckedAt; }
+    public void setAiDecision(AiDecision aiDecision) { this.aiDecision = aiDecision; }
+    public void setAiDecisionReason(String aiDecisionReason) { this.aiDecisionReason = aiDecisionReason; }
+    public void setPolicyCompliant(Boolean policyCompliant) { this.policyCompliant = policyCompliant; }
+    public void setPolicyViolationReason(String policyViolationReason) { this.policyViolationReason = policyViolationReason; }
+    public void setSefazStatus(SefazStatus sefazStatus) { this.sefazStatus = sefazStatus; }
+    public void setSefazValidationMessage(String sefazValidationMessage) { this.sefazValidationMessage = sefazValidationMessage; }
+    public void setAutoApprovalEligible(boolean autoApprovalEligible) { this.autoApprovalEligible = autoApprovalEligible; }
+    public void setManualReviewReason(String manualReviewReason) { this.manualReviewReason = manualReviewReason; }
     public void setManager(User manager) { this.manager = manager; }
     public void setManagerReviewedAt(Instant managerReviewedAt) { this.managerReviewedAt = managerReviewedAt; }
     public void setManagerNotes(String managerNotes) { this.managerNotes = managerNotes; }

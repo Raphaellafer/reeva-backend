@@ -18,14 +18,31 @@ export type ExpenseStatus =
   | 'FINANCE_APPROVED'
   | 'FINANCE_REJECTED'
   | 'PAID'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'NEEDS_REVISION';
+
+export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'FINANCE' | 'ADMIN';
+
+export type AiDecision =
+  | 'AUTO_APPROVED'
+  | 'READY_FOR_MANAGER'
+  | 'NEEDS_EMPLOYEE_CORRECTION'
+  | 'REJECTED_BY_POLICY'
+  | 'PENDING_MANUAL_REVIEW';
+
+export type SefazStatus =
+  | 'NOT_APPLICABLE'
+  | 'PENDING'
+  | 'VALID'
+  | 'INVALID'
+  | 'UNAVAILABLE';
 
 export interface AuthResponse {
   token: string;
   userId: string;
   name: string;
   email: string;
-  role: string;
+  role: UserRole;
 }
 
 export interface StatusHistoryItem {
@@ -35,6 +52,13 @@ export interface StatusHistoryItem {
   changedAt: string;
 }
 
+export interface AttachmentItem {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType: string;
+}
+
 export interface ExpenseResponse {
   id: string;
   userId: string;
@@ -42,16 +66,41 @@ export interface ExpenseResponse {
   title: string;
   description: string | null;
   category: ExpenseCategory;
-  amount: number;
+  amount: number | null;
   currency: string;
   paymentMethod: PaymentMethod;
   expenseDate: string;
   status: ExpenseStatus;
   aiScore: number | null;
   aiAlertLevel: string | null;
+  aiAnalysis: string | null;
+  aiDecision: AiDecision | null;
+  aiDecisionReason: string | null;
+  policyCompliant: boolean | null;
+  policyViolationReason: string | null;
+  sefazStatus: SefazStatus | null;
+  sefazValidationMessage: string | null;
+  autoApprovalEligible: boolean;
+  manualReviewReason: string | null;
+  ocrData: string | null;
+  attachments: AttachmentItem[];
   statusHistory: StatusHistoryItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface DashboardResponse {
+  pendingCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  needsRevisionCount: number;
+  approvedTotalAmount: number;
+  teamSize: number;
+  autoApprovedCount: number;
+  policyViolationCount: number;
+  manualReviewCount: number;
+  estimatedSavingsAmount: number;
+  automationRate: number;
 }
 
 export interface PageResponse<T> {

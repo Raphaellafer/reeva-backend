@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createExpense, getMyExpenses, login, register, submitExpense } from './api';
+import ManagerDashboard from './ManagerDashboard';
 import type {
   AuthResponse,
   ExpenseCategory,
@@ -37,7 +38,8 @@ const statusLabels: Record<ExpenseStatus, string> = {
   FINANCE_APPROVED: 'Aprovada pelo financeiro',
   FINANCE_REJECTED: 'Rejeitada pelo financeiro',
   PAID: 'Paga',
-  CANCELLED: 'Cancelada'
+  CANCELLED: 'Cancelada',
+  NEEDS_REVISION: 'Revisao necessaria'
 };
 
 function buildExpensePayload(file: File) {
@@ -46,11 +48,19 @@ function buildExpensePayload(file: File) {
   return {
     title,
     category: 'PURCHASE' as ExpenseCategory,
-    amount: '1.00',
+    amount: null,
     expenseDate: new Date().toISOString().slice(0, 10),
     paymentMethod: 'OTHER' as PaymentMethod,
     description: 'Enviado pelo app com preenchimento automatico.'
   };
+}
+
+function formatCurrency(amount: number | null, currency = 'BRL') {
+  if (amount == null) return 'Valor pendente';
+  return Number(amount).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency
+  });
 }
 
 function App() {
@@ -100,7 +110,7 @@ function App() {
   }, [token]);
 
   const totalAmount = useMemo(
-    () => expenses.reduce((sum, item) => sum + Number(item.amount), 0),
+    () => expenses.reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
     [expenses]
   );
 
@@ -191,6 +201,10 @@ function App() {
     } finally {
       setSubmitLoading(false);
     }
+  }
+
+  if (token && user && (user.role === 'MANAGER' || user.role === 'ADMIN')) {
+    return <ManagerDashboard token={token} user={user} onLogout={logout} />;
   }
 
   return (
@@ -421,12 +435,7 @@ function App() {
                         </div>
 
                         <div className="expense-meta">
-                          <strong>
-                            {Number(expense.amount).toLocaleString('pt-BR', {
-                              style: 'currency',
-                              currency: expense.currency || 'BRL'
-                            })}
-                          </strong>
+                          <strong>{formatCurrency(expense.amount, expense.currency || 'BRL')}</strong>
                           <span>
                             {paymentOptions.find(
                               (item) => item.value === expense.paymentMethod

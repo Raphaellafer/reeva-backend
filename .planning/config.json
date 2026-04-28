@@ -1,0 +1,28 @@
+{
+  "mode": "interactive",
+  "granularity": "standard",
+  "project_code": "REEVA",
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "auto_advance": false,
+    "research_before_questions": false,
+    "discuss_mode": "assumptions",
+    "skip_discuss": false,
+    "text_mode": false,
+    "use_worktrees": true
+  },
+  "parallelization": {
+    "enabled": true
+  },
+  "planning": {
+    "commit_docs": true
+  },
+  "git": {
+    "branching_strategy": "phase",
+    "phase_branch_template": "gsd/phase-{phase}-{slug}",
+    "milestone_branch_template": "gsd/{milestone}-{slug}"
+  }
+}
+
