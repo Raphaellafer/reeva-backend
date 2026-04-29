@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../ui/Sidebar'
 import { Topbar } from '../ui/Topbar'
+import { clearAuth, getStoredUser } from '../../hooks/useAuth'
 import type { UserRole } from '../../types/index'
 
 const navByRole = (role: UserRole) => {
@@ -47,9 +48,11 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function handleLogout() {
-    localStorage.removeItem('reeva.role')
+    clearAuth()
     navigate('/login')
   }
+
+  const storedUser = getStoredUser()
 
   return (
     <div className="flex h-screen bg-[#F5F6F7] overflow-hidden">
@@ -69,7 +72,7 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
       >
         <Sidebar
           sections={navByRole(role)}
-          userLabel="Usuário Demo"
+          userLabel={storedUser?.name ?? 'Usuário'}
           userRole={roleLabel[role]}
           onLogout={handleLogout}
           onClose={() => setSidebarOpen(false)}
