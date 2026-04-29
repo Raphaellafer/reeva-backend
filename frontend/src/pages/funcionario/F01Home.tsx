@@ -2,6 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { getStoredUser } from '../../hooks/useAuth'
 import { mockNotas, fmt, fmtDate, tipoLabels } from '../../data/mock'
 
 const statusBorder: Record<string, string> = {
@@ -18,16 +19,20 @@ const pendentes = mockNotas.filter(n => n.status === 'PENDENTE' || n.status === 
 const rejeitadas = mockNotas.filter(n => n.status === 'REJEITADO').length
 
 export function F01Home() {
+  const user = getStoredUser()
+  const primeiroNome = user?.name?.split(' ')[0] ?? 'Olá'
+  const iniciais = user?.name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() ?? 'EU'
+
   return (
     <MobileShell>
       {/* Header */}
       <div className="bg-white px-4 pt-4 pb-3 flex items-center justify-between border-b border-black/[0.06]">
         <div>
           <p className="text-[11px] text-gray-400">Bom dia,</p>
-          <p className="text-[15px] font-medium text-[#1a1a2e]">Ana Beatriz</p>
+          <p className="text-[15px] font-medium text-[#1a1a2e]">{primeiroNome}</p>
         </div>
         <div className="w-8 h-8 rounded-full bg-[#1a1a2e] text-white flex items-center justify-center text-[12px] font-medium">
-          AB
+          {iniciais}
         </div>
       </div>
 

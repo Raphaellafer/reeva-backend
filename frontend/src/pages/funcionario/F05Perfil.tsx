@@ -2,13 +2,15 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Button } from '../../components/ui/Button'
+import { clearAuth, getStoredUser } from '../../hooks/useAuth'
 import { fmt } from '../../data/mock'
 
 export function F05Perfil() {
   const navigate = useNavigate()
+  const user = getStoredUser()
 
   function handleLogout() {
-    localStorage.removeItem('reeva.role')
+    clearAuth()
     navigate('/login')
   }
 
@@ -21,11 +23,10 @@ export function F05Perfil() {
       <div className="px-4 py-6 space-y-4">
         <div className="flex flex-col items-center gap-2 py-4">
           <div className="w-16 h-16 rounded-full bg-[#1a1a2e] text-white flex items-center justify-center text-[22px] font-medium">
-            AB
+            {user?.name?.slice(0, 2).toUpperCase() ?? 'EU'}
           </div>
-          <p className="text-[16px] font-medium text-[#1a1a2e]">Ana Beatriz</p>
-          <p className="text-[12px] text-gray-400">ana.beatriz@empresa.com</p>
-          <p className="text-[11px] text-gray-400">Depto: Vendas</p>
+          <p className="text-[16px] font-medium text-[#1a1a2e]">{user?.name ?? 'Funcionário'}</p>
+          <p className="text-[12px] text-gray-400">{user?.email ?? ''}</p>
         </div>
 
         <div className="bg-white rounded-[10px] border border-black/[0.07] divide-y divide-black/[0.06]">
