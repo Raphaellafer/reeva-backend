@@ -13,3 +13,5 @@ frontend/.env
 frontend/.vite/
 frontend/*.tsbuildinfo
 node_modules
+.codex
+/.codex
