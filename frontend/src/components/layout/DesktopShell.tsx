@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../ui/Sidebar'
 import { Topbar } from '../ui/Topbar'
+import { clearAuth, getStoredUser } from '../../hooks/useAuth'
 import type { UserRole } from '../../types/index'
-import { clearSession, getUserName } from '../../session'
 
 const navByRole = (role: UserRole) => {
   if (role === 'GERENTE') {
@@ -11,7 +11,7 @@ const navByRole = (role: UserRole) => {
       {
         items: [
           { label: 'Dashboard', href: '/gerente', exact: true, icon: <IconGrid /> },
-          { label: 'Aprovações', href: '/gerente/aprovacoes', icon: <IconCheck /> },
+          { label: 'Aprovacoes', href: '/gerente/aprovacoes', icon: <IconCheck /> },
           { label: 'Aprovados', href: '/gerente/pagamentos', icon: <IconMoney /> },
           { label: 'Projetos', href: '/gerente/projetos', icon: <IconTrend /> },
           { label: 'Politicas', href: '/gerente/politicas', icon: <IconSettings /> },
@@ -28,7 +28,7 @@ const navByRole = (role: UserRole) => {
         { label: 'ROI Corporativo', href: '/cfo/roi', icon: <IconTrend /> },
         { label: 'Compliance', href: '/cfo/compliance', icon: <IconShield /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
-        { label: 'Configurações', href: '/cfo/configuracoes', icon: <IconSettings /> },
+        { label: 'Configuracoes', href: '/cfo/configuracoes', icon: <IconSettings /> },
       ],
     },
   ]
@@ -49,15 +49,15 @@ interface DesktopShellProps {
 export function DesktopShell({ title, role, children, actions }: DesktopShellProps) {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const storedUser = getStoredUser()
 
   function handleLogout() {
-    clearSession()
+    clearAuth()
     navigate('/login')
   }
 
   return (
     <div className="flex h-screen bg-[#F5F6F7] overflow-hidden">
-      {/* Overlay mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-30 md:hidden"
@@ -65,7 +65,6 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
         />
       )}
 
-      {/* Sidebar — drawer no mobile, fixa no desktop */}
       <div
         className={`fixed md:relative z-40 h-full transition-transform duration-200 md:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -73,23 +72,16 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
       >
         <Sidebar
           sections={navByRole(role)}
-          userLabel={getUserName()}
+          userLabel={storedUser?.name ?? 'Usuario'}
           userRole={roleLabel[role]}
           onLogout={handleLogout}
           onClose={() => setSidebarOpen(false)}
         />
       </div>
 
-      {/* Conteúdo principal */}
       <div className="flex flex-col flex-1 min-w-0">
-        <Topbar
-          title={title}
-          actions={actions}
-          onMenuClick={() => setSidebarOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
+        <Topbar title={title} actions={actions} onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
     </div>
   )
@@ -103,6 +95,7 @@ function IconGrid() {
     </svg>
   )
 }
+
 function IconCheck() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -110,6 +103,7 @@ function IconCheck() {
     </svg>
   )
 }
+
 function IconAlert() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -117,6 +111,7 @@ function IconAlert() {
     </svg>
   )
 }
+
 function IconDoc() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -124,6 +119,7 @@ function IconDoc() {
     </svg>
   )
 }
+
 function IconTrend() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -131,6 +127,7 @@ function IconTrend() {
     </svg>
   )
 }
+
 function IconMoney() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -139,6 +136,7 @@ function IconMoney() {
     </svg>
   )
 }
+
 function IconShield() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -146,6 +144,7 @@ function IconShield() {
     </svg>
   )
 }
+
 function IconSettings() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>

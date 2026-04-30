@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import type { UserRole } from '../types/index'
+import { isAuthenticated } from '../hooks/useAuth'
 
 import { Login } from '../pages/Login'
 
@@ -26,8 +27,8 @@ import { C04Notas } from '../pages/cfo/C04Notas'
 import { C05Config } from '../pages/cfo/C05Config'
 
 function RootRedirect() {
+  if (!isAuthenticated()) return <Navigate to="/login" replace />
   const role = localStorage.getItem('reeva.role') as UserRole | null
-  if (!role) return <Navigate to="/login" replace />
   if (role === 'FUNCIONARIO') return <Navigate to="/funcionario" replace />
   if (role === 'GERENTE') return <Navigate to="/gerente" replace />
   if (role === 'CFO') return <Navigate to="/cfo" replace />
@@ -35,9 +36,8 @@ function RootRedirect() {
 }
 
 function RequireRole({ role, children }: { role: UserRole; children: React.ReactNode }) {
+  if (!isAuthenticated()) return <Navigate to="/login" replace />
   const stored = localStorage.getItem('reeva.role') as UserRole | null
-  const token = localStorage.getItem('reeva.token')
-  if (!stored || !token) return <Navigate to="/login" replace />
   if (stored !== role) return <RootRedirect />
   return <>{children}</>
 }
@@ -49,14 +49,12 @@ export function AppRouter() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Funcionário */}
         <Route path="/funcionario" element={<RequireRole role="FUNCIONARIO"><F01Home /></RequireRole>} />
         <Route path="/funcionario/enviar" element={<RequireRole role="FUNCIONARIO"><F02EnviarNF /></RequireRole>} />
         <Route path="/funcionario/historico" element={<RequireRole role="FUNCIONARIO"><F03Historico /></RequireRole>} />
         <Route path="/funcionario/nota/:id" element={<RequireRole role="FUNCIONARIO"><F04Detalhe /></RequireRole>} />
         <Route path="/funcionario/perfil" element={<RequireRole role="FUNCIONARIO"><F05Perfil /></RequireRole>} />
 
-        {/* Gerente */}
         <Route path="/gerente" element={<RequireRole role="GERENTE"><G01Dashboard /></RequireRole>} />
         <Route path="/gerente/aprovacoes" element={<RequireRole role="GERENTE"><G02Aprovacoes /></RequireRole>} />
         <Route path="/gerente/alertas" element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
@@ -66,7 +64,6 @@ export function AppRouter() {
         <Route path="/gerente/projetos" element={<RequireRole role="GERENTE"><G07Projetos /></RequireRole>} />
         <Route path="/gerente/pagamentos" element={<RequireRole role="GERENTE"><G08Pagamentos /></RequireRole>} />
 
-        {/* CFO */}
         <Route path="/cfo" element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
         <Route path="/cfo/roi" element={<RequireRole role="CFO"><C02ROI /></RequireRole>} />
         <Route path="/cfo/compliance" element={<RequireRole role="CFO"><C03Compliance /></RequireRole>} />

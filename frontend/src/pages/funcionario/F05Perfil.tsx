@@ -3,14 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { getMyExpenses } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Button } from '../../components/ui/Button'
-import { clearSession, getToken, getUserName } from '../../session'
+import { clearAuth, getStoredUser } from '../../hooks/useAuth'
 import { fmt, initials, isApproved } from '../../realData'
+import { getToken } from '../../session'
 import type { ExpenseResponse } from '../../types'
 
 export function F05Perfil() {
   const navigate = useNavigate()
-  const userName = getUserName()
-  const userEmail = localStorage.getItem('reeva.userEmail') ?? ''
+  const user = getStoredUser()
+  const userName = user?.name ?? 'Funcionario'
+  const userEmail = user?.email ?? ''
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
 
   useEffect(() => {
@@ -20,7 +22,7 @@ export function F05Perfil() {
   }, [])
 
   function handleLogout() {
-    clearSession()
+    clearAuth()
     navigate('/login')
   }
 

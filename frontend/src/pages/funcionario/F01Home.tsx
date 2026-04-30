@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { getMyExpenses } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { getStoredUser } from '../../hooks/useAuth'
 import { categoryLabels, fmt, fmtDate, initials, isApproved, isPending, isRejected } from '../../realData'
-import { getToken, getUserName } from '../../session'
+import { getToken } from '../../session'
 import type { ExpenseResponse } from '../../types'
 
 const statusBorder: Record<string, string> = {
@@ -23,11 +24,15 @@ export function F01Home() {
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const userName = getUserName()
+  const user = getStoredUser()
+  const userName = user?.name ?? 'Usuario'
 
   useEffect(() => {
     const token = getToken()
-    if (!token) return
+    if (!token) {
+      setLoading(false)
+      return
+    }
     getMyExpenses(token)
       .then((page) => setExpenses(page.content))
       .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar notas.'))
@@ -45,7 +50,7 @@ export function F01Home() {
       <div className="bg-white px-4 pt-4 pb-3 flex items-center justify-between border-b border-black/[0.06]">
         <div>
           <p className="text-[11px] text-gray-400">Bom dia,</p>
-          <p className="text-[15px] font-medium text-[#1a1a2e]">{userName}</p>
+          <p className="text-[15px] font-medium text-[#1a1a2e]">{userName.split(' ')[0]}</p>
         </div>
         <div className="w-8 h-8 rounded-full bg-[#1a1a2e] text-white flex items-center justify-center text-[12px] font-medium">
           {initials(userName)}

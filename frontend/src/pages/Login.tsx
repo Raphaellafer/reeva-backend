@@ -1,90 +1,97 @@
-import React, { useState } from 'react'
+import React, { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { startDemoSession } from '../session'
-import type { UserRole } from '../types/index'
-
-interface ProfileCard {
-  role: UserRole
-  title: string
-  subtitle: string
-  description: string
-  route: string
-  icon: string
-}
-
-const profiles: ProfileCard[] = [
-  {
-    role: 'FUNCIONARIO',
-    title: 'Funcionario',
-    subtitle: 'Envio de notas fiscais',
-    description: 'Envie notas, acompanhe reembolsos e veja seu historico pessoal.',
-    route: '/funcionario',
-    icon: 'F',
-  },
-  {
-    role: 'GERENTE',
-    title: 'Gerente',
-    subtitle: 'Aprovacao de equipe',
-    description: 'Aprove notas da sua equipe, gerencie alertas da IA e veja relatorios.',
-    route: '/gerente',
-    icon: 'G',
-  },
-  {
-    role: 'CFO',
-    title: 'CFO / Diretor',
-    subtitle: 'Visao executiva',
-    description: 'Dashboard macro, ROI corporativo, compliance e relatorios para o board.',
-    route: '/cfo',
-    icon: 'C',
-  },
-]
+import { login } from '../api'
+import { persistAuth } from '../hooks/useAuth'
+import { mapRole, roleToRoute } from '../types/index'
+import type { BackendRole } from '../types/index'
 
 export function Login() {
   const navigate = useNavigate()
-  const [loadingRole, setLoadingRole] = useState<UserRole | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function select(profile: ProfileCard) {
-    setLoadingRole(profile.role)
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
     setError(null)
+    setLoading(true)
+
     try {
-      await startDemoSession(profile.role)
-      navigate(profile.route)
+      const auth = await login(email, password)
+      const frontendRole = mapRole(auth.role as BackendRole)
+      persistAuth(auth, frontendRole)
+      navigate(roleToRoute(frontendRole), { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel entrar.')
+      setError(err instanceof Error ? err.message : 'Erro ao entrar. Verifique suas credenciais.')
     } finally {
-      setLoadingRole(null)
+      setLoading(false)
     }
   }
 
   return (
     <div className="min-h-screen bg-[#1a1a2e] flex flex-col items-center justify-center p-6">
-      <div className="mb-10 text-center">
-        <p className="text-[13px] font-medium text-[#AFA9EC] uppercase tracking-widest mb-2">Demo</p>
-        <h1 className="text-[32px] font-medium text-white leading-tight">Reeva</h1>
-        <p className="text-[14px] text-white/50 mt-2">Gestao de reembolso corporativo com IA</p>
+      <div className="mb-8 text-center">
+        <p className="text-[12px] font-medium text-[#AFA9EC] uppercase tracking-widest mb-2">
+          Gestao de reembolso corporativo
+        </p>
+        <h1 className="text-[36px] font-medium text-white leading-tight">Reeva</h1>
       </div>
 
-      <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {profiles.map((p) => (
+      <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-[14px] p-6">
+        <p className="text-[15px] font-medium text-white mb-5">Entrar na sua conta</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[12px] text-white/50 mb-1.5">E-mail corporativo</label>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="voce@empresa.com"
+              className="w-full bg-white/10 border border-white/10 rounded-[8px] px-3 py-2.5 text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-[#AFA9EC] transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[12px] text-white/50 mb-1.5">Senha</label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="********"
+              className="w-full bg-white/10 border border-white/10 rounded-[8px] px-3 py-2.5 text-[14px] text-white placeholder-white/25 focus:outline-none focus:border-[#AFA9EC] transition-colors"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-[8px] bg-[#FCEBEB]/10 border border-[#F09595]/40 px-3 py-2.5">
+              <p className="text-[12px] text-[#F09595]">{error}</p>
+            </div>
+          )}
+
           <button
-            key={p.role}
-            onClick={() => void select(p)}
-            className="group text-left bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#AFA9EC] rounded-[10px] p-5 transition-all duration-200"
+            type="submit"
+            disabled={loading}
+            className="w-full bg-white text-[#1a1a2e] rounded-[8px] py-2.5 text-[14px] font-medium hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity mt-1"
           >
-            <div className="text-3xl mb-3">{p.icon}</div>
-            <p className="text-[15px] font-medium text-white">{p.title}</p>
-            <p className="text-[11px] text-[#AFA9EC] mb-2">{p.subtitle}</p>
-            <p className="text-[12px] text-white/50 leading-relaxed">{p.description}</p>
-            <p className="mt-4 text-[11px] font-medium text-[#AFA9EC] group-hover:text-white transition-colors">
-              {loadingRole === p.role ? 'Entrando...' : 'Entrar ->'}
-            </p>
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
-        ))}
+        </form>
+
+        <p className="mt-5 text-[11px] text-white/20 text-center leading-relaxed">
+          Acesso restrito a usuarios cadastrados pela empresa.<br />
+          Fale com o administrador para obter suas credenciais.
+        </p>
       </div>
 
-      {error && <p className="mt-6 text-[12px] text-[#F09595]">{error}</p>}
-      <p className="mt-10 text-[11px] text-white/20">Modo demo com usuarios reais do banco</p>
+      <p className="mt-6 text-[11px] text-white/20 text-center">
+        O sistema detecta automaticamente o seu perfil.
+      </p>
     </div>
   )
 }
