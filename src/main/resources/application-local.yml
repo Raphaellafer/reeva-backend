@@ -16,3 +16,6 @@ storage:
   s3-region: ${AWS_REGION:}
   s3-endpoint: ${AWS_S3_ENDPOINT:}
   s3-public-base-url: ${AWS_S3_PUBLIC_BASE_URL:}
+  s3-access-key-id: ${AWS_ACCESS_KEY_ID:}
+  s3-secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+  s3-session-token: ${AWS_SESSION_TOKEN:}

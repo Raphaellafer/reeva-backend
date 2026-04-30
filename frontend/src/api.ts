@@ -19,7 +19,9 @@ function resolveApiBaseUrl() {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  return 'http://localhost:8080/api/v1';
+  const protocol = window.location.protocol || 'http:';
+  const hostname = window.location.hostname || 'localhost';
+  return `${protocol}//${hostname}:8080/api/v1`;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
