@@ -81,6 +81,15 @@ public class ExpenseController {
         return new StatusResponse(id, expenseService.getStatus(currentUser, id));
     }
 
+    @PostMapping("/{id}/retry-ocr")
+    @Operation(summary = "Retry OCR analysis for an existing expense")
+    public ExpenseResponse retryOcr(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id
+    ) {
+        return expenseService.retryOcr(currentUser, id);
+    }
+
     @PatchMapping("/{id}")
     @Operation(summary = "Update title/description of a DRAFT expense")
     public ExpenseResponse update(

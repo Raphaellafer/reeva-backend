@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MobileNav } from '../ui/MobileNav'
+import { clearSession } from '../../session'
 
 function IconHome() {
   return (
@@ -46,7 +47,7 @@ export function MobileShell({ children }: MobileShellProps) {
   const navigate = useNavigate()
 
   function handleLogout() {
-    localStorage.removeItem('reeva.role')
+    clearSession()
     navigate('/login')
   }
 

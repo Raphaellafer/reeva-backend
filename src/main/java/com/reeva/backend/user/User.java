@@ -45,6 +45,9 @@ public class User implements UserDetails {
     @JoinColumn(name = "manager_id")
     private User manager;
 
+    @Column(name = "pix_key", length = 255)
+    private String pixKey;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
@@ -101,6 +104,7 @@ public class User implements UserDetails {
     public String getEmail() { return email; }
     public UserRole getRole() { return role; }
     public User getManager() { return manager; }
+    public String getPixKey() { return pixKey; }
     public boolean isActive() { return active; }
     public Instant getLastLoginAt() { return lastLoginAt; }
     public Instant getCreatedAt() { return createdAt; }
@@ -113,5 +117,6 @@ public class User implements UserDetails {
     public void setActive(boolean active) { this.active = active; }
     public void setDepartment(Department department) { this.department = department; }
     public void setManager(User manager) { this.manager = manager; }
+    public void setPixKey(String pixKey) { this.pixKey = pixKey; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
 }

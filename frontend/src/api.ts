@@ -5,16 +5,18 @@ import type {
   ExpenseCategory,
   ExpenseResponse,
   PageResponse,
-  PaymentMethod
+  PaymentBatchResponse,
+  PolicyPayload,
+  PolicyResponse,
+  PaymentMethod,
+  ProjectPayload,
+  ProjectResponse,
+  TeamMemberResponse
 } from './types';
 
 function resolveApiBaseUrl() {
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
-  }
-
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
   }
 
   return 'http://localhost:8080/api/v1';
@@ -47,6 +49,7 @@ type RequestOptions = RequestInit & {
 interface ExpensePayload {
   title: string;
   category: ExpenseCategory;
+  projectId: string;
   amount: string | null;
   expenseDate: string;
   paymentMethod: PaymentMethod;
@@ -64,10 +67,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set('Authorization', `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers
+    });
+  } catch (err) {
+    throw new Error(`Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend esta rodando na porta 8080.`);
+  }
 
   if (!response.ok) {
     const error = (await response.json().catch(() => null)) as ApiError | null;
@@ -112,6 +120,13 @@ export async function getMyExpenses(token: string) {
   });
 }
 
+export async function getMyExpense(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}`, {
+    method: 'GET',
+    token
+  });
+}
+
 export async function createExpense(
   token: string,
   payload: ExpensePayload,
@@ -136,6 +151,17 @@ export async function submitExpense(token: string, expenseId: string) {
     method: 'POST',
     token
   });
+}
+
+export async function retryExpenseOcr(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}/retry-ocr`, {
+    method: 'POST',
+    token
+  });
+}
+
+export async function getMyProjects(token: string) {
+  return request<ProjectResponse[]>('/projects/my', { token });
 }
 
 // ── Manager ──────────────────────────────────────────────────────────
@@ -175,4 +201,48 @@ export async function requestRevision(token: string, expenseId: string, notes: s
     body: JSON.stringify({ notes }),
     token
   });
+}
+
+export async function getPolicies(token: string) {
+  return request<PolicyResponse[]>('/manager/policies', { token });
+}
+
+export async function savePolicy(token: string, payload: PolicyPayload) {
+  return request<PolicyResponse>('/manager/policies', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getManagedProjects(token: string) {
+  return request<ProjectResponse[]>('/manager/projects', { token });
+}
+
+export async function createProject(token: string, payload: ProjectPayload) {
+  return request<ProjectResponse>('/manager/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function updateProject(token: string, projectId: string, payload: ProjectPayload) {
+  return request<ProjectResponse>(`/manager/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getTeamMembers(token: string) {
+  return request<TeamMemberResponse[]>('/manager/team-members', { token });
+}
+
+export async function getApprovedPayments(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<PaymentBatchResponse>(`/manager/payments/approved${query ? `?${query}` : ''}`, { token });
 }

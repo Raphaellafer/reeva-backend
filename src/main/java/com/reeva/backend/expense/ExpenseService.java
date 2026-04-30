@@ -12,6 +12,8 @@ import com.reeva.backend.expense.comment.dto.CommentResponse;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
+import com.reeva.backend.project.Project;
+import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
 import org.springframework.data.domain.Page;
@@ -36,24 +38,28 @@ public class ExpenseService {
     private final AuditService auditService;
     private final OcrService ocrService;
     private final AttachmentRepository attachmentRepository;
+    private final ProjectService projectService;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
                           CommentService commentService, AuditService auditService,
-                          OcrService ocrService, AttachmentRepository attachmentRepository) {
+                          OcrService ocrService, AttachmentRepository attachmentRepository,
+                          ProjectService projectService) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.commentService = commentService;
         this.auditService = auditService;
         this.ocrService = ocrService;
         this.attachmentRepository = attachmentRepository;
+        this.projectService = projectService;
     }
 
     @Transactional
     public ExpenseResponse create(User currentUser, MultipartFile file, ExpenseRequest request) {
         StorageService.StoredFile stored = storageService.store(file);
+        Project project = projectService.getEmployeeProject(currentUser, request.projectId());
 
         Expense expense = new Expense(
-            currentUser.getCompany(), currentUser, request.title(), request.category(),
+            currentUser.getCompany(), currentUser, project, request.title(), request.category(),
             request.amount(), request.expenseDate(),
             request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.OTHER
         );
@@ -75,6 +81,7 @@ public class ExpenseService {
         Map<String, Object> auditMetadata = new HashMap<>();
         auditMetadata.put("title", request.title());
         auditMetadata.put("amount", request.amount());
+        auditMetadata.put("projectId", project.getId());
 
         auditService.log(
             currentUser.getCompany().getId(), currentUser.getId(),
@@ -118,6 +125,28 @@ public class ExpenseService {
     @Transactional(readOnly = true)
     public ExpenseStatus getStatus(User currentUser, UUID expenseId) {
         return getOwnedExpense(currentUser, expenseId).getStatus();
+    }
+
+    @Transactional
+    public ExpenseResponse retryOcr(User currentUser, UUID expenseId) {
+        Expense expense = getOwnedExpense(currentUser, expenseId);
+
+        if (expense.getAttachments().isEmpty()) {
+            throw BusinessException.badRequest("Expense has no attachment to analyze");
+        }
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.SUBMITTED);
+        expense.setAiAnalysis("OCR reenfileirado para analise");
+        expense.setAiDecisionReason("OCR reenfileirado para analise");
+        expense.setManualReviewReason(null);
+        expense.getStatusHistory().add(
+            new ExpenseStatusHistory(expense, from, ExpenseStatus.SUBMITTED, currentUser, "OCR retry requested")
+        );
+
+        Expense saved = expenseRepository.save(expense);
+        ocrService.processExpense(saved.getId());
+        return ExpenseResponse.from(saved);
     }
 
     @Transactional

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Sidebar } from '../ui/Sidebar'
 import { Topbar } from '../ui/Topbar'
 import type { UserRole } from '../../types/index'
+import { clearSession, getUserName } from '../../session'
 
 const navByRole = (role: UserRole) => {
   if (role === 'GERENTE') {
@@ -11,6 +12,9 @@ const navByRole = (role: UserRole) => {
         items: [
           { label: 'Dashboard', href: '/gerente', exact: true, icon: <IconGrid /> },
           { label: 'Aprovações', href: '/gerente/aprovacoes', icon: <IconCheck /> },
+          { label: 'Aprovados', href: '/gerente/pagamentos', icon: <IconMoney /> },
+          { label: 'Projetos', href: '/gerente/projetos', icon: <IconTrend /> },
+          { label: 'Politicas', href: '/gerente/politicas', icon: <IconSettings /> },
           { label: 'Alertas IA', href: '/gerente/alertas', icon: <IconAlert /> },
           { label: 'Todas as notas', href: '/gerente/notas', icon: <IconDoc /> },
         ],
@@ -47,7 +51,7 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function handleLogout() {
-    localStorage.removeItem('reeva.role')
+    clearSession()
     navigate('/login')
   }
 
@@ -69,7 +73,7 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
       >
         <Sidebar
           sections={navByRole(role)}
-          userLabel="Usuário Demo"
+          userLabel={getUserName()}
           userRole={roleLabel[role]}
           onLogout={handleLogout}
           onClose={() => setSidebarOpen(false)}
@@ -124,6 +128,14 @@ function IconTrend() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+    </svg>
+  )
+}
+function IconMoney() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5h18v9H3v-9z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12h.01M16.5 12h.01M12 14.25a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" />
     </svg>
   )
 }

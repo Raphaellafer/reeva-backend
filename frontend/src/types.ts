@@ -66,6 +66,8 @@ export interface ExpenseResponse {
   title: string;
   description: string | null;
   category: ExpenseCategory;
+  projectId: string;
+  projectName: string;
   amount: number | null;
   currency: string;
   paymentMethod: PaymentMethod;
@@ -103,6 +105,27 @@ export interface DashboardResponse {
   automationRate: number;
 }
 
+export interface PolicyResponse {
+  id: string;
+  category: ExpenseCategory;
+  maxAmount: number;
+  dailyLimit: number | null;
+  monthlyLimit: number | null;
+  requiresReceipt: boolean;
+  autoApprovalMinScore: number;
+  description: string | null;
+}
+
+export interface PolicyPayload {
+  category: ExpenseCategory;
+  maxAmount: string;
+  dailyLimit: string | null;
+  monthlyLimit: string | null;
+  requiresReceipt: boolean;
+  autoApprovalMinScore: number;
+  description: string;
+}
+
 export interface PageResponse<T> {
   content: T[];
   totalElements: number;
@@ -118,4 +141,55 @@ export interface ApiError {
   status: number;
   timestamp: string;
   errors: string[];
+}
+
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  revenue: number | null;
+  active: boolean;
+  members: TeamMemberResponse[];
+}
+
+export interface ProjectPayload {
+  name: string;
+  code: string;
+  description: string;
+  revenue: string | null;
+  employeeIds: string[];
+}
+
+export interface TeamMemberResponse {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface PaymentExpense {
+  id: string;
+  title: string;
+  projectName: string | null;
+  expenseDate: string;
+  amount: number;
+  autoApproved: boolean;
+}
+
+export interface EmployeePayment {
+  userId: string;
+  name: string;
+  email: string;
+  pixKey: string;
+  totalAmount: number;
+  expenses: PaymentExpense[];
+}
+
+export interface PaymentBatchResponse {
+  from: string | null;
+  to: string | null;
+  totalAmount: number;
+  employeeCount: number;
+  expenseCount: number;
+  employees: EmployeePayment[];
 }

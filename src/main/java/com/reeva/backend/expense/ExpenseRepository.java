@@ -70,4 +70,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
           AND e.deleted = false
         """)
     long countPolicyViolationsByManagerId(@Param("managerId") UUID managerId);
+
+    @Query("""
+        SELECT e FROM Expense e
+        JOIN FETCH e.user u
+        LEFT JOIN FETCH e.project p
+        WHERE u.manager.id = :managerId
+          AND e.status = :status
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY u.name ASC, e.expenseDate ASC, e.createdAt ASC
+        """)
+    List<Expense> findApprovedForPayment(
+        @Param("managerId") UUID managerId,
+        @Param("status") ExpenseStatus status,
+        @Param("from") java.time.LocalDate from,
+        @Param("to") java.time.LocalDate to
+    );
 }

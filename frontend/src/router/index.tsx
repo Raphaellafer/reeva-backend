@@ -15,6 +15,9 @@ import { G02Aprovacoes } from '../pages/gerente/G02Aprovacoes'
 import { G03Alertas } from '../pages/gerente/G03Alertas'
 import { G04Notas } from '../pages/gerente/G04Notas'
 import { G05Funcionario } from '../pages/gerente/G05Funcionario'
+import { G06Politicas } from '../pages/gerente/G06Politicas'
+import { G07Projetos } from '../pages/gerente/G07Projetos'
+import { G08Pagamentos } from '../pages/gerente/G08Pagamentos'
 
 import { C01Dashboard } from '../pages/cfo/C01Dashboard'
 import { C02ROI } from '../pages/cfo/C02ROI'
@@ -33,7 +36,8 @@ function RootRedirect() {
 
 function RequireRole({ role, children }: { role: UserRole; children: React.ReactNode }) {
   const stored = localStorage.getItem('reeva.role') as UserRole | null
-  if (!stored) return <Navigate to="/login" replace />
+  const token = localStorage.getItem('reeva.token')
+  if (!stored || !token) return <Navigate to="/login" replace />
   if (stored !== role) return <RootRedirect />
   return <>{children}</>
 }
@@ -58,6 +62,9 @@ export function AppRouter() {
         <Route path="/gerente/alertas" element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
         <Route path="/gerente/notas" element={<RequireRole role="GERENTE"><G04Notas /></RequireRole>} />
         <Route path="/gerente/funcionario/:id" element={<RequireRole role="GERENTE"><G05Funcionario /></RequireRole>} />
+        <Route path="/gerente/politicas" element={<RequireRole role="GERENTE"><G06Politicas /></RequireRole>} />
+        <Route path="/gerente/projetos" element={<RequireRole role="GERENTE"><G07Projetos /></RequireRole>} />
+        <Route path="/gerente/pagamentos" element={<RequireRole role="GERENTE"><G08Pagamentos /></RequireRole>} />
 
         {/* CFO */}
         <Route path="/cfo" element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />

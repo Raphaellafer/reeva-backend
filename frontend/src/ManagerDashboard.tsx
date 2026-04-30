@@ -36,7 +36,7 @@ const categoryLabels: Record<string, string> = {
   PURCHASE: 'Compras'
 };
 
-const REVIEWABLE_STATUSES: ExpenseStatus[] = ['SUBMITTED', 'AI_APPROVED', 'PENDING_REVIEW'];
+const REVIEWABLE_STATUSES: ExpenseStatus[] = ['SUBMITTED', 'PENDING_REVIEW'];
 
 const aiDecisionLabels: Record<string, string> = {
   AUTO_APPROVED: 'Autoaprovado',

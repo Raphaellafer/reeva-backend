@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 @Service
 public class AiExpenseDecisionService {
 
-    private static final short AUTO_APPROVAL_SCORE = 90;
+    private static final short DEFAULT_AUTO_APPROVAL_SCORE = 90;
     private static final BigDecimal NEVER_AUTO_APPROVE_AMOUNT = new BigDecimal("5000.00");
 
     private final ExpensePolicyRepository policyRepository;
@@ -39,11 +39,21 @@ public class AiExpenseDecisionService {
                 "Dados obrigatorios incompletos. Solicite correcao ao funcionario.");
         }
 
-        PolicyCheck policy = checkPolicy(expense, result);
+        ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
+        PolicyCheck policy = checkPolicy(expense, result, category);
         if (!policy.compliant()) {
             return decision(AiDecision.REJECTED_BY_POLICY, ExpenseStatus.NEEDS_REVISION,
                 AiAlertLevel.HIGH, score, false, policy.reason(), sefaz, false,
                 "Fora da politica da empresa.", "Reembolso fora da politica: " + policy.reason());
+        }
+
+        if (Boolean.FALSE.equals(result.policyCompliant())) {
+            String reason = result.policyReason() != null && !result.policyReason().isBlank()
+                ? result.policyReason()
+                : "IA identificou descumprimento da politica cadastrada.";
+            return decision(AiDecision.REJECTED_BY_POLICY, ExpenseStatus.NEEDS_REVISION,
+                AiAlertLevel.HIGH, score, false, reason, sefaz, false,
+                "Fora da politica da empresa.", "Reembolso fora da politica: " + reason);
         }
 
         if (sefaz.status() == SefazStatus.INVALID) {
@@ -52,30 +62,55 @@ public class AiExpenseDecisionService {
                 "SEFAZ indicou documento invalido.", "Validacao fiscal falhou. Revisao obrigatoria.");
         }
 
-        boolean overNeverAutoApprove = safeAmount(result, expense).compareTo(NEVER_AUTO_APPROVE_AMOUNT) > 0;
-        if (score > AUTO_APPROVAL_SCORE && !overNeverAutoApprove &&
-                (sefaz.status() == SefazStatus.VALID || sefaz.status() == SefazStatus.NOT_APPLICABLE)) {
-            return decision(AiDecision.AUTO_APPROVED, ExpenseStatus.AI_APPROVED,
+        short minScore = autoApprovalMinScore(expense, category);
+        BigDecimal amount = safeAmount(result, expense);
+        boolean overNeverAutoApprove = amount.compareTo(NEVER_AUTO_APPROVE_AMOUNT) > 0;
+        boolean fiscalOk = sefaz.status() == SefazStatus.VALID || sefaz.status() == SefazStatus.NOT_APPLICABLE;
+        if (score >= minScore && !overNeverAutoApprove && fiscalOk) {
+            return decision(AiDecision.AUTO_APPROVED, ExpenseStatus.MANAGER_APPROVED,
                 AiAlertLevel.NONE, score, true, null, sefaz, true, null,
-                "Autoaprovado pela IA: score alto, politica ok e validacao fiscal aceita.");
+                "Aprovado automaticamente pela IA: score " + score + " atingiu o minimo " + minScore
+                    + ", politica ok e validacao fiscal aceita. Nao precisa de aprovacao do gestor.");
         }
 
-        String reason = overNeverAutoApprove
-            ? "Valor acima de R$ 5.000,00 exige revisao."
-            : "Score ou validacao insuficiente para autoaprovacao.";
+        String reason = autoApprovalBlockReason(score, minScore, amount, overNeverAutoApprove, sefaz, fiscalOk);
         return decision(AiDecision.READY_FOR_MANAGER, ExpenseStatus.PENDING_REVIEW,
             AiAlertLevel.MEDIUM, score, true, null, sefaz, false, reason,
             "Revisao do gestor recomendada: " + reason);
     }
 
-    private PolicyCheck checkPolicy(Expense expense, OcrResult result) {
-        ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
+    private PolicyCheck checkPolicy(Expense expense, OcrResult result, ExpenseCategory category) {
         BigDecimal amount = safeAmount(result, expense);
         return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category)
             .map(policy -> amount.compareTo(policy.getMaxAmount()) <= 0
                 ? new PolicyCheck(true, null)
                 : new PolicyCheck(false, "Valor acima do limite de " + policy.getMaxAmount() + " para " + category))
             .orElseGet(() -> new PolicyCheck(true, null));
+    }
+
+    private short autoApprovalMinScore(Expense expense, ExpenseCategory category) {
+        return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category)
+            .map(ExpensePolicy::getAutoApprovalMinScore)
+            .orElse(DEFAULT_AUTO_APPROVAL_SCORE);
+    }
+
+    private String autoApprovalBlockReason(short score, short minScore, BigDecimal amount,
+                                           boolean overNeverAutoApprove, SefazValidationResult sefaz,
+                                           boolean fiscalOk) {
+        java.util.List<String> reasons = new java.util.ArrayList<>();
+        if (score < minScore) {
+            reasons.add("score da IA " + score + " abaixo do minimo configurado " + minScore);
+        }
+        if (overNeverAutoApprove) {
+            reasons.add("valor " + amount + " acima do teto automatico de R$ 5.000,00");
+        }
+        if (!fiscalOk) {
+            reasons.add("validacao fiscal " + sefaz.status() + ": " + sefaz.message());
+        }
+        if (reasons.isEmpty()) {
+            return "criterios de autoaprovacao nao atendidos.";
+        }
+        return "Autoaprovacao bloqueada: " + String.join("; ", reasons) + ".";
     }
 
     private boolean hasMissingMandatoryFields(OcrResult result) {
