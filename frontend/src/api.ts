@@ -25,6 +25,8 @@ function resolveApiBaseUrl() {
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+const FRONTEND_ORIGIN = window.location.origin;
+const API_ORIGIN = new URL(API_BASE_URL).origin;
 
 export async function getAttachmentBlob(token: string, attachmentId: string) {
   const response = await fetch(`${API_BASE_URL}/expenses/attachments/${attachmentId}`, {
@@ -58,6 +60,26 @@ interface ExpensePayload {
   description: string;
 }
 
+async function diagnoseNetworkFailure(): Promise<string> {
+  const healthUrl = `${API_ORIGIN}/actuator/health`;
+
+  try {
+    await fetch(healthUrl, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store'
+    });
+
+    return [
+      `A API em ${API_BASE_URL} parece estar acessivel, mas o navegador bloqueou a requisicao.`,
+      `Origem atual do frontend: ${FRONTEND_ORIGIN}.`,
+      'Verifique CORS, a URL aberta no navegador e se o frontend esta apontando para a API correta.'
+    ].join(' ');
+  } catch {
+    return `Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend esta rodando e acessivel a partir de ${FRONTEND_ORIGIN}.`;
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
 
@@ -76,7 +98,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       headers
     });
   } catch (err) {
-    throw new Error(`Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend esta rodando na porta 8080.`);
+    throw new Error(await diagnoseNetworkFailure());
   }
 
   if (!response.ok) {
