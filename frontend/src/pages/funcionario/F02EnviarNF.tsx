@@ -20,7 +20,6 @@ export function F02EnviarNF() {
   const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [projectId, setProjectId] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
-  const [amount, setAmount] = useState('1.00')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,7 +56,7 @@ export function F02EnviarNF() {
         title: arquivo.name.replace(/\.[^.]+$/, '') || 'Nota fiscal',
         category,
         projectId,
-        amount: amount || '1.00',
+        amount: null,
         expenseDate: new Date().toISOString().slice(0, 10),
         paymentMethod: 'OTHER',
         description: 'Enviado pelo app para analise da IA',
@@ -127,15 +126,9 @@ export function F02EnviarNF() {
               ))}
             </select>
           </label>
-          <label className="text-[12px] text-gray-500">
-            Valor estimado
-            <input
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              inputMode="decimal"
-              className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
-            />
-          </label>
+          <div className="text-[12px] text-gray-500 rounded-[8px] border border-dashed border-black/[0.08] bg-[#F8F8FC] px-3 py-2.5 self-end">
+            A IA tentara extrair o valor automaticamente da nota. Se faltar algum campo obrigatorio, voce podera corrigi-lo depois.
+          </div>
         </div>
 
         {arquivo && !enviando && (
