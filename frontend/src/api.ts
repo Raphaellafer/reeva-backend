@@ -60,6 +60,14 @@ interface ExpensePayload {
   description: string;
 }
 
+interface EmployeeCorrectionPayload {
+  title: string;
+  category: ExpenseCategory;
+  amount: string;
+  expenseDate: string;
+  description: string;
+}
+
 async function diagnoseNetworkFailure(): Promise<string> {
   const healthUrl = `${API_ORIGIN}/actuator/health`;
 
@@ -180,6 +188,18 @@ export async function submitExpense(token: string, expenseId: string) {
 export async function retryExpenseOcr(token: string, expenseId: string) {
   return request<ExpenseResponse>(`/expenses/${expenseId}/retry-ocr`, {
     method: 'POST',
+    token
+  });
+}
+
+export async function submitEmployeeCorrection(
+  token: string,
+  expenseId: string,
+  payload: EmployeeCorrectionPayload
+) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}/employee-correction`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
     token
   });
 }

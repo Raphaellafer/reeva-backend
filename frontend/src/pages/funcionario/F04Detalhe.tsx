@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getMyExpense, retryExpenseOcr } from '../../api'
+import { getMyExpense, retryExpenseOcr, submitEmployeeCorrection } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { AIPanel } from '../../components/ui/AIPanel'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -10,7 +10,14 @@ import { Button } from '../../components/ui/Button'
 import { categoryLabels, fmt, fmtDate, getReceiptLineItems } from '../../realData'
 import { getToken } from '../../session'
 import type { TimelineItem } from '../../components/ui/Timeline'
-import type { ExpenseResponse } from '../../types'
+import type { ExpenseCategory, ExpenseResponse } from '../../types'
+
+const categories: Array<{ value: ExpenseCategory; label: string }> = [
+  { value: 'FOOD', label: 'Alimentacao' },
+  { value: 'TRANSPORT', label: 'Transporte' },
+  { value: 'LODGING', label: 'Hospedagem' },
+  { value: 'PURCHASE', label: 'Compras' },
+]
 
 function buildTimeline(expense: ExpenseResponse): TimelineItem[] {
   return expense.statusHistory.map((item) => ({
@@ -32,7 +39,13 @@ export function F04Detalhe() {
   const [expense, setExpense] = useState<ExpenseResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
+  const [savingCorrection, setSavingCorrection] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+  const [category, setCategory] = useState<ExpenseCategory | ''>('')
+  const [amount, setAmount] = useState('')
+  const [expenseDate, setExpenseDate] = useState('')
+  const [description, setDescription] = useState('')
 
   function shouldPoll(current: ExpenseResponse | null) {
     return current?.status === 'SUBMITTED'
@@ -73,6 +86,15 @@ export function F04Detalhe() {
     }
   }, [id])
 
+  useEffect(() => {
+    if (!expense) return
+    setTitle(expense.title ?? '')
+    setCategory(expense.category)
+    setAmount(expense.amount != null ? String(expense.amount) : '')
+    setExpenseDate(expense.expenseDate ?? '')
+    setDescription(expense.description ?? '')
+  }, [expense])
+
   const itens = expense ? getReceiptLineItems(expense) : []
   const analysisMessages = expense
     ? Array.from(new Set([
@@ -96,6 +118,7 @@ export function F04Detalhe() {
         || expense.aiAnalysis?.toLowerCase().includes('ocr')
       )
   )
+  const needsEmployeeCorrection = expense?.status === 'NEEDS_REVISION'
 
   async function retryOcr() {
     const token = getToken()
@@ -110,6 +133,45 @@ export function F04Detalhe() {
       setError(err instanceof Error ? err.message : 'Falha ao reenviar OCR.')
     } finally {
       setRetrying(false)
+    }
+  }
+
+  async function handleCorrectionSubmit() {
+    const token = getToken()
+    if (!token || !id || !expense) return
+
+    if (!title.trim()) {
+      setError('Informe o estabelecimento ou um titulo para a nota.')
+      return
+    }
+    if (!category) {
+      setError('Selecione a categoria da despesa.')
+      return
+    }
+    if (!amount.trim()) {
+      setError('Informe o valor correto da nota.')
+      return
+    }
+    if (!expenseDate) {
+      setError('Informe a data correta da nota.')
+      return
+    }
+
+    setSavingCorrection(true)
+    setError(null)
+    try {
+      const updated = await submitEmployeeCorrection(token, id, {
+        title: title.trim(),
+        category,
+        amount,
+        expenseDate,
+        description,
+      })
+      setExpense(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao enviar correcao para o gestor.')
+    } finally {
+      setSavingCorrection(false)
     }
   }
 
@@ -182,6 +244,82 @@ export function F04Detalhe() {
               >
                 {retrying ? 'Reenviando...' : 'Tentar OCR novamente'}
               </Button>
+            ) : null}
+
+            {needsEmployeeCorrection ? (
+              <div className="bg-white rounded-[10px] border border-black/[0.07] p-4 space-y-3">
+                <div>
+                  <p className="text-[13px] font-medium text-[#1a1a2e]">Completar campos obrigatorios</p>
+                  <p className="text-[12px] text-gray-500 mt-1">
+                    A IA nao conseguiu identificar todos os dados da nota. Preencha os campos abaixo para enviar ao gestor.
+                  </p>
+                </div>
+
+                <label className="block text-[12px] text-gray-500">
+                  Estabelecimento ou titulo da nota
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-[12px] text-gray-500">
+                    Categoria
+                    <select
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value as ExpenseCategory | '')}
+                      className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+                    >
+                      <option value="">Selecione</option>
+                      {categories.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block text-[12px] text-gray-500">
+                    Data da nota
+                    <input
+                      type="date"
+                      value={expenseDate}
+                      onChange={(event) => setExpenseDate(event.target.value)}
+                      className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+                    />
+                  </label>
+                </div>
+
+                <label className="block text-[12px] text-gray-500">
+                  Valor correto
+                  <input
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+                  />
+                </label>
+
+                <label className="block text-[12px] text-gray-500">
+                  Observacoes
+                  <textarea
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] resize-none"
+                  />
+                </label>
+
+                <Button
+                  variant="primary"
+                  className="w-full justify-center"
+                  disabled={savingCorrection}
+                  onClick={() => void handleCorrectionSubmit()}
+                >
+                  {savingCorrection ? 'Enviando ao gestor...' : 'Enviar correcao ao gestor'}
+                </Button>
+              </div>
             ) : null}
 
             <div>
