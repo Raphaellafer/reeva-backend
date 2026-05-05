@@ -16,95 +16,54 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function pdfSafe(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\x20-\x7E]/g, '')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)')
+function csvEscape(value: string | number | null | undefined) {
+  const text = value == null ? '' : String(value)
+  return `"${text.replace(/"/g, '""')}"`
 }
 
-function makePdf(lines: string[]) {
-  const pages: string[][] = []
-  let current: string[] = []
-  for (const line of lines) {
-    if (current.length >= 38) {
-      pages.push(current)
-      current = []
-    }
-    current.push(line)
-  }
-  if (current.length) pages.push(current)
-
-  const objects: string[] = []
-  const pageObjectNumbers: number[] = []
-
-  objects.push('<< /Type /Catalog /Pages 2 0 R >>')
-  objects.push('')
-
-  pages.forEach((pageLines) => {
-    const content = [
-      'BT',
-      '/F1 11 Tf',
-      '50 790 Td',
-      '14 TL',
-      ...pageLines.map((line, index) => `${index === 0 ? '' : 'T* '}(${pdfSafe(line)}) Tj`),
-      'ET',
-    ].join('\n')
-    const contentNumber = objects.length + 1
-    objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
-    const pageNumber = objects.length + 1
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 FONT_REF 0 R >> >> /Contents ${contentNumber} 0 R >>`)
-    pageObjectNumbers.push(pageNumber)
-  })
-
-  const fontObjectNumber = objects.length + 1
-  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
-  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((n) => `${n} 0 R`).join(' ')}] /Count ${pageObjectNumbers.length} >>`
-
-  const fixedObjects = objects.map((object) => object.replace('FONT_REF', String(fontObjectNumber)))
-  let pdf = '%PDF-1.4\n'
-  const offsets: number[] = [0]
-  fixedObjects.forEach((object, index) => {
-    offsets.push(pdf.length)
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`
-  })
-  const xrefOffset = pdf.length
-  pdf += `xref\n0 ${fixedObjects.length + 1}\n`
-  pdf += '0000000000 65535 f \n'
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`
-  })
-  pdf += `trailer\n<< /Size ${fixedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
-  return new Blob([pdf], { type: 'application/pdf' })
-}
-
-function downloadPdf(batch: PaymentBatchResponse, from: string, to: string) {
-  const lines = [
-    'Reeva - Reembolsos aprovados para financeiro',
-    `Periodo: ${from || 'inicio'} ate ${to || 'hoje'}`,
-    `Total geral: BRL ${Number(batch.totalAmount || 0).toFixed(2)}`,
-    `Funcionarios: ${batch.employeeCount} | Notas: ${batch.expenseCount}`,
-    '',
-    'Nome | Pix | Valor',
-    '-----------------------------------------------',
+function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
+  const rows = [
+    [
+      'Periodo de',
+      'Periodo ate',
+      'Funcionario',
+      'Email',
+      'Pix',
+      'Projeto',
+      'Nota',
+      'Data da despesa',
+      'Origem da aprovacao',
+      'Valor da despesa',
+      'Total do funcionario',
+      'Total geral do lote',
+    ],
   ]
 
   batch.employees.forEach((employee) => {
-    lines.push(`${employee.name} | ${employee.pixKey || employee.email} | BRL ${Number(employee.totalAmount || 0).toFixed(2)}`)
     employee.expenses.forEach((expense) => {
-      lines.push(`  - ${expense.expenseDate} | ${expense.projectName || 'Sem projeto'} | BRL ${Number(expense.amount || 0).toFixed(2)} | ${expense.autoApproved ? 'IA' : 'Gestor'}`)
+      rows.push([
+        from || 'inicio',
+        to || 'hoje',
+        employee.name,
+        employee.email,
+        employee.pixKey || '',
+        expense.projectName || 'Sem projeto',
+        expense.title,
+        expense.expenseDate,
+        expense.autoApproved ? 'IA' : 'Gestor',
+        Number(expense.amount || 0).toFixed(2),
+        Number(employee.totalAmount || 0).toFixed(2),
+        Number(batch.totalAmount || 0).toFixed(2),
+      ])
     })
-    lines.push('')
   })
 
-  const blob = makePdf(lines)
+  const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `reeva-reembolsos-${from || 'inicio'}-${to || 'hoje'}.pdf`
+  link.download = `reeva-reembolsos-${from || 'inicio'}-${to || 'hoje'}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -141,8 +100,8 @@ export function G08Pagamentos() {
       title="Aprovados para financeiro"
       role="GERENTE"
       actions={(
-        <Button variant="primary" size="sm" disabled={!batch || batch.expenseCount === 0} onClick={() => batch && downloadPdf(batch, from, to)}>
-          Baixar PDF
+        <Button variant="primary" size="sm" disabled={!batch || batch.expenseCount === 0} onClick={() => batch && downloadCsv(batch, from, to)}>
+          Baixar planilha
         </Button>
       )}
     >
