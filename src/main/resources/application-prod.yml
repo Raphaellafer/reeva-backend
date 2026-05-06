@@ -1,0 +1,22 @@
+spring:
+  flyway:
+    validate-on-migrate: true
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.reeva: INFO
+    root: WARN
+    org.springframework.security: WARN
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
