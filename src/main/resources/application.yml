@@ -87,18 +87,16 @@ ocr:
     dlq-name: expense.ocr.dlq
     exchange: expense.exchange
     max-retries: 3
-
-openai:
-  api-key: ${OPENAI_API_KEY:}
-  model: ${OPENAI_MODEL:gpt-5.4-mini}
-  max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:900}
-
-ocr:
   traditional:
     enabled: ${TRADITIONAL_OCR_ENABLED:false}
     command: ${TRADITIONAL_OCR_COMMAND:tesseract}
     languages: ${TRADITIONAL_OCR_LANGUAGES:por+eng}
     timeout-seconds: ${TRADITIONAL_OCR_TIMEOUT_SECONDS:20}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-5.4-mini}
+  max-output-tokens: ${OPENAI_MAX_OUTPUT_TOKENS:900}
 
 app:
   cors:
