@@ -58,7 +58,7 @@ export function G05FuncionariosList() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <p className="text-[14px] font-medium text-[#1a1a2e]">Funcionários da equipe</p>
-          <Button onClick={() => setShowModal(true)}>+ Cadastrar funcionário</Button>
+          <Button onClick={() => setShowModal(true)}>Cadastrar funcionário</Button>
         </div>
 
         {loading && <p className="text-[13px] text-gray-400 py-6 text-center">Carregando...</p>}
