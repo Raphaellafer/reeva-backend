@@ -1,7 +1,10 @@
 package com.reeva.backend.manager;
 
 import com.reeva.backend.expense.dto.ExpenseResponse;
+import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
+import com.reeva.backend.manager.dto.EmployeeListResponse;
+import com.reeva.backend.manager.dto.EmployeeProfileResponse;
 import com.reeva.backend.manager.dto.ReviewRequest;
 import com.reeva.backend.user.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,10 +13,12 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -80,5 +85,32 @@ public class ManagerController {
         @Valid @RequestBody ReviewRequest request
     ) {
         return managerService.requestRevision(currentUser, id, request);
+    }
+
+    // ── Employee management ──────────────────────────────────────────
+
+    @GetMapping("/employees")
+    @Operation(summary = "List team employees with expense metrics")
+    public List<EmployeeListResponse> listEmployees(@AuthenticationPrincipal User currentUser) {
+        return managerService.listEmployees(currentUser);
+    }
+
+    @GetMapping("/employees/{id}")
+    @Operation(summary = "Get employee profile with recent expenses")
+    public EmployeeProfileResponse getEmployee(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id
+    ) {
+        return managerService.getEmployee(currentUser, id);
+    }
+
+    @PostMapping("/employees")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register a new employee under this manager")
+    public EmployeeListResponse createEmployee(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody CreateEmployeeRequest request
+    ) {
+        return managerService.createEmployee(currentUser, request);
     }
 }
