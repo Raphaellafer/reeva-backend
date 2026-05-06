@@ -14,4 +14,3 @@ public interface ExpensePolicyRepository extends JpaRepository<ExpensePolicy, UU
 
     List<ExpensePolicy> findByCompanyIdAndActiveTrueOrderByCategoryAsc(UUID companyId);
 }
-

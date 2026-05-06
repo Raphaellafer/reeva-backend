@@ -102,17 +102,32 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("""
         SELECT e FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        JOIN FETCH e.user u
+        WHERE u.manager.id = :managerId
           AND e.status = :status
+          AND e.deleted = false
           AND e.expenseDate >= :from
           AND e.expenseDate <= :to
-          AND e.deleted = false
-        ORDER BY e.user.name ASC, e.expenseDate ASC
+        ORDER BY u.name ASC, e.expenseDate ASC, e.createdAt ASC
         """)
     List<Expense> findApprovedForPayment(
         @Param("managerId") UUID managerId,
         @Param("status") ExpenseStatus status,
         @Param("from") java.time.LocalDate from,
         @Param("to") java.time.LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.company.id = :companyId
+          AND e.receiptFingerprint = :fingerprint
+          AND e.id <> :currentExpenseId
+          AND e.deleted = false
+        ORDER BY e.createdAt ASC
+        """)
+    List<Expense> findActiveDuplicatesByFingerprint(
+        @Param("companyId") UUID companyId,
+        @Param("fingerprint") String fingerprint,
+        @Param("currentExpenseId") UUID currentExpenseId
     );
 }

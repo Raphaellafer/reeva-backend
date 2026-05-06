@@ -22,12 +22,20 @@ export function persistAuth(auth: AuthResponse, frontendRole: string): void {
   localStorage.setItem(TOKEN_KEY, auth.token)
   localStorage.setItem(USER_KEY, JSON.stringify(auth))
   localStorage.setItem(ROLE_KEY, frontendRole)
+  localStorage.setItem('reeva.apiRole', auth.role)
+  localStorage.setItem('reeva.token', auth.token)
+  localStorage.setItem('reeva.userName', auth.name)
+  localStorage.setItem('reeva.userEmail', auth.email)
 }
 
 export function clearAuth(): void {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
   localStorage.removeItem(ROLE_KEY)
+  localStorage.removeItem('reeva.apiRole')
+  localStorage.removeItem('reeva.token')
+  localStorage.removeItem('reeva.userName')
+  localStorage.removeItem('reeva.userEmail')
 }
 
 export function isAuthenticated(): boolean {

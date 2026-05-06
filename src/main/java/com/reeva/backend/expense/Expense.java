@@ -4,6 +4,7 @@ import com.reeva.backend.company.Company;
 import com.reeva.backend.company.Department;
 import com.reeva.backend.expense.attachment.ExpenseAttachment;
 import com.reeva.backend.expense.comment.ExpenseComment;
+import com.reeva.backend.project.Project;
 import com.reeva.backend.user.User;
 import jakarta.persistence.*;
 
@@ -33,6 +34,10 @@ public class Expense {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "project_id", nullable = false)
+    private Project project;
 
     // ── Dados da despesa ─────────────────────────────────────────────
 
@@ -109,6 +114,13 @@ public class Expense {
     @Column(name = "manual_review_reason", columnDefinition = "TEXT")
     private String manualReviewReason;
 
+    @Column(name = "receipt_fingerprint", length = 128)
+    private String receiptFingerprint;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "duplicate_of_expense_id")
+    private Expense duplicateOfExpense;
+
     // ── Aprovação do gestor ──────────────────────────────────────────
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -168,11 +180,12 @@ public class Expense {
 
     protected Expense() {}
 
-    public Expense(Company company, User user, String title, ExpenseCategory category,
+    public Expense(Company company, User user, Project project, String title, ExpenseCategory category,
                    BigDecimal amount, LocalDate expenseDate, PaymentMethod paymentMethod) {
         this.company = company;
         this.user = user;
         this.department = user.getDepartment();
+        this.project = project;
         this.title = title;
         this.category = category;
         this.amount = amount;
@@ -191,6 +204,7 @@ public class Expense {
     public Company getCompany() { return company; }
     public User getUser() { return user; }
     public Department getDepartment() { return department; }
+    public Project getProject() { return project; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
     public ExpenseCategory getCategory() { return category; }
@@ -212,6 +226,8 @@ public class Expense {
     public String getSefazValidationMessage() { return sefazValidationMessage; }
     public boolean isAutoApprovalEligible() { return autoApprovalEligible; }
     public String getManualReviewReason() { return manualReviewReason; }
+    public String getReceiptFingerprint() { return receiptFingerprint; }
+    public Expense getDuplicateOfExpense() { return duplicateOfExpense; }
     public User getManager() { return manager; }
     public Instant getManagerReviewedAt() { return managerReviewedAt; }
     public String getManagerNotes() { return managerNotes; }
@@ -230,6 +246,7 @@ public class Expense {
     // ── Setters ──────────────────────────────────────────────────────
 
     public void setTitle(String title) { this.title = title; }
+    public void setProject(Project project) { this.project = project; }
     public void setDescription(String description) { this.description = description; }
     public void setAmount(java.math.BigDecimal amount) { this.amount = amount; }
     public void setCategory(ExpenseCategory category) { this.category = category; }
@@ -248,6 +265,8 @@ public class Expense {
     public void setSefazValidationMessage(String sefazValidationMessage) { this.sefazValidationMessage = sefazValidationMessage; }
     public void setAutoApprovalEligible(boolean autoApprovalEligible) { this.autoApprovalEligible = autoApprovalEligible; }
     public void setManualReviewReason(String manualReviewReason) { this.manualReviewReason = manualReviewReason; }
+    public void setReceiptFingerprint(String receiptFingerprint) { this.receiptFingerprint = receiptFingerprint; }
+    public void setDuplicateOfExpense(Expense duplicateOfExpense) { this.duplicateOfExpense = duplicateOfExpense; }
     public void setManager(User manager) { this.manager = manager; }
     public void setManagerReviewedAt(Instant managerReviewedAt) { this.managerReviewedAt = managerReviewedAt; }
     public void setManagerNotes(String managerNotes) { this.managerNotes = managerNotes; }

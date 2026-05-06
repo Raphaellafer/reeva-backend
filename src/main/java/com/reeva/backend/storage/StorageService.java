@@ -7,7 +7,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -191,7 +194,7 @@ public class StorageService {
 
         var builder = S3Client.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.create());
+            .credentialsProvider(resolveCredentialsProvider());
 
         if (storageProperties.s3Endpoint() != null && !storageProperties.s3Endpoint().isBlank()) {
             builder.endpointOverride(URI.create(storageProperties.s3Endpoint()));
@@ -201,6 +204,26 @@ public class StorageService {
         }
 
         s3Client = builder.build();
+    }
+
+    private software.amazon.awssdk.auth.credentials.AwsCredentialsProvider resolveCredentialsProvider() {
+        String accessKeyId = storageProperties.s3AccessKeyId();
+        String secretAccessKey = storageProperties.s3SecretAccessKey();
+        String sessionToken = storageProperties.s3SessionToken();
+
+        if (accessKeyId != null && !accessKeyId.isBlank()
+            && secretAccessKey != null && !secretAccessKey.isBlank()) {
+            if (sessionToken != null && !sessionToken.isBlank()) {
+                return StaticCredentialsProvider.create(
+                    AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken)
+                );
+            }
+            return StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(accessKeyId, secretAccessKey)
+            );
+        }
+
+        return DefaultCredentialsProvider.create();
     }
 
     private String buildStoredLocation(String objectKey) {

@@ -6,21 +6,25 @@ import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record ExpenseRequest(
 
-    @NotBlank(message = "Title is required")
+    @NotBlank(message = "Titulo e obrigatorio")
     @Size(max = 255)
     String title,
 
-    @NotNull(message = "Category is required")
+    @NotNull(message = "Categoria e obrigatoria")
     ExpenseCategory category,
 
-    @DecimalMin(value = "0.01", message = "Amount must be greater than zero")
+    @NotNull(message = "Projeto e obrigatorio")
+    UUID projectId,
+
+    @DecimalMin(value = "0.01", message = "Valor deve ser maior que zero")
     BigDecimal amount,
 
-    @NotNull(message = "Expense date is required")
-    @PastOrPresent(message = "Expense date cannot be in the future")
+    @NotNull(message = "Data da despesa e obrigatoria")
+    @PastOrPresent(message = "Data da despesa nao pode estar no futuro")
     LocalDate expenseDate,
 
     PaymentMethod paymentMethod,

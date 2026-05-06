@@ -12,5 +12,8 @@ public record StorageProperties(
     String s3Bucket,
     String s3Region,
     String s3Endpoint,
-    String s3PublicBaseUrl
+    String s3PublicBaseUrl,
+    String s3AccessKeyId,
+    String s3SecretAccessKey,
+    String s3SessionToken
 ) {}

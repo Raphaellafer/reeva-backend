@@ -1,7 +1,5 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
 import { MobileNav } from '../ui/MobileNav'
-import { clearAuth } from '../../hooks/useAuth'
 
 function IconHome() {
   return (
@@ -10,6 +8,7 @@ function IconHome() {
     </svg>
   )
 }
+
 function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -17,6 +16,7 @@ function IconPlus() {
     </svg>
   )
 }
+
 function IconList() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -24,6 +24,7 @@ function IconList() {
     </svg>
   )
 }
+
 function IconUser() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -35,7 +36,7 @@ function IconUser() {
 const navItems = [
   { label: 'Home', href: '/funcionario', icon: <IconHome />, exact: true },
   { label: 'Enviar', href: '/funcionario/enviar', icon: <IconPlus /> },
-  { label: 'Histórico', href: '/funcionario/historico', icon: <IconList /> },
+  { label: 'Historico', href: '/funcionario/historico', icon: <IconList /> },
   { label: 'Perfil', href: '/funcionario/perfil', icon: <IconUser /> },
 ]
 
@@ -44,13 +45,6 @@ interface MobileShellProps {
 }
 
 export function MobileShell({ children }: MobileShellProps) {
-  const navigate = useNavigate()
-
-  function handleLogout() {
-    clearAuth()
-    navigate('/login')
-  }
-
   return (
     <div className="min-h-screen bg-[#F5F6F7] pb-16">
       {children}

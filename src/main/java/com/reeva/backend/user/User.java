@@ -117,5 +117,6 @@ public class User implements UserDetails {
     public void setActive(boolean active) { this.active = active; }
     public void setDepartment(Department department) { this.department = department; }
     public void setManager(User manager) { this.manager = manager; }
+    public void setPixKey(String pixKey) { this.pixKey = pixKey; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
 }

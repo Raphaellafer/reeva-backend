@@ -2,6 +2,7 @@ package com.reeva.backend.expense;
 
 import com.reeva.backend.expense.comment.dto.CommentRequest;
 import com.reeva.backend.expense.comment.dto.CommentResponse;
+import com.reeva.backend.expense.dto.EmployeeExpenseCorrectionRequest;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
@@ -79,6 +80,25 @@ public class ExpenseController {
         @PathVariable UUID id
     ) {
         return new StatusResponse(id, expenseService.getStatus(currentUser, id));
+    }
+
+    @PostMapping("/{id}/retry-ocr")
+    @Operation(summary = "Retry OCR analysis for an existing expense")
+    public ExpenseResponse retryOcr(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id
+    ) {
+        return expenseService.retryOcr(currentUser, id);
+    }
+
+    @PostMapping("/{id}/employee-correction")
+    @Operation(summary = "Allow the employee to fill missing mandatory fields and send the expense to manager review")
+    public ExpenseResponse submitEmployeeCorrection(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id,
+        @Valid @RequestBody EmployeeExpenseCorrectionRequest request
+    ) {
+        return expenseService.submitEmployeeCorrection(currentUser, id, request);
     }
 
     @PatchMapping("/{id}")

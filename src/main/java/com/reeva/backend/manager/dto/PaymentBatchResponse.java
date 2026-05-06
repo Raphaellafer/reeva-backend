@@ -16,6 +16,15 @@ public record PaymentBatchResponse(
     int expenseCount,
     List<EmployeePayment> employees
 ) {
+    public record EmployeePayment(
+        UUID userId,
+        String name,
+        String email,
+        String pixKey,
+        BigDecimal totalAmount,
+        List<PaymentExpense> expenses
+    ) {}
+
     public record PaymentExpense(
         UUID id,
         String title,
@@ -35,13 +44,4 @@ public record PaymentBatchResponse(
             );
         }
     }
-
-    public record EmployeePayment(
-        UUID userId,
-        String name,
-        String email,
-        String pixKey,
-        BigDecimal totalAmount,
-        List<PaymentExpense> expenses
-    ) {}
 }

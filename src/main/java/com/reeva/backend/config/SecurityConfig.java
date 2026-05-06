@@ -21,6 +21,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -30,10 +31,14 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
+    private final AppCorsProperties appCorsProperties;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          UserDetailsService userDetailsService,
+                          AppCorsProperties appCorsProperties) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
+        this.appCorsProperties = appCorsProperties;
     }
 
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -82,33 +87,23 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
-        ));
-        configuration.setAllowedOriginPatterns(List.of(
-            "http://192.168.*:5173",
-            "http://10.*:5173",
-            "http://172.16.*:5173",
-            "http://172.17.*:5173",
-            "http://172.18.*:5173",
-            "http://172.19.*:5173",
-            "http://172.20.*:5173",
-            "http://172.21.*:5173",
-            "http://172.22.*:5173",
-            "http://172.23.*:5173",
-            "http://172.24.*:5173",
-            "http://172.25.*:5173",
-            "http://172.26.*:5173",
-            "http://172.27.*:5173",
-            "http://172.28.*:5173",
-            "http://172.29.*:5173",
-            "http://172.30.*:5173",
-            "http://172.31.*:5173"
-        ));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
+        List<String> allowedOrigins = new ArrayList<>();
+        List<String> allowedOriginPatterns = new ArrayList<>();
+
+        for (String origin : appCorsProperties.allowedOrigins()) {
+            if (origin == null || origin.isBlank()) {
+                continue;
+            }
+            if (origin.contains("*")) {
+                allowedOriginPatterns.add(origin);
+            } else {
+                allowedOrigins.add(origin);
+            }
+        }
+
+        configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
