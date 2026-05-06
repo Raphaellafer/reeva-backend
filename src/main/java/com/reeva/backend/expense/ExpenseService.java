@@ -13,6 +13,7 @@ import com.reeva.backend.expense.dto.EmployeeExpenseCorrectionRequest;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
+import com.reeva.backend.expense.queue.OcrQueuePublisher;
 import com.reeva.backend.project.Project;
 import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.storage.StorageService;
@@ -39,18 +40,20 @@ public class ExpenseService {
     private final CommentService commentService;
     private final AuditService auditService;
     private final OcrService ocrService;
+    private final OcrQueuePublisher ocrQueuePublisher;
     private final AttachmentRepository attachmentRepository;
     private final ProjectService projectService;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
                           CommentService commentService, AuditService auditService,
-                          OcrService ocrService, AttachmentRepository attachmentRepository,
-                          ProjectService projectService) {
+                          OcrService ocrService, OcrQueuePublisher ocrQueuePublisher,
+                          AttachmentRepository attachmentRepository, ProjectService projectService) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.commentService = commentService;
         this.auditService = auditService;
         this.ocrService = ocrService;
+        this.ocrQueuePublisher = ocrQueuePublisher;
         this.attachmentRepository = attachmentRepository;
         this.projectService = projectService;
     }
@@ -109,7 +112,7 @@ public class ExpenseService {
         );
 
         Expense saved = expenseRepository.save(expense);
-        ocrService.processExpense(saved.getId());
+        ocrQueuePublisher.publish(saved.getId());
         return ExpenseResponse.from(saved);
     }
 

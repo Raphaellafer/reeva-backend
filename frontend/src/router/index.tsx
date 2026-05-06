@@ -16,6 +16,7 @@ import { G02Aprovacoes } from '../pages/gerente/G02Aprovacoes'
 import { G03Alertas } from '../pages/gerente/G03Alertas'
 import { G04Notas } from '../pages/gerente/G04Notas'
 import { G05Funcionario } from '../pages/gerente/G05Funcionario'
+import { G05FuncionariosList } from '../pages/gerente/G05FuncionariosList'
 import { G06Politicas } from '../pages/gerente/G06Politicas'
 import { G07Projetos } from '../pages/gerente/G07Projetos'
 import { G08Pagamentos } from '../pages/gerente/G08Pagamentos'
@@ -30,8 +31,8 @@ function RootRedirect() {
   if (!isAuthenticated()) return <Navigate to="/login" replace />
   const role = localStorage.getItem('reeva.role') as UserRole | null
   if (role === 'FUNCIONARIO') return <Navigate to="/funcionario" replace />
-  if (role === 'GERENTE') return <Navigate to="/gerente" replace />
-  if (role === 'CFO') return <Navigate to="/cfo" replace />
+  if (role === 'GERENTE')     return <Navigate to="/gerente" replace />
+  if (role === 'CFO')         return <Navigate to="/cfo" replace />
   return <Navigate to="/login" replace />
 }
 
@@ -46,28 +47,32 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<RootRedirect />} />
+        <Route path="/"      element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
 
-        <Route path="/funcionario" element={<RequireRole role="FUNCIONARIO"><F01Home /></RequireRole>} />
-        <Route path="/funcionario/enviar" element={<RequireRole role="FUNCIONARIO"><F02EnviarNF /></RequireRole>} />
+        {/* Funcionário */}
+        <Route path="/funcionario"           element={<RequireRole role="FUNCIONARIO"><F01Home /></RequireRole>} />
+        <Route path="/funcionario/enviar"    element={<RequireRole role="FUNCIONARIO"><F02EnviarNF /></RequireRole>} />
         <Route path="/funcionario/historico" element={<RequireRole role="FUNCIONARIO"><F03Historico /></RequireRole>} />
-        <Route path="/funcionario/nota/:id" element={<RequireRole role="FUNCIONARIO"><F04Detalhe /></RequireRole>} />
-        <Route path="/funcionario/perfil" element={<RequireRole role="FUNCIONARIO"><F05Perfil /></RequireRole>} />
+        <Route path="/funcionario/nota/:id"  element={<RequireRole role="FUNCIONARIO"><F04Detalhe /></RequireRole>} />
+        <Route path="/funcionario/perfil"    element={<RequireRole role="FUNCIONARIO"><F05Perfil /></RequireRole>} />
 
-        <Route path="/gerente" element={<RequireRole role="GERENTE"><G01Dashboard /></RequireRole>} />
-        <Route path="/gerente/aprovacoes" element={<RequireRole role="GERENTE"><G02Aprovacoes /></RequireRole>} />
-        <Route path="/gerente/alertas" element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
-        <Route path="/gerente/notas" element={<RequireRole role="GERENTE"><G04Notas /></RequireRole>} />
+        {/* Gerente */}
+        <Route path="/gerente"                 element={<RequireRole role="GERENTE"><G01Dashboard /></RequireRole>} />
+        <Route path="/gerente/aprovacoes"      element={<RequireRole role="GERENTE"><G02Aprovacoes /></RequireRole>} />
+        <Route path="/gerente/alertas"         element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
+        <Route path="/gerente/notas"           element={<RequireRole role="GERENTE"><G04Notas /></RequireRole>} />
+        <Route path="/gerente/funcionarios"    element={<RequireRole role="GERENTE"><G05FuncionariosList /></RequireRole>} />
         <Route path="/gerente/funcionario/:id" element={<RequireRole role="GERENTE"><G05Funcionario /></RequireRole>} />
-        <Route path="/gerente/politicas" element={<RequireRole role="GERENTE"><G06Politicas /></RequireRole>} />
-        <Route path="/gerente/projetos" element={<RequireRole role="GERENTE"><G07Projetos /></RequireRole>} />
-        <Route path="/gerente/pagamentos" element={<RequireRole role="GERENTE"><G08Pagamentos /></RequireRole>} />
+        <Route path="/gerente/politicas"       element={<RequireRole role="GERENTE"><G06Politicas /></RequireRole>} />
+        <Route path="/gerente/projetos"        element={<RequireRole role="GERENTE"><G07Projetos /></RequireRole>} />
+        <Route path="/gerente/pagamentos"      element={<RequireRole role="GERENTE"><G08Pagamentos /></RequireRole>} />
 
-        <Route path="/cfo" element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
-        <Route path="/cfo/roi" element={<RequireRole role="CFO"><C02ROI /></RequireRole>} />
-        <Route path="/cfo/compliance" element={<RequireRole role="CFO"><C03Compliance /></RequireRole>} />
-        <Route path="/cfo/notas" element={<RequireRole role="CFO"><C04Notas /></RequireRole>} />
+        {/* CFO */}
+        <Route path="/cfo"               element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
+        <Route path="/cfo/roi"           element={<RequireRole role="CFO"><C02ROI /></RequireRole>} />
+        <Route path="/cfo/compliance"    element={<RequireRole role="CFO"><C03Compliance /></RequireRole>} />
+        <Route path="/cfo/notas"         element={<RequireRole role="CFO"><C04Notas /></RequireRole>} />
         <Route path="/cfo/configuracoes" element={<RequireRole role="CFO"><C05Config /></RequireRole>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

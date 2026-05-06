@@ -21,6 +21,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     long countByUserIdAndStatus(UUID userId, ExpenseStatus status);
 
+    @Query("""
+        SELECT COUNT(e) FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.status IN :statuses
+          AND e.deleted = false
+        """)
+    long countByUserIdAndStatuses(@Param("userId") UUID userId, @Param("statuses") List<ExpenseStatus> statuses);
+
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0) FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.status IN :statuses
+          AND e.deleted = false
+        """)
+    BigDecimal sumAmountByUserIdAndStatuses(@Param("userId") UUID userId, @Param("statuses") List<ExpenseStatus> statuses);
+
     // ── Manager queries ──────────────────────────────────────────────
 
     @Query("""
@@ -38,6 +54,19 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT e FROM Expense e WHERE e.id = :id AND e.user.manager.id = :managerId AND e.deleted = false")
     Optional<Expense> findByIdAndManagerId(@Param("id") UUID id, @Param("managerId") UUID managerId);
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.user.manager.id = :managerId
+          AND e.deleted = false
+        ORDER BY e.createdAt DESC
+        """)
+    Page<Expense> findByUserIdAndManagerId(
+        @Param("userId") UUID userId,
+        @Param("managerId") UUID managerId,
+        Pageable pageable
+    );
 
     @Query("""
         SELECT COUNT(e) FROM Expense e
@@ -74,7 +103,6 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     @Query("""
         SELECT e FROM Expense e
         JOIN FETCH e.user u
-        LEFT JOIN FETCH e.project p
         WHERE u.manager.id = :managerId
           AND e.status = :status
           AND e.deleted = false
@@ -85,22 +113,6 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     List<Expense> findApprovedForPayment(
         @Param("managerId") UUID managerId,
         @Param("status") ExpenseStatus status,
-        @Param("from") java.time.LocalDate from,
-        @Param("to") java.time.LocalDate to
-    );
-
-    @Query("""
-        SELECT e FROM Expense e
-        WHERE e.project.id = :projectId
-          AND e.company.id = :companyId
-          AND e.deleted = false
-          AND e.expenseDate >= :from
-          AND e.expenseDate <= :to
-        ORDER BY e.expenseDate ASC, e.createdAt ASC
-        """)
-    List<Expense> findByProjectForCfoMetrics(
-        @Param("companyId") UUID companyId,
-        @Param("projectId") UUID projectId,
         @Param("from") java.time.LocalDate from,
         @Param("to") java.time.LocalDate to
     );

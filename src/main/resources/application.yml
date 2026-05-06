@@ -31,6 +31,12 @@ spring:
     validate-on-migrate: false
     locations: classpath:db/migration
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+
   servlet:
     multipart:
       enabled: true
@@ -74,6 +80,13 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+ocr:
+  queue:
+    name: expense.ocr
+    dlq-name: expense.ocr.dlq
+    exchange: expense.exchange
+    max-retries: 3
 
 openai:
   api-key: ${OPENAI_API_KEY:}

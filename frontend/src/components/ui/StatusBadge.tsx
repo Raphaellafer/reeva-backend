@@ -1,22 +1,27 @@
 import React from 'react'
 import { Badge, BadgeVariant } from './Badge'
 
-const statusConfig: Record<string, { label: string; variant: BadgeVariant }> = {
-  APROVADO: { label: 'Aprovado', variant: 'green' },
-  PENDENTE: { label: 'Pendente', variant: 'amber' },
-  REJEITADO: { label: 'Rejeitado', variant: 'red' },
-  ANALISE_IA: { label: 'Analise IA', variant: 'purple' },
-  DRAFT: { label: 'Rascunho', variant: 'gray' },
-  SUBMITTED: { label: 'Enviado', variant: 'blue' },
-  AI_APPROVED: { label: 'IA aprovou', variant: 'purple' },
-  PENDING_REVIEW: { label: 'Revisao', variant: 'amber' },
-  MANAGER_APPROVED: { label: 'Aprovado', variant: 'green' },
-  MANAGER_REJECTED: { label: 'Rejeitado', variant: 'red' },
-  FINANCE_APPROVED: { label: 'Financeiro ok', variant: 'green' },
-  FINANCE_REJECTED: { label: 'Financeiro recusou', variant: 'red' },
-  PAID: { label: 'Pago', variant: 'green' },
-  CANCELLED: { label: 'Cancelado', variant: 'gray' },
-  NEEDS_REVISION: { label: 'Corrigir', variant: 'red' },
+interface StatusConfig { label: string; variant: BadgeVariant }
+
+const statusConfig: Record<string, StatusConfig> = {
+  // Backend ExpenseStatus
+  DRAFT:              { label: 'Rascunho',    variant: 'gray'   },
+  SUBMITTED:          { label: 'Enviada',     variant: 'blue'   },
+  AI_APPROVED:        { label: 'Aprovada IA', variant: 'purple' },
+  PENDING_REVIEW:     { label: 'Em revisão',  variant: 'amber'  },
+  MANAGER_APPROVED:   { label: 'Aprovada',    variant: 'green'  },
+  MANAGER_REJECTED:   { label: 'Rejeitada',   variant: 'red'    },
+  FINANCE_APPROVED:   { label: 'Fin. Aprovada', variant: 'green' },
+  FINANCE_REJECTED:   { label: 'Fin. Rejeitada', variant: 'red'  },
+  PAID:               { label: 'Paga',        variant: 'green'  },
+  CANCELLED:          { label: 'Cancelada',   variant: 'gray'   },
+  NEEDS_REVISION:     { label: 'Revisão',     variant: 'amber'  },
+  OCR_FAILED:         { label: 'Erro OCR',    variant: 'red'    },
+  // Legacy mock statuses
+  APROVADO:   { label: 'Aprovado',    variant: 'green'  },
+  PENDENTE:   { label: 'Pendente',    variant: 'amber'  },
+  REJEITADO:  { label: 'Rejeitado',   variant: 'red'    },
+  ANALISE_IA: { label: 'Análise IA',  variant: 'purple' },
 }
 
 interface StatusBadgeProps {

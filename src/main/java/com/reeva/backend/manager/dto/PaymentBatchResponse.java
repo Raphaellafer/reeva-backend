@@ -1,5 +1,6 @@
 package com.reeva.backend.manager.dto;
 
+import com.reeva.backend.expense.AiDecision;
 import com.reeva.backend.expense.Expense;
 
 import java.math.BigDecimal;
@@ -36,10 +37,10 @@ public record PaymentBatchResponse(
             return new PaymentExpense(
                 expense.getId(),
                 expense.getTitle(),
-                expense.getProject() != null ? expense.getProject().getName() : null,
+                null,
                 expense.getExpenseDate(),
                 expense.getAmount(),
-                expense.getAiDecision() == com.reeva.backend.expense.AiDecision.AUTO_APPROVED
+                expense.getAiDecision() == AiDecision.AUTO_APPROVED
             );
         }
     }

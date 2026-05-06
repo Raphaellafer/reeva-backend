@@ -19,7 +19,8 @@ export type ExpenseStatus =
   | 'FINANCE_REJECTED'
   | 'PAID'
   | 'CANCELLED'
-  | 'NEEDS_REVISION';
+  | 'NEEDS_REVISION'
+  | 'OCR_FAILED';
 
 export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'FINANCE' | 'ADMIN';
 
@@ -155,6 +156,12 @@ export interface ApiError {
   errors: string[];
 }
 
+export interface TeamMemberResponse {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface ProjectResponse {
   id: string;
   name: string;
@@ -171,12 +178,6 @@ export interface ProjectPayload {
   description: string;
   revenue: string | null;
   employeeIds: string[];
-}
-
-export interface TeamMemberResponse {
-  id: string;
-  name: string;
-  email: string;
 }
 
 export interface PaymentExpense {
@@ -234,4 +235,28 @@ export interface ProjectPerformanceResponse {
   complianceRate: number;
   autoApprovalRate: number;
   monthlyTrend: ProjectMonthlyTrendResponse[];
+}
+
+// ── Employee (manager view) ───────────────────────────────────────
+
+export interface EmployeeListItem {
+  id: string;
+  name: string;
+  email: string;
+  department: string | null;
+  pendingCount: number;
+  approvedCount: number;
+  totalReimbursed: number;
+  createdAt: string;
+}
+
+export interface EmployeeProfile extends EmployeeListItem {
+  recentExpenses: ExpenseResponse[];
+}
+
+export interface CreateEmployeePayload {
+  name: string;
+  email: string;
+  password: string;
+  departmentId?: string;
 }

@@ -1,7 +1,10 @@
 import type {
   ApiError,
   AuthResponse,
+  CreateEmployeePayload,
   DashboardResponse,
+  EmployeeListItem,
+  EmployeeProfile,
   ExpenseCategory,
   ExpenseResponse,
   PageResponse,
@@ -295,6 +298,26 @@ export async function getApprovedPayments(token: string, from?: string, to?: str
   const query = params.toString();
   return request<PaymentBatchResponse>(`/manager/payments/approved${query ? `?${query}` : ''}`, { token });
 }
+
+// ── Manager: Employees ────────────────────────────────────────────
+
+export async function getTeamEmployees(token: string) {
+  return request<EmployeeListItem[]>('/manager/employees', { token });
+}
+
+export async function getTeamEmployee(token: string, employeeId: string) {
+  return request<EmployeeProfile>(`/manager/employees/${employeeId}`, { token });
+}
+
+export async function createEmployee(token: string, payload: CreateEmployeePayload) {
+  return request<EmployeeListItem>('/manager/employees', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+// ── CFO ──────────────────────────────────────────────────────────────
 
 export async function getCfoProjectPerformance(token: string, from?: string, to?: string) {
   const params = new URLSearchParams();

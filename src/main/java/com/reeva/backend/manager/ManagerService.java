@@ -1,12 +1,17 @@
 package com.reeva.backend.manager;
 
-import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.audit.AuditLog;
 import com.reeva.backend.common.audit.AuditRepository;
+import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.exception.BusinessException;
+import com.reeva.backend.company.Department;
+import com.reeva.backend.company.DepartmentRepository;
 import com.reeva.backend.expense.*;
 import com.reeva.backend.expense.dto.ExpenseResponse;
+import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
+import com.reeva.backend.manager.dto.EmployeeListResponse;
+import com.reeva.backend.manager.dto.EmployeeProfileResponse;
 import com.reeva.backend.manager.dto.PaymentBatchResponse;
 import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
@@ -14,8 +19,13 @@ import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
 import com.reeva.backend.user.User;
 import com.reeva.backend.user.UserRepository;
+import com.reeva.backend.user.UserRole;
+import com.reeva.backend.user.UserService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,18 +46,28 @@ public class ManagerService {
     private final ExpenseRepository expenseRepository;
     private final ExpensePolicyRepository policyRepository;
     private final UserRepository userRepository;
+    private final UserService userService;
     private final AuditService auditService;
     private final AuditRepository auditRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final DepartmentRepository departmentRepository;
 
-    public ManagerService(ExpenseRepository expenseRepository, ExpensePolicyRepository policyRepository,
+    public ManagerService(ExpenseRepository expenseRepository,
+                          ExpensePolicyRepository policyRepository,
                           UserRepository userRepository,
+                          UserService userService,
                           AuditService auditService,
-                          AuditRepository auditRepository) {
+                          AuditRepository auditRepository,
+                          PasswordEncoder passwordEncoder,
+                          DepartmentRepository departmentRepository) {
         this.expenseRepository = expenseRepository;
         this.policyRepository = policyRepository;
         this.userRepository = userRepository;
+        this.userService = userService;
         this.auditService = auditService;
         this.auditRepository = auditRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.departmentRepository = departmentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +174,8 @@ public class ManagerService {
             autoApproved, policyViolations, manualReview, estimatedSavings, automationRate);
     }
 
+    // ── Policies ──────────────────────────────────────────────────────
+
     @Transactional(readOnly = true)
     public List<PolicyResponse> listPolicies(User manager) {
         return policyRepository.findByCompanyIdAndActiveTrueOrderByCategoryAsc(manager.getCompany().getId())
@@ -164,10 +186,10 @@ public class ManagerService {
 
     @Transactional(readOnly = true)
     public List<PolicyAuditLogResponse> listPolicyAuditLogs(User manager) {
-        List<com.reeva.backend.common.audit.AuditLog> logs = auditRepository.findByCompanyIdAndEntityTypeOrderByCreatedAtDesc(
+        List<AuditLog> logs = auditRepository.findByCompanyIdAndEntityTypeOrderByCreatedAtDesc(
                 manager.getCompany().getId(),
                 "ExpensePolicy",
-                org.springframework.data.domain.PageRequest.of(0, 100)
+                PageRequest.of(0, 100)
             )
             .stream()
             .filter(log -> log.getAction() != null && log.getAction().startsWith("POLICY_"))
@@ -175,7 +197,7 @@ public class ManagerService {
 
         Map<UUID, String> userNamesById = userRepository.findAllById(
                 logs.stream()
-                    .map(com.reeva.backend.common.audit.AuditLog::getUserId)
+                    .map(AuditLog::getUserId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet())
             )
@@ -241,6 +263,8 @@ public class ManagerService {
         return snapshot;
     }
 
+    // ── Payments ──────────────────────────────────────────────────────
+
     @Transactional(readOnly = true)
     public PaymentBatchResponse approvedPayments(User manager, LocalDate from, LocalDate to) {
         LocalDate effectiveFrom = from != null ? from : LocalDate.of(2000, 1, 1);
@@ -276,6 +300,84 @@ public class ManagerService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return new PaymentBatchResponse(from, to, total, employees.size(), expenses.size(), employees);
+    }
+
+    // ── Employee management ──────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<EmployeeListResponse> listEmployees(User manager) {
+        List<ExpenseStatus> pendingStatuses = List.of(
+            ExpenseStatus.SUBMITTED, ExpenseStatus.AI_APPROVED, ExpenseStatus.PENDING_REVIEW
+        );
+        List<ExpenseStatus> approvedStatuses = List.of(
+            ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID
+        );
+        return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(manager.getId())
+            .stream()
+            .map(emp -> EmployeeListResponse.of(
+                emp,
+                expenseRepository.countByUserIdAndStatuses(emp.getId(), pendingStatuses),
+                expenseRepository.countByUserIdAndStatuses(emp.getId(), approvedStatuses),
+                expenseRepository.sumAmountByUserIdAndStatuses(emp.getId(), approvedStatuses)
+            ))
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public EmployeeProfileResponse getEmployee(User manager, UUID employeeId) {
+        User employee = userRepository.findById(employeeId)
+            .filter(u -> u.getManager() != null && u.getManager().getId().equals(manager.getId()))
+            .orElseThrow(() -> BusinessException.notFound("Employee not found"));
+
+        List<ExpenseStatus> pendingStatuses = List.of(
+            ExpenseStatus.SUBMITTED, ExpenseStatus.AI_APPROVED, ExpenseStatus.PENDING_REVIEW
+        );
+        List<ExpenseStatus> approvedStatuses = List.of(
+            ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID
+        );
+
+        Pageable recent = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<ExpenseResponse> expenses = expenseRepository
+            .findByUserIdAndManagerId(employeeId, manager.getId(), recent)
+            .map(ExpenseResponse::from)
+            .toList();
+
+        return EmployeeProfileResponse.of(
+            employee,
+            expenseRepository.countByUserIdAndStatuses(employeeId, pendingStatuses),
+            expenseRepository.countByUserIdAndStatuses(employeeId, approvedStatuses),
+            expenseRepository.sumAmountByUserIdAndStatuses(employeeId, approvedStatuses),
+            expenses
+        );
+    }
+
+    @Transactional
+    public EmployeeListResponse createEmployee(User manager, CreateEmployeeRequest request) {
+        if (userService.existsByEmail(request.email())) {
+            throw BusinessException.conflict("Email already in use");
+        }
+
+        User employee = new User(
+            manager.getCompany(),
+            request.name(),
+            request.email(),
+            passwordEncoder.encode(request.password()),
+            UserRole.EMPLOYEE
+        );
+        employee.setManager(manager);
+
+        if (request.departmentId() != null) {
+            Department dept = departmentRepository.findById(request.departmentId())
+                .orElseThrow(() -> BusinessException.notFound("Department not found"));
+            employee.setDepartment(dept);
+        }
+
+        User saved = userService.save(employee);
+        auditService.log(manager.getCompany().getId(), manager.getId(),
+            "EMPLOYEE_CREATED", "User", saved.getId(),
+            Map.of("employeeName", saved.getName(), "employeeEmail", saved.getEmail()), null);
+
+        return EmployeeListResponse.of(saved, 0L, 0L, BigDecimal.ZERO);
     }
 
     private Expense getReviewableExpense(User manager, UUID expenseId) {

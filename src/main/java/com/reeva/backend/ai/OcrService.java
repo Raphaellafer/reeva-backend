@@ -7,7 +7,6 @@ import com.reeva.backend.storage.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -190,7 +189,6 @@ public class OcrService {
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    @Async
     @Transactional
     public void processExpense(UUID expenseId) {
         if (apiKey == null || apiKey.isBlank()) {
