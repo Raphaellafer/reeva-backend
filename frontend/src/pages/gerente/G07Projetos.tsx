@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createProject, getManagedProjects, getTeamMembers, updateProject } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { SideDrawer } from '../../components/ui/SideDrawer'
 import { fmt } from '../../realData'
 import { getToken } from '../../session'
 import type { ProjectPayload, ProjectResponse, TeamMemberResponse } from '../../types'
@@ -15,10 +16,16 @@ const emptyForm: ProjectPayload = {
   employeeIds: [],
 }
 
+const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
+const labelClass = 'block text-[12px] font-medium text-gray-500'
+const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
+
 export function G07Projetos() {
   const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [employees, setEmployees] = useState<TeamMemberResponse[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [employeeQuery, setEmployeeQuery] = useState('')
   const [form, setForm] = useState<ProjectPayload>(emptyForm)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +46,29 @@ export function G07Projetos() {
     load().catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar projetos.'))
   }, [])
 
+  const selectedEmployees = useMemo(
+    () => employees.filter((employee) => form.employeeIds.includes(employee.id)),
+    [employees, form.employeeIds]
+  )
+
+  const filteredEmployees = useMemo(() => {
+    const query = employeeQuery.trim().toLowerCase()
+    if (!query) return employees
+    return employees.filter((employee) => {
+      const content = `${employee.name} ${employee.email}`.toLowerCase()
+      return content.includes(query)
+    })
+  }, [employeeQuery, employees])
+
+  function openCreate() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setEmployeeQuery('')
+    setMessage(null)
+    setError(null)
+    setDrawerOpen(true)
+  }
+
   function edit(project: ProjectResponse) {
     setEditingId(project.id)
     setForm({
@@ -48,6 +78,18 @@ export function G07Projetos() {
       revenue: project.revenue == null ? null : String(project.revenue),
       employeeIds: project.members.map((member) => member.id),
     })
+    setEmployeeQuery('')
+    setMessage(null)
+    setError(null)
+    setDrawerOpen(true)
+  }
+
+  function closeDrawer() {
+    if (loading) return
+    setDrawerOpen(false)
+    setEditingId(null)
+    setForm(emptyForm)
+    setEmployeeQuery('')
     setMessage(null)
     setError(null)
   }
@@ -84,10 +126,10 @@ export function G07Projetos() {
         setMessage('Projeto atualizado.')
       } else {
         await createProject(token, payload)
+        setForm(emptyForm)
+        setEmployeeQuery('')
         setMessage('Projeto criado.')
       }
-      setEditingId(null)
-      setForm(emptyForm)
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao salvar projeto.')
@@ -97,83 +139,164 @@ export function G07Projetos() {
   }
 
   return (
-    <DesktopShell title="Projetos" role="GERENTE">
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4">
-        <Card>
-          <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Projetos cadastrados</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] min-w-[720px]">
-              <thead>
-                <tr className="border-b border-black/[0.06]">
-                  {['Codigo', 'Projeto', 'Faturamento', 'Funcionarios', ''].map((header) => (
-                    <th key={header} className="text-left py-2 text-[11px] uppercase tracking-wide text-gray-400 font-medium pr-3">{header}</th>
-                  ))}
+    <DesktopShell
+      title="Projetos"
+      role="GERENTE"
+      actions={<Button onClick={openCreate}>Novo projeto</Button>}
+    >
+      <Card>
+        <div className="mb-4 flex flex-col gap-1">
+          <div>
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos cadastrados</p>
+            <p className="text-[12px] text-gray-400">{projects.length} projetos ativos</p>
+          </div>
+        </div>
+
+        {error && !drawerOpen && (
+          <p className="mb-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] text-[13px]">
+            <thead>
+              <tr className="border-b border-black/[0.06]">
+                {['Codigo', 'Projeto', 'Faturamento', 'Equipe', ''].map((header) => (
+                  <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {projects.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-[13px] text-gray-400">Nenhum projeto cadastrado.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id} className="border-b border-black/[0.04]">
-                    <td className="py-3 pr-3 text-gray-500">{project.code || '-'}</td>
-                    <td className="py-3 pr-3 font-medium text-[#1a1a2e]">{project.name}</td>
-                    <td className="py-3 pr-3">{project.revenue == null ? '-' : fmt(project.revenue)}</td>
-                    <td className="py-3 pr-3">{project.members.map((member) => member.name).join(', ') || '-'}</td>
-                    <td className="py-3 pr-3 text-right">
-                      <button onClick={() => edit(project)} className="text-[12px] text-[#3C3489] font-medium">Editar</button>
+              ) : (
+                projects.map((project) => (
+                  <tr key={project.id} className="border-b border-black/[0.04] align-top hover:bg-gray-50">
+                    <td className="py-4 pr-3 text-gray-500">{project.code || '-'}</td>
+                    <td className="py-4 pr-3">
+                      <p className="font-medium text-[#1a1a2e]">{project.name}</p>
+                      {project.description && <p className="mt-1 line-clamp-1 max-w-[360px] text-[12px] text-gray-400">{project.description}</p>}
+                    </td>
+                    <td className="py-4 pr-3 whitespace-nowrap">{project.revenue == null ? '-' : fmt(project.revenue)}</td>
+                    <td className="py-4 pr-3">
+                      <MemberSummary members={project.members} />
+                    </td>
+                    <td className="py-4 pr-3 text-right">
+                      <button onClick={() => edit(project)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
-        <Card>
-          <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">{editingId ? 'Editar projeto' : 'Novo projeto'}</p>
-          <form onSubmit={(event) => void submit(event)} className="space-y-3">
-            <div className="grid grid-cols-[120px_1fr] gap-2">
-              <label className="block text-[12px] text-gray-500">
+      <SideDrawer
+        open={drawerOpen}
+        title={editingId ? 'Editar projeto' : 'Novo projeto'}
+        onClose={closeDrawer}
+        footer={
+          <div className="space-y-3">
+            {message && <p className="rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{message}</p>}
+            {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={loading} className="justify-center">Cancelar</Button>
+              <Button type="submit" form="project-drawer-form" disabled={loading} className="justify-center">
+                {loading ? 'Salvando...' : editingId ? 'Salvar projeto' : 'Criar projeto'}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <form id="project-drawer-form" onSubmit={(event) => void submit(event)} className="space-y-6">
+          <section className="space-y-3">
+            <p className={sectionTitleClass}>Dados do projeto</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
+              <label className={labelClass}>
                 Codigo
-                <input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
+                <input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} className={fieldClass} />
               </label>
-              <label className="block text-[12px] text-gray-500">
+              <label className={labelClass}>
                 Nome
-                <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
+                <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className={fieldClass} />
               </label>
             </div>
-
-            <label className="block text-[12px] text-gray-500">
+            <label className={labelClass}>
               Faturamento previsto/real
-              <input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
+              <input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className={fieldClass} />
             </label>
-
-            <label className="block text-[12px] text-gray-500">
+            <label className={labelClass}>
               Descricao
-              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
+              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={4} className={fieldClass} />
             </label>
+          </section>
 
-            <div>
-              <p className="text-[12px] text-gray-500 mb-2">Funcionarios do projeto</p>
-              <div className="space-y-2 rounded-[8px] border border-black/[0.07] bg-white p-3 max-h-56 overflow-y-auto">
-                {employees.length === 0 && <p className="text-[12px] text-gray-400">Nenhum funcionario encontrado.</p>}
-                {employees.map((employee) => (
-                  <label key={employee.id} className="flex items-center gap-2 text-[13px] text-[#1a1a2e]">
-                    <input type="checkbox" checked={form.employeeIds.includes(employee.id)} onChange={() => toggleEmployee(employee.id)} />
-                    <span>{employee.name}</span>
-                    <span className="text-[11px] text-gray-400">{employee.email}</span>
-                  </label>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className={sectionTitleClass}>Funcionarios do projeto</p>
+              <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">
+                {selectedEmployees.length} selecionados
+              </span>
+            </div>
+            <input
+              value={employeeQuery}
+              onChange={(event) => setEmployeeQuery(event.target.value)}
+              placeholder="Buscar por nome ou e-mail"
+              className={fieldClass}
+            />
+            {selectedEmployees.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedEmployees.map((employee) => (
+                  <span key={employee.id} className="rounded-full border border-black/[0.07] bg-gray-50 px-2.5 py-1 text-[12px] text-[#1a1a2e]">
+                    {employee.name}
+                  </span>
                 ))}
               </div>
+            )}
+            <div className="max-h-[360px] space-y-2 overflow-y-auto rounded-[8px] border border-black/[0.08] bg-white p-2">
+              {filteredEmployees.length === 0 && <p className="p-3 text-[12px] text-gray-400">Nenhum funcionario encontrado.</p>}
+              {filteredEmployees.map((employee) => (
+                <label key={employee.id} className="flex cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0"
+                    checked={form.employeeIds.includes(employee.id)}
+                    onChange={() => toggleEmployee(employee.id)}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium text-[#1a1a2e]">{employee.name}</span>
+                    <span className="block truncate text-[12px] text-gray-400">{employee.email}</span>
+                  </span>
+                </label>
+              ))}
             </div>
-
-            {message && <p className="text-[12px] text-[#27500A] bg-[#EAF3DE] border border-[#97C459] rounded-[8px] p-3">{message}</p>}
-            {error && <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3">{error}</p>}
-
-            <Button variant="primary" className="w-full justify-center" disabled={loading}>
-              {loading ? 'Salvando...' : editingId ? 'Salvar projeto' : 'Criar projeto'}
-            </Button>
-          </form>
-        </Card>
-      </div>
+          </section>
+        </form>
+      </SideDrawer>
     </DesktopShell>
+  )
+}
+
+function MemberSummary({ members }: { members: TeamMemberResponse[] }) {
+  if (members.length === 0) return <span className="text-gray-400">-</span>
+
+  const visibleMembers = members.slice(0, 3)
+  const remaining = members.length - visibleMembers.length
+
+  return (
+    <div className="flex max-w-[460px] flex-wrap gap-1.5">
+      {visibleMembers.map((member) => (
+        <span key={member.id} className="rounded-full bg-gray-100 px-2.5 py-1 text-[12px] text-[#1a1a2e]">
+          {member.name}
+        </span>
+      ))}
+      {remaining > 0 && (
+        <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">
+          +{remaining}
+        </span>
+      )}
+    </div>
   )
 }

@@ -26,7 +26,8 @@ const statusLabels: Record<ExpenseStatus, string> = {
   FINANCE_REJECTED: 'Rejeitada fin.',
   PAID: 'Paga',
   CANCELLED: 'Cancelada',
-  NEEDS_REVISION: 'Revisao necessaria'
+  NEEDS_REVISION: 'Revisao necessaria',
+  OCR_FAILED: 'OCR falhou'
 };
 
 const categoryLabels: Record<string, string> = {

@@ -3,6 +3,7 @@ import { getPolicies, getPolicyAuditLogs, savePolicy } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { SideDrawer } from '../../components/ui/SideDrawer'
 import { categoryLabels, fmt } from '../../realData'
 import { getToken } from '../../session'
 import type { ExpenseCategory, PolicyAuditLogResponse, PolicyPayload, PolicyResponse } from '../../types'
@@ -19,10 +20,15 @@ const emptyForm: PolicyPayload = {
   description: '',
 }
 
+const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
+const labelClass = 'block text-[12px] font-medium text-gray-500'
+const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
+
 export function G06Politicas() {
   const [policies, setPolicies] = useState<PolicyResponse[]>([])
   const [auditLogs, setAuditLogs] = useState<PolicyAuditLogResponse[]>([])
   const [visibleAuditCount, setVisibleAuditCount] = useState(5)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [form, setForm] = useState<PolicyPayload>(emptyForm)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -59,6 +65,15 @@ export function G06Politicas() {
     })
     setMessage(null)
     setError(null)
+    setDrawerOpen(true)
+  }
+
+  function closeDrawer() {
+    if (loading) return
+    setDrawerOpen(false)
+    setForm(emptyForm)
+    setMessage(null)
+    setError(null)
   }
 
   async function submit(event: React.FormEvent) {
@@ -74,7 +89,7 @@ export function G06Politicas() {
         dailyLimit: form.dailyLimit || null,
         monthlyLimit: form.monthlyLimit || null,
       })
-      setMessage('Politica salva. As proximas notas serao avaliadas com estas regras.')
+      setMessage('Politica salva.')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao salvar politica.')
@@ -85,115 +100,59 @@ export function G06Politicas() {
 
   return (
     <DesktopShell title="Politicas de reembolso" role="GERENTE">
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4">
-        <Card>
-          <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Politicas cadastradas</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[13px] min-w-[620px]">
-              <thead>
-                <tr className="border-b border-black/[0.06]">
-                  {['Categoria', 'Limite', 'Diario', 'Mensal', 'Score auto', 'Comprovante', ''].map((header) => (
-                    <th key={header} className="text-left py-2 text-[11px] uppercase tracking-wide text-gray-400 font-medium pr-3">{header}</th>
-                  ))}
+      <Card>
+        <div className="mb-4 flex flex-col gap-1">
+          <p className="text-[14px] font-medium text-[#1a1a2e]">Politicas cadastradas</p>
+          <p className="text-[12px] text-gray-400">{policies.length} categorias configuradas</p>
+        </div>
+
+        {error && !drawerOpen && (
+          <p className="mb-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-[13px]">
+            <thead>
+              <tr className="border-b border-black/[0.06]">
+                {['Categoria', 'Limite', 'Diario', 'Mensal', 'Score auto', 'Comprovante', ''].map((header) => (
+                  <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {policies.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-[13px] text-gray-400">Nenhuma politica cadastrada.</td>
                 </tr>
-              </thead>
-              <tbody>
-                {policies.map((policy) => (
-                  <tr key={policy.id} className="border-b border-black/[0.04]">
-                    <td className="py-3 pr-3 font-medium text-[#1a1a2e]">{categoryLabels[policy.category]}</td>
-                    <td className="py-3 pr-3">{fmt(policy.maxAmount)}</td>
-                    <td className="py-3 pr-3">{policy.dailyLimit == null ? '-' : fmt(policy.dailyLimit)}</td>
-                    <td className="py-3 pr-3">{policy.monthlyLimit == null ? '-' : fmt(policy.monthlyLimit)}</td>
-                    <td className="py-3 pr-3">{policy.autoApprovalMinScore}</td>
-                    <td className="py-3 pr-3">{policy.requiresReceipt ? 'Sim' : 'Nao'}</td>
-                    <td className="py-3 pr-3 text-right">
-                      <button onClick={() => edit(policy)} className="text-[12px] text-[#3C3489] font-medium">Editar</button>
+              ) : (
+                policies.map((policy) => (
+                  <tr key={policy.id} className="border-b border-black/[0.04] hover:bg-gray-50">
+                    <td className="py-4 pr-3 font-medium text-[#1a1a2e]">{categoryLabels[policy.category]}</td>
+                    <td className="py-4 pr-3 whitespace-nowrap">{fmt(policy.maxAmount)}</td>
+                    <td className="py-4 pr-3 whitespace-nowrap">{policy.dailyLimit == null ? '-' : fmt(policy.dailyLimit)}</td>
+                    <td className="py-4 pr-3 whitespace-nowrap">{policy.monthlyLimit == null ? '-' : fmt(policy.monthlyLimit)}</td>
+                    <td className="py-4 pr-3">
+                      <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">
+                        {policy.autoApprovalMinScore}
+                      </span>
+                    </td>
+                    <td className="py-4 pr-3">{policy.requiresReceipt ? 'Sim' : 'Nao'}</td>
+                    <td className="py-4 pr-3 text-right">
+                      <button onClick={() => edit(policy)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
-        <Card>
-          <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Editar politica</p>
-          <form onSubmit={(event) => void submit(event)} className="space-y-3">
-            <label className="block text-[12px] text-gray-500">
-              Categoria
-              <select
-                value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as ExpenseCategory }))}
-                className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
-              >
-                {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            </label>
-
-            <div className="grid grid-cols-3 gap-2">
-              <label className="block text-[12px] text-gray-500">
-                Por nota
-                <input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
-              </label>
-              <label className="block text-[12px] text-gray-500">
-                Diario
-                <input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
-              </label>
-              <label className="block text-[12px] text-gray-500">
-                Mensal
-                <input value={form.monthlyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, monthlyLimit: event.target.value }))} className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]" />
-              </label>
-            </div>
-
-            <label className="block text-[12px] text-gray-500">
-              Score minimo para autoaprovar
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={form.autoApprovalMinScore}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  autoApprovalMinScore: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
-                }))}
-                className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px]"
-              />
-              <span className="mt-1 block text-[11px] text-gray-400">
-                Notas com score abaixo desse valor vao para revisao do gestor.
-              </span>
-            </label>
-
-            <label className="flex items-center gap-2 text-[13px] text-[#1a1a2e]">
-              <input type="checkbox" checked={form.requiresReceipt} onChange={(event) => setForm((current) => ({ ...current, requiresReceipt: event.target.checked }))} />
-              Exigir comprovante
-            </label>
-
-            <label className="block text-[12px] text-gray-500">
-              Regras em texto para a IA
-              <textarea
-                value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                rows={8}
-                placeholder="Ex: nao reembolsar bebidas alcoolicas; refeicoes somente em dias uteis; taxi apenas com justificativa."
-                className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
-              />
-            </label>
-
-            {message && <p className="text-[12px] text-[#27500A] bg-[#EAF3DE] border border-[#97C459] rounded-[8px] p-3">{message}</p>}
-            {error && <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3">{error}</p>}
-
-            <Button variant="primary" className="w-full justify-center" disabled={loading}>
-              {loading ? 'Salvando...' : 'Salvar politica'}
-            </Button>
-          </form>
-        </Card>
-      </div>
-
-      <Card className="mt-4">
-        <div className="flex items-center justify-between gap-3 mb-3">
+      <Card className="mt-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-[14px] font-medium text-[#1a1a2e]">Log de alteracoes nas politicas</p>
-            <p className="text-[12px] text-gray-400 mt-0.5">Registro de auditoria para controle antifraude.</p>
+            <p className="mt-0.5 text-[12px] text-gray-400">Registro de auditoria para controle antifraude.</p>
           </div>
         </div>
 
@@ -201,11 +160,11 @@ export function G06Politicas() {
           <p className="text-[12px] text-gray-400">Nenhuma alteracao registrada ainda.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px] min-w-[760px]">
+            <table className="w-full min-w-[760px] text-[12px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
                   {['Data', 'Usuario', 'Acao', 'Categoria', 'Resumo'].map((header) => (
-                    <th key={header} className="text-left py-2 text-[11px] uppercase tracking-wide text-gray-400 font-medium pr-3">{header}</th>
+                    <th key={header} className="py-2 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 pr-3">{header}</th>
                   ))}
                 </tr>
               </thead>
@@ -222,11 +181,11 @@ export function G06Politicas() {
               </tbody>
             </table>
             {auditLogs.length > visibleAuditCount && (
-              <div className="pt-3 flex justify-center">
+              <div className="flex justify-center pt-3">
                 <button
                   type="button"
                   onClick={() => setVisibleAuditCount((current) => current + 10)}
-                  className="px-3 py-1.5 rounded-[8px] border border-black/[0.08] text-[12px] text-[#3C3489] font-medium hover:bg-[#F4F2FF]"
+                  className="rounded-[8px] border border-black/[0.08] px-3 py-1.5 text-[12px] font-medium text-[#3C3489] hover:bg-[#F4F2FF]"
                 >
                   Ver mais {Math.min(10, auditLogs.length - visibleAuditCount)} registros
                 </button>
@@ -235,6 +194,99 @@ export function G06Politicas() {
           </div>
         )}
       </Card>
+
+      <SideDrawer
+        open={drawerOpen}
+        title="Editar politica"
+        onClose={closeDrawer}
+        footer={
+          <div className="space-y-3">
+            {message && <p className="rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{message}</p>}
+            {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={loading} className="justify-center">Cancelar</Button>
+              <Button type="submit" form="policy-drawer-form" disabled={loading} className="justify-center">
+                {loading ? 'Salvando...' : 'Salvar politica'}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <form id="policy-drawer-form" onSubmit={(event) => void submit(event)} className="space-y-6">
+          <section className="space-y-3">
+            <p className={sectionTitleClass}>Categoria</p>
+            <label className={labelClass}>
+              Categoria
+              <select
+                value={form.category}
+                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as ExpenseCategory }))}
+                className={fieldClass}
+              >
+                {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+          </section>
+
+          <section className="space-y-3">
+            <p className={sectionTitleClass}>Limites</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className={labelClass}>
+                Por nota
+                <input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className={fieldClass} />
+              </label>
+              <label className={labelClass}>
+                Diario
+                <input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className={fieldClass} />
+              </label>
+              <label className={labelClass}>
+                Mensal
+                <input value={form.monthlyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, monthlyLimit: event.target.value }))} className={fieldClass} />
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <p className={sectionTitleClass}>Autoaprovacao</p>
+            <label className={labelClass}>
+              Score minimo
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.autoApprovalMinScore}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  autoApprovalMinScore: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
+                }))}
+                className={fieldClass}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 rounded-[8px] border border-black/[0.08] px-3 py-2 text-[13px] font-medium text-[#1a1a2e]">
+              <span>Exigir comprovante</span>
+              <input
+                type="checkbox"
+                checked={form.requiresReceipt}
+                onChange={(event) => setForm((current) => ({ ...current, requiresReceipt: event.target.checked }))}
+                className="h-4 w-4"
+              />
+            </label>
+          </section>
+
+          <section className="space-y-3">
+            <p className={sectionTitleClass}>Regras para IA</p>
+            <label className={labelClass}>
+              Regras em texto
+              <textarea
+                value={form.description}
+                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                rows={7}
+                placeholder="Ex: nao reembolsar bebidas alcoolicas; refeicoes somente em dias uteis; taxi apenas com justificativa."
+                className={fieldClass}
+              />
+            </label>
+          </section>
+        </form>
+      </SideDrawer>
     </DesktopShell>
   )
 }
