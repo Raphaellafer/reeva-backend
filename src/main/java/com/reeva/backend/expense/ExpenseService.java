@@ -12,6 +12,7 @@ import com.reeva.backend.expense.comment.dto.CommentResponse;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
+import com.reeva.backend.expense.queue.OcrQueuePublisher;
 import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
 import org.springframework.data.domain.Page;
@@ -35,16 +36,19 @@ public class ExpenseService {
     private final CommentService commentService;
     private final AuditService auditService;
     private final OcrService ocrService;
+    private final OcrQueuePublisher ocrQueuePublisher;
     private final AttachmentRepository attachmentRepository;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
                           CommentService commentService, AuditService auditService,
-                          OcrService ocrService, AttachmentRepository attachmentRepository) {
+                          OcrService ocrService, OcrQueuePublisher ocrQueuePublisher,
+                          AttachmentRepository attachmentRepository) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.commentService = commentService;
         this.auditService = auditService;
         this.ocrService = ocrService;
+        this.ocrQueuePublisher = ocrQueuePublisher;
         this.attachmentRepository = attachmentRepository;
     }
 
@@ -100,7 +104,7 @@ public class ExpenseService {
         );
 
         Expense saved = expenseRepository.save(expense);
-        ocrService.processExpense(saved.getId());
+        ocrQueuePublisher.publish(saved.getId());
         return ExpenseResponse.from(saved);
     }
 
