@@ -21,6 +21,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     long countByUserIdAndStatus(UUID userId, ExpenseStatus status);
 
+    @Query("""
+        SELECT COUNT(e) FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.status IN :statuses
+          AND e.deleted = false
+        """)
+    long countByUserIdAndStatuses(@Param("userId") UUID userId, @Param("statuses") List<ExpenseStatus> statuses);
+
+    @Query("""
+        SELECT COALESCE(SUM(e.amount), 0) FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.status IN :statuses
+          AND e.deleted = false
+        """)
+    BigDecimal sumAmountByUserIdAndStatuses(@Param("userId") UUID userId, @Param("statuses") List<ExpenseStatus> statuses);
+
     // ── Manager queries ──────────────────────────────────────────────
 
     @Query("""
@@ -38,6 +54,19 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("SELECT e FROM Expense e WHERE e.id = :id AND e.user.manager.id = :managerId AND e.deleted = false")
     Optional<Expense> findByIdAndManagerId(@Param("id") UUID id, @Param("managerId") UUID managerId);
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.user.id = :userId
+          AND e.user.manager.id = :managerId
+          AND e.deleted = false
+        ORDER BY e.createdAt DESC
+        """)
+    Page<Expense> findByUserIdAndManagerId(
+        @Param("userId") UUID userId,
+        @Param("managerId") UUID managerId,
+        Pageable pageable
+    );
 
     @Query("""
         SELECT COUNT(e) FROM Expense e
