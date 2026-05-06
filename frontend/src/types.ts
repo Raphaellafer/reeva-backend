@@ -19,7 +19,8 @@ export type ExpenseStatus =
   | 'FINANCE_REJECTED'
   | 'PAID'
   | 'CANCELLED'
-  | 'NEEDS_REVISION';
+  | 'NEEDS_REVISION'
+  | 'OCR_FAILED';
 
 export type UserRole = 'EMPLOYEE' | 'MANAGER' | 'FINANCE' | 'ADMIN';
 
@@ -118,4 +119,108 @@ export interface ApiError {
   status: number;
   timestamp: string;
   errors: string[];
+}
+
+export interface TeamMemberResponse {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  revenue: number | null;
+  active: boolean;
+  members: TeamMemberResponse[];
+}
+
+export interface ProjectPayload {
+  name: string;
+  code?: string;
+  description?: string;
+  revenue?: number;
+  memberIds: string[];
+}
+
+export interface PolicyResponse {
+  id: string;
+  category: ExpenseCategory;
+  dailyLimit: number | null;
+  monthlyLimit: number | null;
+  requiresReceipt: boolean;
+  minAutoApprovalScore: number;
+}
+
+export interface PolicyPayload {
+  category: ExpenseCategory;
+  dailyLimit?: number;
+  monthlyLimit?: number;
+  requiresReceipt: boolean;
+  minAutoApprovalScore: number;
+}
+
+export interface PolicyAuditLogResponse {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  changedAt: string;
+}
+
+export interface EmployeePayment {
+  userId: string;
+  userName: string;
+  pixKey: string | null;
+  totalAmount: number;
+  expenseCount: number;
+}
+
+export interface PaymentBatchResponse {
+  totalAmount: number;
+  employeeCount: number;
+  payments: EmployeePayment[];
+}
+
+export interface ProjectFinancialEntry {
+  id: string;
+  description: string;
+  amount: number;
+  entryDate: string;
+  type: string;
+}
+
+export interface ProjectPerformanceResponse {
+  projectId: string;
+  projectName: string;
+  totalExpenses: number;
+  approvedExpenses: number;
+  revenue: number | null;
+  roi: number | null;
+}
+
+// ── Employee (manager view) ───────────────────────────────────────
+
+export interface EmployeeListItem {
+  id: string;
+  name: string;
+  email: string;
+  department: string | null;
+  pendingCount: number;
+  approvedCount: number;
+  totalReimbursed: number;
+  createdAt: string;
+}
+
+export interface EmployeeProfile extends EmployeeListItem {
+  recentExpenses: ExpenseResponse[];
+}
+
+export interface CreateEmployeePayload {
+  name: string;
+  email: string;
+  password: string;
+  departmentId?: string;
 }

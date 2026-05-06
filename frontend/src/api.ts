@@ -1,7 +1,10 @@
 import type {
   ApiError,
   AuthResponse,
+  CreateEmployeePayload,
   DashboardResponse,
+  EmployeeListItem,
+  EmployeeProfile,
   ExpenseCategory,
   ExpenseResponse,
   PageResponse,
@@ -173,6 +176,24 @@ export async function requestRevision(token: string, expenseId: string, notes: s
   return request<ExpenseResponse>(`/manager/expenses/${expenseId}/request-revision`, {
     method: 'POST',
     body: JSON.stringify({ notes }),
+    token
+  });
+}
+
+// ── Manager: Employees ────────────────────────────────────────────
+
+export async function getTeamEmployees(token: string) {
+  return request<EmployeeListItem[]>('/manager/employees', { token });
+}
+
+export async function getTeamEmployee(token: string, employeeId: string) {
+  return request<EmployeeProfile>(`/manager/employees/${employeeId}`, { token });
+}
+
+export async function createEmployee(token: string, payload: CreateEmployeePayload) {
+  return request<EmployeeListItem>('/manager/employees', {
+    method: 'POST',
+    body: JSON.stringify(payload),
     token
   });
 }
