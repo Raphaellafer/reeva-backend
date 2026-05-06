@@ -19,6 +19,27 @@ type ParsedOcrData = {
   category?: string | null
   description?: string | null
   sefaz_verification_code?: string | null
+  extraction?: {
+    document_type?: OcrField<string>
+    supplier_name?: OcrField<string>
+    supplier_cnpj?: OcrField<string>
+    supplier_address?: OcrField<string>
+    total_amount?: OcrField<number | string>
+    tax_amount?: OcrField<number | string>
+    issue_date?: OcrField<string>
+    payment_method?: OcrField<string>
+    sefaz_verification_code?: OcrField<string>
+  }
+  analysis?: {
+    readable?: boolean
+    category?: string | null
+    description?: string | null
+  }
+}
+
+type OcrField<T> = {
+  value?: T | null
+  raw_text?: string | null
 }
 
 function AttachmentPreview({ attachment, token }: { attachment: AttachmentItem; token: string }) {
@@ -195,10 +216,39 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
 function parseOcrData(raw: string | null): ParsedOcrData | null {
   if (!raw) return null
   try {
-    return JSON.parse(raw) as ParsedOcrData
+    const parsed = JSON.parse(raw) as ParsedOcrData
+    if (!parsed.extraction) return parsed
+    return {
+      ...parsed,
+      readable: parsed.analysis?.readable,
+      document_type: readTextField(parsed.extraction.document_type),
+      supplier_name: readTextField(parsed.extraction.supplier_name),
+      supplier_cnpj: readTextField(parsed.extraction.supplier_cnpj),
+      supplier_address: readTextField(parsed.extraction.supplier_address),
+      total_amount: readNumberField(parsed.extraction.total_amount),
+      tax_amount: readNumberField(parsed.extraction.tax_amount),
+      issue_date: readTextField(parsed.extraction.issue_date),
+      payment_method: readTextField(parsed.extraction.payment_method),
+      category: parsed.analysis?.category ?? null,
+      description: parsed.analysis?.description ?? null,
+      sefaz_verification_code: readTextField(parsed.extraction.sefaz_verification_code),
+    }
   } catch {
     return null
   }
+}
+
+function readTextField(field: OcrField<string> | undefined) {
+  return field?.value ?? field?.raw_text ?? null
+}
+
+function readNumberField(field: OcrField<number | string> | undefined) {
+  const raw = field?.raw_text ?? field?.value
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'number') return raw
+  const normalized = raw.replace('R$', '').replace(/\./g, '').replace(',', '.').trim()
+  const value = Number(normalized)
+  return Number.isFinite(value) ? value : null
 }
 
 function hasValue(value: string | null | undefined) {

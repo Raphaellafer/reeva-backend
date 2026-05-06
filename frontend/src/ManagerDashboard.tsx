@@ -69,16 +69,52 @@ interface ReceiptLineItem {
   total_price: number | null;
 }
 
+type OcrField<T> = {
+  value?: T | null;
+  raw_text?: string | null;
+};
+
+type NestedOcrLineItem = {
+  name?: OcrField<string>;
+  quantity?: OcrField<number | string>;
+  unit_price?: OcrField<number | string>;
+  total_price?: OcrField<number | string>;
+};
+
 function getReceiptLineItems(expense: ExpenseResponse): ReceiptLineItem[] {
   if (!expense.ocrData) return [];
 
   try {
-    const parsed = JSON.parse(expense.ocrData) as { line_items?: ReceiptLineItem[] };
+    const parsed = JSON.parse(expense.ocrData) as {
+      line_items?: ReceiptLineItem[];
+      extraction?: { line_items?: NestedOcrLineItem[] };
+    };
+    if (Array.isArray(parsed.extraction?.line_items)) {
+      return parsed.extraction.line_items.map((item) => ({
+        name: readTextField(item.name) ?? '',
+        quantity: readNumberField(item.quantity),
+        unit_price: readNumberField(item.unit_price),
+        total_price: readNumberField(item.total_price)
+      })).filter((item) => item.name.trim().length > 0);
+    }
     if (!Array.isArray(parsed.line_items)) return [];
     return parsed.line_items.filter((item) => item.name && item.name.trim().length > 0);
   } catch {
     return [];
   }
+}
+
+function readTextField(field: OcrField<string> | undefined) {
+  return field?.value ?? field?.raw_text ?? null;
+}
+
+function readNumberField(field: OcrField<number | string> | undefined) {
+  const raw = field?.raw_text ?? field?.value;
+  if (raw == null || raw === '') return null;
+  if (typeof raw === 'number') return raw;
+  const normalized = raw.replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
 }
 
 type FilterStatus = 'ALL' | ExpenseStatus;

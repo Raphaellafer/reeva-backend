@@ -8,6 +8,7 @@ import type {
   PaymentBatchResponse,
   PolicyPayload,
   PolicyResponse,
+  ProjectPerformanceResponse,
   PaymentMethod,
   ProjectPayload,
   ProjectResponse,
@@ -63,7 +64,6 @@ interface ExpensePayload {
 interface EmployeeCorrectionPayload {
   title: string;
   category: ExpenseCategory;
-  amount: string;
   expenseDate: string;
   description: string;
 }
@@ -289,4 +289,12 @@ export async function getApprovedPayments(token: string, from?: string, to?: str
   if (to) params.set('to', to);
   const query = params.toString();
   return request<PaymentBatchResponse>(`/manager/payments/approved${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getCfoProjectPerformance(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<ProjectPerformanceResponse[]>(`/cfo/projects/performance${query ? `?${query}` : ''}`, { token });
 }

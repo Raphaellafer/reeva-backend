@@ -43,7 +43,6 @@ export function F04Detalhe() {
   const [error, setError] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
-  const [amount, setAmount] = useState('')
   const [expenseDate, setExpenseDate] = useState('')
   const [description, setDescription] = useState('')
 
@@ -90,7 +89,6 @@ export function F04Detalhe() {
     if (!expense) return
     setTitle(expense.title ?? '')
     setCategory(expense.category)
-    setAmount(expense.amount != null ? String(expense.amount) : '')
     setExpenseDate(expense.expenseDate ?? '')
     setDescription(expense.description ?? '')
   }, [expense])
@@ -119,6 +117,7 @@ export function F04Detalhe() {
       )
   )
   const needsEmployeeCorrection = expense?.status === 'NEEDS_REVISION'
+  const canCorrectNonFinancialFields = Boolean(expense?.amount != null && expense.amount > 0)
 
   async function retryOcr() {
     const token = getToken()
@@ -148,8 +147,8 @@ export function F04Detalhe() {
       setError('Selecione a categoria da despesa.')
       return
     }
-    if (!amount.trim()) {
-      setError('Informe o valor correto da nota.')
+    if (!canCorrectNonFinancialFields) {
+      setError('O valor da nota precisa ser lido pela IA. Tire uma nova foto para tentar o OCR novamente.')
       return
     }
     if (!expenseDate) {
@@ -163,7 +162,6 @@ export function F04Detalhe() {
       const updated = await submitEmployeeCorrection(token, id, {
         title: title.trim(),
         category,
-        amount,
         expenseDate,
         description,
       })
@@ -251,9 +249,19 @@ export function F04Detalhe() {
                 <div>
                   <p className="text-[13px] font-medium text-[#1a1a2e]">Completar campos obrigatorios</p>
                   <p className="text-[12px] text-gray-500 mt-1">
-                    A IA nao conseguiu identificar todos os dados da nota. Preencha os campos abaixo para enviar ao gestor.
+                    A IA nao conseguiu identificar todos os dados nao financeiros da nota. O valor nao pode ser alterado manualmente.
                   </p>
                 </div>
+
+                {!canCorrectNonFinancialFields ? (
+                  <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3">
+                    O valor total nao foi lido com seguranca. Tire uma nova foto da nota para evitar reembolso com valor manual.
+                  </p>
+                ) : (
+                  <div className="text-[12px] text-[#3C3489] bg-[#F4F2FF] border border-[#AFA9EC]/40 rounded-[8px] p-3">
+                    Valor travado pela nota: <strong>{fmt(expense.amount)}</strong>
+                  </div>
+                )}
 
                 <label className="block text-[12px] text-gray-500">
                   Estabelecimento ou titulo da nota
@@ -291,17 +299,6 @@ export function F04Detalhe() {
                 </div>
 
                 <label className="block text-[12px] text-gray-500">
-                  Valor correto
-                  <input
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    inputMode="decimal"
-                    placeholder="0,00"
-                    className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
-                  />
-                </label>
-
-                <label className="block text-[12px] text-gray-500">
                   Observacoes
                   <textarea
                     value={description}
@@ -314,7 +311,7 @@ export function F04Detalhe() {
                 <Button
                   variant="primary"
                   className="w-full justify-center"
-                  disabled={savingCorrection}
+                  disabled={savingCorrection || !canCorrectNonFinancialFields}
                   onClick={() => void handleCorrectionSubmit()}
                 >
                   {savingCorrection ? 'Enviando ao gestor...' : 'Enviar correcao ao gestor'}

@@ -1,4 +1,15 @@
 -- ============================================================
+-- Some local databases created the varchar CHECK constraint with an auto-generated
+-- name before V4 normalized it. Keep the demo seed resilient because it inserts
+-- NEEDS_REVISION rows used by the CFO metrics demo.
+ALTER TABLE expenses DROP CONSTRAINT IF EXISTS chk_expenses_status;
+ALTER TABLE expenses DROP CONSTRAINT IF EXISTS expenses_status_check;
+ALTER TABLE expenses ADD CONSTRAINT chk_expenses_status
+    CHECK (status IN ('DRAFT','SUBMITTED','AI_APPROVED','PENDING_REVIEW',
+                      'MANAGER_APPROVED','MANAGER_REJECTED','FINANCE_APPROVED',
+                      'FINANCE_REJECTED','PAID','CANCELLED','NEEDS_REVISION'));
+
+-- ============================================================
 -- REEVA - Dados de demonstração: despesas ricas para análise de IA
 -- Flyway migration: V13__seed_demo_expenses.sql
 -- ATENÇÃO: não usar em produção

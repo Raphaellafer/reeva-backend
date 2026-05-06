@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -158,16 +159,23 @@ public class ExpenseService {
         if (expense.getStatus() != ExpenseStatus.NEEDS_REVISION) {
             throw BusinessException.badRequest("Only expenses in NEEDS_REVISION can be corrected by the employee");
         }
+        if (expense.getDuplicateOfExpense() != null) {
+            throw BusinessException.badRequest("Nota duplicada nao pode ser corrigida ou reenviada para reembolso");
+        }
+        if (expense.getAmount() == null || expense.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw BusinessException.badRequest(
+                "Valor da nota nao pode ser preenchido manualmente. Tire uma nova foto para o OCR ler o total."
+            );
+        }
 
         expense.setTitle(request.title());
         expense.setCategory(request.category());
-        expense.setAmount(request.amount());
         expense.setExpenseDate(request.expenseDate());
         expense.setDescription(request.description());
         expense.setManualReviewReason(null);
         expense.setAiDecision(AiDecision.READY_FOR_MANAGER);
-        expense.setAiDecisionReason("Campos obrigatorios preenchidos manualmente pelo funcionario.");
-        expense.setAiAnalysis("Aguardando decisao do gestor apos correcao manual dos campos obrigatorios.");
+        expense.setAiDecisionReason("Campos nao financeiros preenchidos manualmente pelo funcionario.");
+        expense.setAiAnalysis("Aguardando decisao do gestor apos correcao manual de campos nao financeiros.");
         expense.setAutoApprovalEligible(false);
 
         ExpenseStatus from = expense.getStatus();
@@ -175,7 +183,7 @@ public class ExpenseService {
         expense.getStatusHistory().add(
             new ExpenseStatusHistory(
                 expense, from, ExpenseStatus.PENDING_REVIEW, currentUser,
-                "Campos obrigatorios preenchidos pelo funcionario e enviados ao gestor"
+                "Campos nao financeiros preenchidos pelo funcionario e enviados ao gestor"
             )
         );
 
@@ -187,7 +195,8 @@ public class ExpenseService {
             Map.of(
                 "title", request.title(),
                 "category", request.category().name(),
-                "amount", request.amount().toPlainString()
+                "amount", expense.getAmount().toPlainString(),
+                "amountSource", "OCR_LOCKED"
             ), null
         );
 

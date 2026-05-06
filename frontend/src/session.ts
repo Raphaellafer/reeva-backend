@@ -5,7 +5,7 @@ import type { UserRole as UiRole } from './types/index';
 const demoProfiles: Record<UiRole, { email: string; password: string; apiRole: ApiRole }> = {
   FUNCIONARIO: { email: 'funcionario@reeva.com.br', password: 'reeva123', apiRole: 'EMPLOYEE' },
   GERENTE: { email: 'gestor@reeva.com.br', password: 'reeva123', apiRole: 'MANAGER' },
-  CFO: { email: 'gestor@reeva.com.br', password: 'reeva123', apiRole: 'MANAGER' }
+  CFO: { email: 'cfo@reeva.com.br', password: 'reeva123', apiRole: 'FINANCE' }
 };
 
 export function getToken() {

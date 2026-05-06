@@ -114,6 +114,13 @@ public class Expense {
     @Column(name = "manual_review_reason", columnDefinition = "TEXT")
     private String manualReviewReason;
 
+    @Column(name = "receipt_fingerprint", length = 128)
+    private String receiptFingerprint;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "duplicate_of_expense_id")
+    private Expense duplicateOfExpense;
+
     // ── Aprovação do gestor ──────────────────────────────────────────
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -219,6 +226,8 @@ public class Expense {
     public String getSefazValidationMessage() { return sefazValidationMessage; }
     public boolean isAutoApprovalEligible() { return autoApprovalEligible; }
     public String getManualReviewReason() { return manualReviewReason; }
+    public String getReceiptFingerprint() { return receiptFingerprint; }
+    public Expense getDuplicateOfExpense() { return duplicateOfExpense; }
     public User getManager() { return manager; }
     public Instant getManagerReviewedAt() { return managerReviewedAt; }
     public String getManagerNotes() { return managerNotes; }
@@ -256,6 +265,8 @@ public class Expense {
     public void setSefazValidationMessage(String sefazValidationMessage) { this.sefazValidationMessage = sefazValidationMessage; }
     public void setAutoApprovalEligible(boolean autoApprovalEligible) { this.autoApprovalEligible = autoApprovalEligible; }
     public void setManualReviewReason(String manualReviewReason) { this.manualReviewReason = manualReviewReason; }
+    public void setReceiptFingerprint(String receiptFingerprint) { this.receiptFingerprint = receiptFingerprint; }
+    public void setDuplicateOfExpense(Expense duplicateOfExpense) { this.duplicateOfExpense = duplicateOfExpense; }
     public void setManager(User manager) { this.manager = manager; }
     public void setManagerReviewedAt(Instant managerReviewedAt) { this.managerReviewedAt = managerReviewedAt; }
     public void setManagerNotes(String managerNotes) { this.managerNotes = managerNotes; }

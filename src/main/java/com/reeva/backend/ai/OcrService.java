@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,155 +21,143 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Base64;
+import java.util.HexFormat;
+import java.util.Locale;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class OcrService {
 
     private static final Logger log = LoggerFactory.getLogger(OcrService.class);
     private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+    private static final Pattern MONEY_PATTERN = Pattern.compile("(?:R\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*,\\d{2}|\\d+,\\d{2}|\\d+\\.\\d{2})");
 
-    private static final String PROMPT = """
-        Voce e um auditor inteligente de comprovantes de despesas corporativas no Brasil,
-        especializado em analisar imagens de notas fiscais, cupons, recibos e comprovantes de pagamento.
+    private static final String EXTRACTION_PROMPT = """
+        Voce e um especialista em extracao inteligente de dados de documentos fiscais brasileiros.
 
-        Sua tarefa e analisar a imagem anexada e retornar APENAS um JSON valido, sem explicacoes fora do JSON.
+        Sua tarefa NAO e decidir aprovacao, politica, fraude, categoria corporativa ou reembolso.
+        Sua unica tarefa e extrair o maximo possivel de informacoes visiveis do documento.
 
-        Objetivo:
-        Extrair dados reais e visiveis do documento, classificar a despesa, avaliar confiabilidade e sugerir
-        acao automatica no fluxo corporativo.
+        IMPORTANTE:
+        A extracao deve ser feita CAMPO POR CAMPO.
+        Nunca trate o documento como totalmente valido ou invalido.
+        Mesmo que partes da imagem estejam ruins, borradas, cortadas ou ilegiveis, continue tentando extrair todos
+        os outros campos separadamente.
+
+        Objetivo principal:
+        Maximizar recuperacao parcial de dados.
 
         Principios obrigatorios:
         - Nunca invente informacoes.
+        - Nunca complete numeros parcialmente ocultos.
         - Nunca estime valores ilegiveis.
-        - Nunca complete CNPJ, datas ou nomes parcialmente visiveis.
-        - Use null quando nao houver certeza.
-        - Baseie-se apenas no que esta visivel ou fortemente evidente.
-        - Se a imagem estiver cortada, borrada, escura, inclinada ou ilegivel, reduza score.
-        - Se nao for documento de despesa corporativa, marque readable=false.
+        - Nunca deduza CNPJ incompleto.
+        - Cada campo deve possuir sua propria confianca.
+        - Campos ilegiveis NAO invalidam os demais campos.
+        - Campos ausentes NAO reduzem automaticamente a confianca global.
+        - Extraia tudo que for possivel com confianca individual.
+        - Um documento parcialmente legivel ainda possui valor.
+        - Quando houver ambiguidade, preserve o valor bruto visivel.
+        - Nao descarte o documento apenas porque faltam campos obrigatorios.
 
-        Tipos de documento aceitos:
-        - Nota fiscal
-        - NFC-e
-        - SAT
-        - Cupom fiscal
-        - Recibo simples
-        - Fatura com comprovante de pagamento
-        - Comprovante de estacionamento
-        - Ticket de pedagio
-        - Voucher de transporte
-        - Recibo de hotel
-        - Comprovante de aplicativo de mobilidade
+        Comportamento esperado:
+        ERRADO: "Documento ilegivel"
+        CORRETO: "Consegui extrair valor total e data, mas nao consegui identificar o CNPJ."
 
-        Tipos invalidos:
-        - Selfie
-        - Foto aleatoria
-        - Conversa de WhatsApp
-        - Documento pessoal sem despesa
-        - Tela sem comprovante
-        - Imagem vazia
-        - Documento totalmente ilegivel
+        Voce deve agir como um parser fiscal incremental.
 
-        Classificacao de categoria:
+        Tipos aceitos:
+        Nota fiscal, NFC-e, SAT, Cupom, Recibo, Comprovante, Ticket, Voucher, comprovante de aplicativo,
+        recibo de hotel, estacionamento e pedagio.
+
+        Para CADA campo:
+        - tente extrair;
+        - atribua confidence individual entre 0.0 e 1.0;
+        - informe extraction_status.
+
+        Valores possiveis para extraction_status:
+        FOUND, PARTIAL, UNCERTAIN, NOT_FOUND, ILLEGIBLE.
+
+        Mesmo quando extraction_status != FOUND, preserve qualquer informacao parcial util em raw_text.
+        Exemplo: supplier_cnpj.raw_text = "12.345.xxx".
+
+        Prioridade visual:
+        Campos proximos a TOTAL, VALOR TOTAL, TOTAL R$, TOTAL A PAGAR, VALOR PAGO, CNPJ, DATA, CPF,
+        VALOR, QR CODE, CHAVE DE ACESSO e COO devem receber prioridade de atencao.
+
+        Regras por campo:
+        - total_amount: normalize value como numero decimal quando legivel; preserve raw_text como apareceu.
+        - Em notas brasileiras, virgula costuma ser decimal. Exemplo: 46,50 significa 46.50, nunca 465.00.
+        - Em notas brasileiras, quantidade pode aparecer com quatro casas decimais. Exemplo: 1,0000 significa 1 unidade,
+          nunca 1000 unidades.
+        - Para item de alimentacao/restaurante, se a quantidade lida for 1000, 10000 ou 100000 e o raw_text tiver
+          "1,0000", normalize para 1.
+        - Quando aparecer uma linha como "1,0000 UN 46,50 46,50", extraia quantity=1, unit_price=46.50,
+          total_price=46.50.
+        - Nunca transforme "46,50" em 465.00.
+        - Nunca transforme "1,0000" em 1000.
+        - total_amount deve ser conferido contra a soma dos itens quando os itens estiverem legiveis.
+        - Se houver itens legiveis, confira se sum(line_items.total_price) bate com total_amount.
+        - Se o total geral e a soma dos itens divergirem, preserve ambos, mas registre a divergencia em extraction_notes.
+        - supplier_name: priorize o nome fantasia principal.
+        - supplier_cnpj: nunca invente digitos faltantes.
+        - issue_date: normalize value em YYYY-MM-DD quando possivel; preserve raw_text original.
+        - issue_time: normalize value em HH:MM:SS quando possivel.
+        - line_items: extraia parcialmente quando possivel.
+        - QR code/chave fiscal: preserve qualquer texto relacionado.
+        - Se houver chave de acesso, QR code textual, codigo de consulta, COO, NFC-e ou numero de documento,
+          extraia em sefaz_verification_code com raw_text.
+        - Primeiro capture raw_text, depois normalize value.
+
+        Regras finais:
+        - Retorne apenas JSON valido.
+        - Nunca retorne markdown.
+        - Nunca explique fora do JSON.
+        - Preserve textos brutos quando uteis.
+        - Priorize recuperacao maxima de dados.
+        - Priorize extracao parcial ao inves de abandono.
+        - Cada campo deve ser analisado independentemente.
+        """;
+
+    private static final String RAW_OCR_CONTEXT_TEMPLATE = """
+
+        OCR bruto auxiliar:
+        O texto abaixo veio de um OCR tradicional e pode conter erros, quebras de linha ruins ou caracteres trocados.
+        Use apenas como apoio para a leitura visual da imagem. A imagem continua sendo a fonte principal.
+        Preserve raw_text quando o OCR bruto ajudar a recuperar campos parciais.
+
+        %s
+        """;
+
+    private static final String ANALYSIS_PROMPT = """
+        Voce classifica uma extracao OCR de comprovante corporativo brasileiro.
+
+        Entrada: JSON de extracao campo por campo.
+        Sua tarefa NAO e aprovar, reprovar ou aplicar politica da empresa.
+        Sua tarefa e somente:
+        - dizer se algum documento de despesa foi detectado;
+        - classificar a categoria corporativa;
+        - gerar uma descricao curta para aprovacao;
+        - gerar um score tecnico de confianca da extracao, de 0 a 100.
+
+        Categorias:
         - FOOD: restaurante, cafeteria, padaria, delivery, alimentacao.
         - TRANSPORT: Uber, 99, taxi, combustivel, estacionamento, pedagio, metro, onibus, locomocao.
         - LODGING: hotel, pousada, Airbnb, hospedagem.
         - PURCHASE: farmacia, papelaria, mercado, materiais, eletronicos, compras em geral.
-        - OTHER: quando for despesa valida mas nao encaixar acima.
+        - OTHER: despesa valida que nao encaixa acima.
 
-        Regras de extracao:
-        - readable=true exige pelo menos fornecedor OU valor total identificavel com confianca.
-        - currency sempre "BRL" quando houver contexto brasileiro.
-        - total_amount em decimal, sem R$.
-        - tax_amount apenas se claramente visivel.
-        - issue_date no formato YYYY-MM-DD.
-        - issue_time no formato HH:MM:SS quando visivel.
-        - supplier_name nome principal do estabelecimento.
-        - supplier_cnpj apenas se legivel.
-        - supplier_address apenas se claramente visivel.
-        - payment_method: CREDIT_CARD, DEBIT_CARD, PIX, CASH, MEAL_VOUCHER, UNKNOWN.
-        - document_type: NFE, NFCE, CUPOM, RECIBO, HOTEL, APP_RIDE, PEDAGIO, PARKING, OTHER.
-        - description curta, neutra e util para aprovacao.
-        - line_items listar itens legiveis.
-        - sefaz_verification_code incluir chave de acesso, QR code textual, codigo consulta ou COO quando visivel.
-        - policy_compliant deve avaliar a politica atual da empresa enviada abaixo quando houver dados suficientes;
-          use null quando nao der para concluir.
-        - policy_reason deve explicar brevemente a avaliacao de politica ou ser null.
-        - sefaz_reason deve explicar se ha ou nao codigo fiscal verificavel, sem criar impedimento quando o documento
-          validamente nao tiver codigo fiscal.
+        Regras:
+        - Nao use politica, fraude ou aprovacao.
+        - Nao puna automaticamente campos ausentes quando outros campos foram extraidos com confianca.
+        - Se total_amount estiver ausente, incerto ou ilegivel, readable=false.
+        - Se a soma dos itens legiveis divergir do total_amount, readable=false.
+        - O score deve refletir a confianca tecnica nos campos recuperados e a qualidade da imagem.
+        - Se houver valor total validado e fornecedor ou data com boa confianca, o documento pode ser considerado readable.
+        - Se nao houver documento de despesa detectado, readable=false.
 
-        Regras de line_items:
-        Cada item deve conter name, quantity, unit_price e total_price.
-        Se nao houver itens legiveis, use [].
-
-        Regras de score, de 0 a 100:
-        - 90 a 100: documento claro, campos principais legiveis, alta confianca.
-        - 70 a 89: maioria legivel, pequenas duvidas.
-        - 50 a 69: leitura parcial, revisao indicada.
-        - 1 a 49: baixa qualidade ou poucos dados confiaveis.
-        - 0: documento invalido.
-
-        Acoes sugeridas:
-        - AUTO_APPROVE: valor claro, fornecedor identificado, documento valido, score alto.
-        - MANAGER_REVIEW: documento valido com duvidas, categoria sensivel, score medio.
-        - EMPLOYEE_CORRECTION: imagem ruim, faltando dados importantes, corte parcial, valor ilegivel.
-        - REJECT: documento invalido, duplicado evidente, fraude aparente, nao relacionado a despesa.
-
-        Sinais de possivel fraude ou risco:
-        - valor adulterado
-        - multiplas sobreposicoes
-        - edicao digital evidente
-        - datas incoerentes
-        - total diferente da soma dos itens
-        - documento repetido
-        - baixa consistencia visual
-
-        Campos extras:
-        - duplicate_suspected: true/false
-        - fraud_signals: lista textual
-        - confidence_reason: motivo curto do score
-
-        Formato obrigatorio de saida:
-        {
-          "readable": true,
-          "reason": null,
-          "document_type": "NFCE",
-          "category": "FOOD",
-          "supplier_name": "Restaurante Exemplo",
-          "supplier_cnpj": "12.345.678/0001-90",
-          "supplier_address": null,
-          "issue_date": "2026-04-29",
-          "issue_time": "13:45:10",
-          "currency": "BRL",
-          "total_amount": 58.90,
-          "tax_amount": null,
-          "payment_method": "CREDIT_CARD",
-          "description": "Almoco em restaurante",
-          "line_items": [
-            {
-              "name": "Prato executivo",
-              "quantity": 1,
-              "unit_price": 45.00,
-              "total_price": 45.00
-            }
-          ],
-          "sefaz_verification_code": null,
-          "sefaz_reason": null,
-          "policy_compliant": true,
-          "policy_reason": null,
-          "duplicate_suspected": false,
-          "fraud_signals": [],
-          "score": 92,
-          "confidence_reason": "Documento nitido com fornecedor e valor claramente visiveis.",
-          "suggested_action": "AUTO_APPROVE"
-        }
-
-        Regras finais:
-        - Retorne somente JSON.
-        - Sem markdown.
-        - Sem comentarios.
-        - Sem texto antes ou depois.
-        - Use null onde houver duvida.
+        Retorne somente JSON valido.
         """;
 
     private final ExpenseRepository expenseRepository;
@@ -175,6 +165,7 @@ public class OcrService {
     private final ObjectMapper objectMapper;
     private final AiExpenseDecisionService aiExpenseDecisionService;
     private final ExpensePolicyRepository policyRepository;
+    private final TraditionalOcrService traditionalOcrService;
     private final HttpClient httpClient;
 
     @Value("${openai.api-key:}")
@@ -188,12 +179,13 @@ public class OcrService {
 
     public OcrService(ExpenseRepository expenseRepository, StorageService storageService,
                       ObjectMapper objectMapper, AiExpenseDecisionService aiExpenseDecisionService,
-                      ExpensePolicyRepository policyRepository) {
+                      ExpensePolicyRepository policyRepository, TraditionalOcrService traditionalOcrService) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.aiExpenseDecisionService = aiExpenseDecisionService;
         this.policyRepository = policyRepository;
+        this.traditionalOcrService = traditionalOcrService;
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -244,18 +236,35 @@ public class OcrService {
         byte[] imageBytes = storageService.downloadBytes(fileUrl);
         String base64 = Base64.getEncoder().encodeToString(imageBytes);
         String dataUrl = "data:" + mimeType + ";base64," + base64;
-        String prompt = PROMPT + "\n\nPolitica atual da empresa:\n" + buildPolicyContext(expense);
+        String rawOcrText = traditionalOcrService.extractText(imageBytes, mimeType);
+        String extractionPrompt = rawOcrText == null || rawOcrText.isBlank()
+            ? EXTRACTION_PROMPT
+            : EXTRACTION_PROMPT + RAW_OCR_CONTEXT_TEMPLATE.formatted(rawOcrText);
 
         var imageContent = java.util.Map.of("type", "image_url", "image_url",
             java.util.Map.of("url", dataUrl, "detail", "high"));
-        var textContent = java.util.Map.of("type", "text", "text", prompt);
-        var message = java.util.Map.of("role", "user",
-            "content", java.util.List.of(textContent, imageContent));
+        var textContent = java.util.Map.of("type", "text", "text", extractionPrompt);
+        String extractionJson = callOpenAi(java.util.List.of(java.util.Map.of(
+            "role", "user",
+            "content", java.util.List.of(textContent, imageContent)
+        )), extractionResponseFormat());
+
+        String analysisJson = callOpenAi(java.util.List.of(java.util.Map.of(
+            "role", "user",
+            "content", ANALYSIS_PROMPT + "\n\nExtracao OCR:\n" + extractionJson
+        )), analysisResponseFormat());
+
+        return parseOcrJson(extractionJson, analysisJson, rawOcrText);
+    }
+
+    private String callOpenAi(java.util.List<java.util.Map<String, Object>> messages,
+                              java.util.Map<String, Object> responseFormat) throws Exception {
         var body = new java.util.LinkedHashMap<String, Object>();
         body.put("model", model);
         body.put("max_completion_tokens", maxOutputTokens);
-        body.put("response_format", ocrResponseFormat());
-        body.put("messages", java.util.List.of(message));
+        body.put("temperature", 0.1);
+        body.put("response_format", responseFormat);
+        body.put("messages", messages);
         String requestBody = objectMapper.writeValueAsString(body);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -272,8 +281,7 @@ public class OcrService {
         }
 
         JsonNode root = objectMapper.readTree(response.body());
-        String content = root.path("choices").get(0).path("message").path("content").asText();
-        return parseOcrJson(content);
+        return root.path("choices").get(0).path("message").path("content").asText();
     }
 
     private OpenAiApiException parseOpenAiError(int statusCode, String body) {
@@ -323,29 +331,60 @@ public class OcrService {
             .collect(java.util.stream.Collectors.joining("\n"));
     }
 
-    private java.util.Map<String, Object> ocrResponseFormat() {
+    private java.util.Map<String, Object> extractionResponseFormat() {
+        var properties = new java.util.LinkedHashMap<String, Object>();
+        properties.put("document_detected", java.util.Map.of("type", "boolean"));
+        properties.put("document_type", fieldSchema(java.util.Arrays.asList(
+            "NFE", "NFCE", "SAT", "CUPOM", "RECIBO", "HOTEL", "APP_RIDE", "PEDAGIO", "PARKING", "OTHER", null
+        ), false));
+        properties.put("supplier_name", fieldSchema(null, true));
+        properties.put("supplier_cnpj", fieldSchema(null, true));
+        properties.put("supplier_address", fieldSchema(null, true));
+        properties.put("issue_date", fieldSchema(null, true));
+        properties.put("issue_time", fieldSchema(null, true));
+        properties.put("total_amount", fieldSchema(null, true));
+        properties.put("tax_amount", fieldSchema(null, true));
+        properties.put("payment_method", fieldSchema(java.util.Arrays.asList(
+            "CREDIT_CARD", "DEBIT_CARD", "PIX", "CASH", "MEAL_VOUCHER", "UNKNOWN", null
+        ), false));
+        properties.put("currency", fieldSchema(java.util.Arrays.asList("BRL", null), false));
+        properties.put("sefaz_verification_code", fieldSchema(null, true));
+        properties.put("line_items", java.util.Map.of(
+            "type", "array",
+            "items", lineItemSchema()
+        ));
+        properties.put("image_quality", imageQualitySchema());
+        properties.put("overall_confidence", java.util.Map.of("type", "number", "minimum", 0, "maximum", 1));
+        properties.put("missing_required_fields", stringArraySchema());
+        properties.put("manual_input_required", stringArraySchema());
+        properties.put("extraction_notes", stringArraySchema());
+
+        var schema = new java.util.LinkedHashMap<String, Object>();
+        schema.put("type", "object");
+        schema.put("additionalProperties", false);
+        schema.put("properties", properties);
+        schema.put("required", java.util.List.of(
+            "document_detected", "document_type", "supplier_name", "supplier_cnpj",
+            "supplier_address", "issue_date", "issue_time", "total_amount", "tax_amount",
+            "payment_method", "currency", "sefaz_verification_code", "line_items",
+            "image_quality", "overall_confidence", "missing_required_fields",
+            "manual_input_required", "extraction_notes"
+        ));
+
+        return java.util.Map.of(
+            "type", "json_schema",
+            "json_schema", java.util.Map.of(
+                "name", "expense_receipt_extraction",
+                "strict", true,
+                "schema", schema
+            )
+        );
+    }
+
+    private java.util.Map<String, Object> analysisResponseFormat() {
         var properties = new java.util.LinkedHashMap<String, Object>();
         properties.put("readable", java.util.Map.of("type", "boolean"));
         properties.put("reason", nullableString());
-        properties.put("document_type", java.util.Map.of(
-            "type", java.util.List.of("string", "null"),
-            "enum", java.util.Arrays.asList("NFE", "NFCE", "CUPOM", "RECIBO", "HOTEL", "APP_RIDE", "PEDAGIO", "PARKING", "OTHER", null)
-        ));
-        properties.put("supplier_name", nullableString());
-        properties.put("supplier_cnpj", nullableString());
-        properties.put("supplier_address", nullableString());
-        properties.put("total_amount", java.util.Map.of("type", java.util.List.of("number", "null")));
-        properties.put("tax_amount", java.util.Map.of("type", java.util.List.of("number", "null")));
-        properties.put("issue_date", nullableString());
-        properties.put("issue_time", nullableString());
-        properties.put("currency", java.util.Map.of(
-            "type", java.util.List.of("string", "null"),
-            "enum", java.util.Arrays.asList("BRL", null)
-        ));
-        properties.put("payment_method", java.util.Map.of(
-            "type", java.util.List.of("string", "null"),
-            "enum", java.util.Arrays.asList("CREDIT_CARD", "DEBIT_CARD", "PIX", "CASH", "MEAL_VOUCHER", "UNKNOWN", null)
-        ));
         properties.put("category", java.util.Map.of(
             "type", java.util.List.of("string", "null"),
             "enum", java.util.Arrays.asList("FOOD", "TRANSPORT", "LODGING", "PURCHASE", "OTHER", null)
@@ -353,42 +392,19 @@ public class OcrService {
         properties.put("description", nullableString());
         properties.put("score", java.util.Map.of("type", java.util.List.of("integer", "null"), "minimum", 0, "maximum", 100));
         properties.put("confidence_reason", nullableString());
-        properties.put("policy_compliant", java.util.Map.of("type", java.util.List.of("boolean", "null")));
-        properties.put("policy_reason", nullableString());
-        properties.put("sefaz_verification_code", nullableString());
-        properties.put("sefaz_reason", nullableString());
-        properties.put("suggested_action", java.util.Map.of(
-            "type", java.util.List.of("string", "null"),
-            "enum", java.util.Arrays.asList("AUTO_APPROVE", "MANAGER_REVIEW", "EMPLOYEE_CORRECTION", "REJECT", null)
-        ));
-        properties.put("duplicate_suspected", java.util.Map.of("type", "boolean"));
-        properties.put("fraud_signals", java.util.Map.of(
-            "type", "array",
-            "items", java.util.Map.of("type", "string")
-        ));
-        properties.put("line_items", java.util.Map.of(
-            "type", "array",
-            "items", lineItemSchema()
-        ));
 
         var schema = new java.util.LinkedHashMap<String, Object>();
         schema.put("type", "object");
         schema.put("additionalProperties", false);
         schema.put("properties", properties);
         schema.put("required", java.util.List.of(
-            "readable", "reason", "document_type", "supplier_name", "supplier_cnpj",
-            "supplier_address", "total_amount", "tax_amount", "issue_date", "issue_time",
-            "currency", "payment_method", "category", "description",
-            "score", "confidence_reason", "policy_compliant", "policy_reason",
-            "sefaz_verification_code", "sefaz_reason", "suggested_action",
-            "duplicate_suspected", "fraud_signals",
-            "line_items"
+            "readable", "reason", "category", "description", "score", "confidence_reason"
         ));
 
         return java.util.Map.of(
             "type", "json_schema",
             "json_schema", java.util.Map.of(
-                "name", "expense_receipt_ocr",
+                "name", "expense_receipt_analysis",
                 "strict", true,
                 "schema", schema
             )
@@ -403,12 +419,68 @@ public class OcrService {
         return java.util.Map.of("type", java.util.List.of("number", "null"));
     }
 
+    private java.util.Map<String, Object> fieldSchema(java.util.List<?> valueEnum, boolean includeRawText) {
+        var properties = new java.util.LinkedHashMap<String, Object>();
+        if (valueEnum == null) {
+            properties.put("value", java.util.Map.of("type", java.util.List.of("string", "number", "null")));
+        } else {
+            properties.put("value", java.util.Map.of(
+                "type", java.util.List.of("string", "null"),
+                "enum", valueEnum
+            ));
+        }
+        if (includeRawText) {
+            properties.put("raw_text", nullableString());
+        }
+        properties.put("confidence", java.util.Map.of("type", "number", "minimum", 0, "maximum", 1));
+        properties.put("extraction_status", java.util.Map.of(
+            "type", "string",
+            "enum", java.util.List.of("FOUND", "PARTIAL", "UNCERTAIN", "NOT_FOUND", "ILLEGIBLE")
+        ));
+
+        var required = new java.util.ArrayList<String>();
+        required.add("value");
+        if (includeRawText) required.add("raw_text");
+        required.add("confidence");
+        required.add("extraction_status");
+
+        return java.util.Map.of(
+            "type", "object",
+            "additionalProperties", false,
+            "properties", properties,
+            "required", required
+        );
+    }
+
+    private java.util.Map<String, Object> imageQualitySchema() {
+        var properties = new java.util.LinkedHashMap<String, Object>();
+        properties.put("blurry", java.util.Map.of("type", "boolean"));
+        properties.put("cutoff", java.util.Map.of("type", "boolean"));
+        properties.put("dark", java.util.Map.of("type", "boolean"));
+        properties.put("tilted", java.util.Map.of("type", "boolean"));
+        properties.put("low_resolution", java.util.Map.of("type", "boolean"));
+
+        return java.util.Map.of(
+            "type", "object",
+            "additionalProperties", false,
+            "properties", properties,
+            "required", java.util.List.of("blurry", "cutoff", "dark", "tilted", "low_resolution")
+        );
+    }
+
+    private java.util.Map<String, Object> stringArraySchema() {
+        return java.util.Map.of(
+            "type", "array",
+            "items", java.util.Map.of("type", "string")
+        );
+    }
+
     private java.util.Map<String, Object> lineItemSchema() {
         var properties = new java.util.LinkedHashMap<String, Object>();
-        properties.put("name", nullableString());
-        properties.put("quantity", nullableNumber());
-        properties.put("unit_price", nullableNumber());
-        properties.put("total_price", nullableNumber());
+        properties.put("name", fieldSchema(null, true));
+        properties.put("quantity", fieldSchema(null, true));
+        properties.put("unit_price", fieldSchema(null, true));
+        properties.put("total_price", fieldSchema(null, true));
 
         return java.util.Map.of(
             "type", "object",
@@ -418,51 +490,54 @@ public class OcrService {
         );
     }
 
-    private OcrResult parseOcrJson(String json) {
+    private OcrResult parseOcrJson(String extractionJson, String analysisJson, String rawOcrText) {
         try {
-            JsonNode node = objectMapper.readTree(json);
-            boolean readable = node.path("readable").asBoolean(false);
+            JsonNode extraction = objectMapper.readTree(extractionJson);
+            JsonNode analysis = objectMapper.readTree(analysisJson);
+            boolean readable = analysis.path("readable").asBoolean(extraction.path("document_detected").asBoolean(false));
 
-            BigDecimal amount = null;
-            JsonNode amountNode = node.path("total_amount");
-            if (!amountNode.isMissingNode() && !amountNode.isNull()) {
-                try {
-                    amount = new BigDecimal(amountNode.asText());
-                } catch (Exception ignored) {}
+            BigDecimal amount = readMoneyField(extraction, "total_amount");
+            LocalDate issueDate = readFieldLocalDate(extraction, "issue_date");
+            java.util.List<OcrResult.LineItem> lineItems = readLineItems(extraction);
+            String validationReason = validateExtractedAmount(amount, lineItems);
+            if (validationReason != null) {
+                readable = false;
             }
-
-            LocalDate issueDate = null;
-            String dateStr = node.path("issue_date").asText(null);
-            if (dateStr != null && !dateStr.isBlank()) {
-                try {
-                    issueDate = LocalDate.parse(dateStr);
-                } catch (Exception ignored) {}
-            }
+            String rawJson = objectMapper.writeValueAsString(java.util.Map.of(
+                "raw_ocr_text", rawOcrText == null ? "" : rawOcrText,
+                "extraction", objectMapper.readTree(extractionJson),
+                "analysis", objectMapper.readTree(analysisJson),
+                "amount_validation", validationReason == null ? "OK" : validationReason
+            ));
 
             return new OcrResult(
                 readable,
-                node.path("reason").asText(readable ? null : "Ilegivel"),
-                node.path("supplier_name").asText(null),
-                node.path("supplier_cnpj").asText(null),
+                validationReason != null
+                    ? validationReason
+                    : analysis.path("reason").asText(readable ? null : "Documento nao detectado"),
+                readFieldText(extraction, "supplier_name"),
+                readFieldText(extraction, "supplier_cnpj"),
                 amount,
                 issueDate,
-                node.path("category").asText(null),
-                node.path("description").asText(null),
-                readScore(node),
-                node.path("confidence_reason").asText(null),
-                readBoolean(node, "policy_compliant"),
-                node.path("policy_reason").asText(null),
-                node.path("sefaz_verification_code").asText(null),
-                node.path("sefaz_reason").asText(null),
-                node.path("suggested_action").asText(null),
-                readLineItems(node),
-                json
+                analysis.path("category").asText(null),
+                analysis.path("description").asText(null),
+                validationReason != null ? capScoreForInvalidAmount(readScore(analysis)) : readScore(analysis),
+                validationReason != null
+                    ? appendReason(analysis.path("confidence_reason").asText(null), validationReason)
+                    : analysis.path("confidence_reason").asText(null),
+                null,
+                null,
+                readFieldText(extraction, "sefaz_verification_code"),
+                buildSefazReason(extraction),
+                null,
+                lineItems,
+                rawJson
             );
         } catch (Exception e) {
-            log.warn("Failed to parse OCR JSON: {}", json, e);
+            log.warn("Failed to parse OCR JSON: extraction={} analysis={}", extractionJson, analysisJson, e);
             return new OcrResult(false, "Erro ao interpretar resposta da IA", null, null, null,
                 null, null, null, (short) 0, null, null, null, null, null,
-                "EMPLOYEE_CORRECTION", java.util.List.of(), json);
+                null, java.util.List.of(), extractionJson);
         }
     }
 
@@ -472,16 +547,235 @@ public class OcrService {
 
         java.util.List<OcrResult.LineItem> items = new java.util.ArrayList<>();
         for (JsonNode itemNode : itemsNode) {
-            String name = itemNode.path("name").asText(null);
+            String name = readFieldText(itemNode, "name");
             if (name == null || name.isBlank()) continue;
             items.add(new OcrResult.LineItem(
                 name,
-                readBigDecimal(itemNode, "quantity"),
-                readBigDecimal(itemNode, "unit_price"),
-                readBigDecimal(itemNode, "total_price")
+                readQuantityField(itemNode, "quantity"),
+                readMoneyField(itemNode, "unit_price"),
+                readMoneyField(itemNode, "total_price")
             ));
         }
         return items;
+    }
+
+    private String validateExtractedAmount(BigDecimal totalAmount, java.util.List<OcrResult.LineItem> lineItems) {
+        if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return "Valor total da nota nao foi lido com confianca. Funcionario deve tirar uma nova foto.";
+        }
+
+        if (lineItems.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal sum = BigDecimal.ZERO;
+        int completeItems = 0;
+        for (OcrResult.LineItem item : lineItems) {
+            if (item.quantity() != null && item.quantity().compareTo(new BigDecimal("100")) > 0) {
+                return "Quantidade de item lida como " + item.quantity()
+                    + ", valor improvavel para nota de reembolso. Funcionario deve tirar uma nova foto.";
+            }
+            BigDecimal itemTotal = item.totalPrice();
+            if (itemTotal == null && item.quantity() != null && item.unitPrice() != null) {
+                itemTotal = item.quantity().multiply(item.unitPrice());
+            }
+            if (item.quantity() != null && item.unitPrice() != null && item.totalPrice() != null) {
+                BigDecimal expected = item.quantity().multiply(item.unitPrice());
+                if (expected.subtract(item.totalPrice()).abs().compareTo(new BigDecimal("0.05")) > 0) {
+                    return "Quantidade, valor unitario e total do item nao batem. Funcionario deve tirar uma nova foto.";
+                }
+            }
+            if (itemTotal == null) {
+                continue;
+            }
+            sum = sum.add(itemTotal);
+            completeItems++;
+        }
+
+        if (completeItems == 0) {
+            return null;
+        }
+
+        BigDecimal difference = totalAmount.subtract(sum).abs();
+        if (difference.compareTo(new BigDecimal("0.05")) > 0) {
+            return "Valor total da nota diverge da soma dos itens lidos. Total: " + totalAmount
+                + "; soma dos itens: " + sum + ". Funcionario deve tirar uma nova foto.";
+        }
+        return null;
+    }
+
+    private String appendReason(String current, String addition) {
+        if (current == null || current.isBlank()) {
+            return addition;
+        }
+        return current + " " + addition;
+    }
+
+    private String readFieldText(JsonNode node, String field) {
+        JsonNode value = node.path(field).path("value");
+        if (!value.isMissingNode() && !value.isNull() && !value.asText().isBlank()) {
+            return value.asText();
+        }
+        JsonNode rawText = node.path(field).path("raw_text");
+        if (!rawText.isMissingNode() && !rawText.isNull() && !rawText.asText().isBlank()) {
+            return rawText.asText();
+        }
+        return null;
+    }
+
+    private String readRawFieldText(JsonNode node, String field) {
+        JsonNode rawText = node.path(field).path("raw_text");
+        if (!rawText.isMissingNode() && !rawText.isNull() && !rawText.asText().isBlank()) {
+            return rawText.asText();
+        }
+        JsonNode value = node.path(field).path("value");
+        if (!value.isMissingNode() && !value.isNull() && !value.asText().isBlank()) {
+            return value.asText();
+        }
+        return null;
+    }
+
+    private BigDecimal readMoneyField(JsonNode node, String field) {
+        String raw = readRawFieldText(node, field);
+        BigDecimal fromRaw = parseMoney(raw);
+        if (fromRaw != null) return fromRaw;
+        return readFieldBigDecimal(node, field);
+    }
+
+    private BigDecimal parseMoney(String text) {
+        if (text == null || text.isBlank()) return null;
+        var matcher = MONEY_PATTERN.matcher(text);
+        String lastMatch = null;
+        while (matcher.find()) {
+            lastMatch = matcher.group(1);
+        }
+        if (lastMatch == null) return null;
+        try {
+            String normalized = lastMatch.contains(",")
+                ? lastMatch.replace(".", "").replace(",", ".")
+                : lastMatch;
+            return new BigDecimal(normalized);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal readQuantityField(JsonNode node, String field) {
+        String raw = readRawFieldText(node, field);
+        BigDecimal quantity = parseBrazilianDecimal(raw);
+        if (quantity == null) {
+            quantity = readFieldBigDecimal(node, field);
+        }
+        if (quantity == null) return null;
+        if (quantity.compareTo(new BigDecimal("100")) > 0 && raw != null && raw.contains(",")) {
+            BigDecimal repaired = parseBrazilianDecimal(raw);
+            if (repaired != null && repaired.compareTo(new BigDecimal("100")) <= 0) {
+                return repaired;
+            }
+        }
+        return quantity.stripTrailingZeros();
+    }
+
+    private BigDecimal parseBrazilianDecimal(String text) {
+        if (text == null || text.isBlank()) return null;
+        String compact = text.replace(" ", "");
+        var matcher = Pattern.compile("\\d+(?:[,.]\\d+)?").matcher(compact);
+        if (!matcher.find()) return null;
+        String number = matcher.group();
+        try {
+            String normalized = number.contains(",")
+                ? number.replace(".", "").replace(",", ".")
+                : number;
+            return new BigDecimal(normalized);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal readFieldBigDecimal(JsonNode node, String field) {
+        String value = readFieldText(node, field);
+        if (value == null || value.isBlank()) return null;
+        try {
+            String normalized = value.replace("R$", "")
+                .replace(" ", "")
+                .replace(".", "")
+                .replace(",", ".");
+            return new BigDecimal(normalized);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private LocalDate readFieldLocalDate(JsonNode node, String field) {
+        String value = readFieldText(node, field);
+        if (value == null || value.isBlank()) return null;
+        try {
+            return LocalDate.parse(value);
+        } catch (Exception ignored) {
+            try {
+                return java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy").parse(value, LocalDate::from);
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
+        }
+    }
+
+    private String buildSefazReason(JsonNode extraction) {
+        JsonNode field = extraction.path("sefaz_verification_code");
+        String status = field.path("extraction_status").asText("NOT_FOUND");
+        if ("FOUND".equals(status) || "PARTIAL".equals(status)) {
+            return "Codigo fiscal extraido com status " + status + ".";
+        }
+        return "Codigo fiscal nao encontrado ou ilegivel na extracao OCR.";
+    }
+
+    private String buildReceiptFingerprint(OcrResult result) {
+        if (result.totalAmount() == null || result.issueDate() == null) {
+            return null;
+        }
+
+        String fiscalCode = normalizeFingerprintPart(result.sefazVerificationCode());
+        String supplierCnpj = normalizeDigits(result.supplierCnpj());
+        String supplierName = normalizeFingerprintPart(result.supplierName());
+
+        String identity;
+        if (fiscalCode != null && fiscalCode.length() >= 8) {
+            identity = "code:" + fiscalCode;
+        } else if (supplierCnpj != null && supplierCnpj.length() >= 8) {
+            identity = "cnpj:" + supplierCnpj;
+        } else if (supplierName != null && supplierName.length() >= 4) {
+            identity = "supplier:" + supplierName;
+        } else {
+            return null;
+        }
+
+        String source = identity
+            + "|date:" + result.issueDate()
+            + "|amount:" + result.totalAmount().setScale(2, java.math.RoundingMode.HALF_UP);
+        return sha256(source);
+    }
+
+    private String normalizeFingerprintPart(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.toLowerCase(Locale.ROOT)
+            .replaceAll("[^a-z0-9]", "");
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String normalizeDigits(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.replaceAll("\\D", "");
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to hash receipt fingerprint", ex);
+        }
     }
 
     private BigDecimal readBigDecimal(JsonNode node, String field) {
@@ -499,6 +793,11 @@ public class OcrService {
         if (scoreNode.isMissingNode() || scoreNode.isNull()) return null;
         int score = scoreNode.asInt(0);
         return (short) Math.max(0, Math.min(100, score));
+    }
+
+    private short capScoreForInvalidAmount(Short score) {
+        if (score == null) return 0;
+        return (short) Math.min(score, 49);
     }
 
     private Boolean readBoolean(JsonNode node, String field) {
@@ -522,6 +821,18 @@ public class OcrService {
             try {
                 expense.setCategory(ExpenseCategory.valueOf(result.category()));
             } catch (IllegalArgumentException ignored) {}
+        }
+
+        String fingerprint = buildReceiptFingerprint(result);
+        if (fingerprint != null) {
+            expense.setReceiptFingerprint(fingerprint);
+            var duplicates = expenseRepository.findActiveDuplicatesByFingerprint(
+                expense.getCompany().getId(), fingerprint, expense.getId()
+            );
+            if (!duplicates.isEmpty()) {
+                markAsDuplicate(expense, duplicates.get(0), result);
+                return;
+            }
         }
 
         AiExpenseDecision decision = aiExpenseDecisionService.decide(expense, result);
@@ -548,6 +859,34 @@ public class OcrService {
         expenseRepository.save(expense);
         log.info("OCR applied to expense {} status={} score={} decision={}",
             expense.getId(), decision.status(), decision.score(), decision.decision());
+    }
+
+    private void markAsDuplicate(Expense expense, Expense original, OcrResult result) {
+        expense.setDuplicateOfExpense(original);
+        expense.setAiScore(result.score() == null ? 0 : (short) Math.min(result.score(), 20));
+        expense.setAiAlertLevel(AiAlertLevel.HIGH);
+        expense.setAiAnalysis("Nota duplicada: este documento ja foi enviado anteriormente por outro usuario ou pela mesma conta.");
+        expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
+        expense.setAiDecisionReason("Duplicidade detectada contra a despesa " + original.getId() + ".");
+        expense.setPolicyCompliant(false);
+        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso bloqueado.");
+        expense.setSefazStatus(SefazStatus.INVALID);
+        expense.setSefazValidationMessage("Documento duplicado na base da empresa.");
+        expense.setAutoApprovalEligible(false);
+        expense.setManualReviewReason("Nota duplicada. Esta nota ja existe no sistema e nao pode ser reenviada.");
+        expense.setAiCheckedAt(Instant.now());
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.NEEDS_REVISION);
+        var history = new ExpenseStatusHistory(
+            expense, from, ExpenseStatus.NEEDS_REVISION, null,
+            "IA: nota duplicada da despesa " + original.getId()
+        );
+        history.setAiScore(expense.getAiScore());
+        expense.getStatusHistory().add(history);
+
+        expenseRepository.save(expense);
+        log.warn("Duplicate receipt blocked expense={} original={}", expense.getId(), original.getId());
     }
 
     private void fallbackToPendingReview(UUID expenseId, String reason) {

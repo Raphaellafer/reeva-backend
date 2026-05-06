@@ -193,3 +193,33 @@ export interface PaymentBatchResponse {
   expenseCount: number;
   employees: EmployeePayment[];
 }
+
+export interface ProjectMonthlyTrendResponse {
+  month: string;
+  revenue: number;
+  generalExpenses: number;
+  reimbursableExpenses: number;
+  totalCost: number;
+  profit: number;
+}
+
+export interface ProjectPerformanceResponse {
+  projectId: string;
+  projectName: string;
+  projectCode: string | null;
+  revenue: number;
+  generalExpenses: number;
+  reimbursableExpenses: number;
+  totalCost: number;
+  profit: number;
+  margin: number | null;
+  roi: number | null;
+  avoidableLosses: number;
+  aiSavings: number;
+  reimbursedExpenseCount: number;
+  totalExpenseCount: number;
+  autoApprovedCount: number;
+  complianceRate: number;
+  autoApprovalRate: number;
+  monthlyTrend: ProjectMonthlyTrendResponse[];
+}

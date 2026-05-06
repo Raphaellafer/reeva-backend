@@ -88,4 +88,34 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("from") java.time.LocalDate from,
         @Param("to") java.time.LocalDate to
     );
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.project.id = :projectId
+          AND e.company.id = :companyId
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate ASC, e.createdAt ASC
+        """)
+    List<Expense> findByProjectForCfoMetrics(
+        @Param("companyId") UUID companyId,
+        @Param("projectId") UUID projectId,
+        @Param("from") java.time.LocalDate from,
+        @Param("to") java.time.LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.company.id = :companyId
+          AND e.receiptFingerprint = :fingerprint
+          AND e.id <> :currentExpenseId
+          AND e.deleted = false
+        ORDER BY e.createdAt ASC
+        """)
+    List<Expense> findActiveDuplicatesByFingerprint(
+        @Param("companyId") UUID companyId,
+        @Param("fingerprint") String fingerprint,
+        @Param("currentExpenseId") UUID currentExpenseId
+    );
 }
