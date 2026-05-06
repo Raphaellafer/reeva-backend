@@ -5,6 +5,10 @@ import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.EmployeeListResponse;
 import com.reeva.backend.manager.dto.EmployeeProfileResponse;
+import com.reeva.backend.manager.dto.PaymentBatchResponse;
+import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
+import com.reeva.backend.manager.dto.PolicyResponse;
+import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
 import com.reeva.backend.user.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,11 +17,13 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,6 +43,27 @@ public class ManagerController {
     @Operation(summary = "Manager dashboard KPIs")
     public DashboardResponse dashboard(@AuthenticationPrincipal User currentUser) {
         return managerService.getDashboard(currentUser);
+    }
+
+    @GetMapping("/policies")
+    @Operation(summary = "List company expense policies")
+    public List<PolicyResponse> listPolicies(@AuthenticationPrincipal User currentUser) {
+        return managerService.listPolicies(currentUser);
+    }
+
+    @GetMapping("/policies/audit-logs")
+    @Operation(summary = "List company expense policy audit logs")
+    public List<PolicyAuditLogResponse> listPolicyAuditLogs(@AuthenticationPrincipal User currentUser) {
+        return managerService.listPolicyAuditLogs(currentUser);
+    }
+
+    @PutMapping("/policies")
+    @Operation(summary = "Create or update a company expense policy")
+    public PolicyResponse savePolicy(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody PolicyUpdateRequest request
+    ) {
+        return managerService.savePolicy(currentUser, request);
     }
 
     @GetMapping("/expenses")
@@ -85,6 +112,16 @@ public class ManagerController {
         @Valid @RequestBody ReviewRequest request
     ) {
         return managerService.requestRevision(currentUser, id, request);
+    }
+
+    @GetMapping("/payments/approved")
+    @Operation(summary = "List approved reimbursements ready to send to finance")
+    public PaymentBatchResponse approvedPayments(
+        @AuthenticationPrincipal User currentUser,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return managerService.approvedPayments(currentUser, from, to);
     }
 
     // ── Employee management ──────────────────────────────────────────

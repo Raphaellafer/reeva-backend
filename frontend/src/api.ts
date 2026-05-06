@@ -8,7 +8,15 @@ import type {
   ExpenseCategory,
   ExpenseResponse,
   PageResponse,
-  PaymentMethod
+  PaymentBatchResponse,
+  PolicyPayload,
+  PolicyAuditLogResponse,
+  PolicyResponse,
+  ProjectPerformanceResponse,
+  PaymentMethod,
+  ProjectPayload,
+  ProjectResponse,
+  TeamMemberResponse
 } from './types';
 
 function resolveApiBaseUrl() {
@@ -16,14 +24,14 @@ function resolveApiBaseUrl() {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
-  }
-
-  return 'http://localhost:8080/api/v1';
+  const protocol = window.location.protocol || 'http:';
+  const hostname = window.location.hostname || 'localhost';
+  return `${protocol}//${hostname}:8080/api/v1`;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
+const FRONTEND_ORIGIN = window.location.origin;
+const API_ORIGIN = new URL(API_BASE_URL).origin;
 
 export async function getAttachmentBlob(token: string, attachmentId: string) {
   const response = await fetch(`${API_BASE_URL}/expenses/attachments/${attachmentId}`, {
@@ -50,10 +58,38 @@ type RequestOptions = RequestInit & {
 interface ExpensePayload {
   title: string;
   category: ExpenseCategory;
+  projectId: string;
   amount: string | null;
   expenseDate: string;
   paymentMethod: PaymentMethod;
   description: string;
+}
+
+interface EmployeeCorrectionPayload {
+  title: string;
+  category: ExpenseCategory;
+  expenseDate: string;
+  description: string;
+}
+
+async function diagnoseNetworkFailure(): Promise<string> {
+  const healthUrl = `${API_ORIGIN}/actuator/health`;
+
+  try {
+    await fetch(healthUrl, {
+      method: 'GET',
+      mode: 'no-cors',
+      cache: 'no-store'
+    });
+
+    return [
+      `A API em ${API_BASE_URL} parece estar acessivel, mas o navegador bloqueou a requisicao.`,
+      `Origem atual do frontend: ${FRONTEND_ORIGIN}.`,
+      'Verifique CORS, a URL aberta no navegador e se o frontend esta apontando para a API correta.'
+    ].join(' ');
+  } catch {
+    return `Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend esta rodando e acessivel a partir de ${FRONTEND_ORIGIN}.`;
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -67,10 +103,15 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set('Authorization', `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers
+    });
+  } catch (err) {
+    throw new Error(await diagnoseNetworkFailure());
+  }
 
   if (!response.ok) {
     const error = (await response.json().catch(() => null)) as ApiError | null;
@@ -115,6 +156,13 @@ export async function getMyExpenses(token: string) {
   });
 }
 
+export async function getMyExpense(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}`, {
+    method: 'GET',
+    token
+  });
+}
+
 export async function createExpense(
   token: string,
   payload: ExpensePayload,
@@ -139,6 +187,29 @@ export async function submitExpense(token: string, expenseId: string) {
     method: 'POST',
     token
   });
+}
+
+export async function retryExpenseOcr(token: string, expenseId: string) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}/retry-ocr`, {
+    method: 'POST',
+    token
+  });
+}
+
+export async function submitEmployeeCorrection(
+  token: string,
+  expenseId: string,
+  payload: EmployeeCorrectionPayload
+) {
+  return request<ExpenseResponse>(`/expenses/${expenseId}/employee-correction`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getMyProjects(token: string) {
+  return request<ProjectResponse[]>('/projects/my', { token });
 }
 
 // ── Manager ──────────────────────────────────────────────────────────
@@ -180,6 +251,54 @@ export async function requestRevision(token: string, expenseId: string, notes: s
   });
 }
 
+export async function getPolicies(token: string) {
+  return request<PolicyResponse[]>('/manager/policies', { token });
+}
+
+export async function getPolicyAuditLogs(token: string) {
+  return request<PolicyAuditLogResponse[]>('/manager/policies/audit-logs', { token });
+}
+
+export async function savePolicy(token: string, payload: PolicyPayload) {
+  return request<PolicyResponse>('/manager/policies', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getManagedProjects(token: string) {
+  return request<ProjectResponse[]>('/manager/projects', { token });
+}
+
+export async function createProject(token: string, payload: ProjectPayload) {
+  return request<ProjectResponse>('/manager/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function updateProject(token: string, projectId: string, payload: ProjectPayload) {
+  return request<ProjectResponse>(`/manager/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getTeamMembers(token: string) {
+  return request<TeamMemberResponse[]>('/manager/team-members', { token });
+}
+
+export async function getApprovedPayments(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<PaymentBatchResponse>(`/manager/payments/approved${query ? `?${query}` : ''}`, { token });
+}
+
 // ── Manager: Employees ────────────────────────────────────────────
 
 export async function getTeamEmployees(token: string) {
@@ -196,4 +315,14 @@ export async function createEmployee(token: string, payload: CreateEmployeePaylo
     body: JSON.stringify(payload),
     token
   });
+}
+
+// ── CFO ──────────────────────────────────────────────────────────────
+
+export async function getCfoProjectPerformance(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<ProjectPerformanceResponse[]>(`/cfo/projects/performance${query ? `?${query}` : ''}`, { token });
 }

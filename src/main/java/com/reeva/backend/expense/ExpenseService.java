@@ -9,10 +9,13 @@ import com.reeva.backend.expense.attachment.ExpenseAttachment;
 import com.reeva.backend.expense.comment.CommentService;
 import com.reeva.backend.expense.comment.dto.CommentRequest;
 import com.reeva.backend.expense.comment.dto.CommentResponse;
+import com.reeva.backend.expense.dto.EmployeeExpenseCorrectionRequest;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
 import com.reeva.backend.expense.queue.OcrQueuePublisher;
+import com.reeva.backend.project.Project;
+import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
 import org.springframework.data.domain.Page;
@@ -21,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -38,11 +42,12 @@ public class ExpenseService {
     private final OcrService ocrService;
     private final OcrQueuePublisher ocrQueuePublisher;
     private final AttachmentRepository attachmentRepository;
+    private final ProjectService projectService;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
                           CommentService commentService, AuditService auditService,
                           OcrService ocrService, OcrQueuePublisher ocrQueuePublisher,
-                          AttachmentRepository attachmentRepository) {
+                          AttachmentRepository attachmentRepository, ProjectService projectService) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.commentService = commentService;
@@ -50,14 +55,16 @@ public class ExpenseService {
         this.ocrService = ocrService;
         this.ocrQueuePublisher = ocrQueuePublisher;
         this.attachmentRepository = attachmentRepository;
+        this.projectService = projectService;
     }
 
     @Transactional
     public ExpenseResponse create(User currentUser, MultipartFile file, ExpenseRequest request) {
         StorageService.StoredFile stored = storageService.store(file);
+        Project project = projectService.getEmployeeProject(currentUser, request.projectId());
 
         Expense expense = new Expense(
-            currentUser.getCompany(), currentUser, request.title(), request.category(),
+            currentUser.getCompany(), currentUser, project, request.title(), request.category(),
             request.amount(), request.expenseDate(),
             request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.OTHER
         );
@@ -79,6 +86,7 @@ public class ExpenseService {
         Map<String, Object> auditMetadata = new HashMap<>();
         auditMetadata.put("title", request.title());
         auditMetadata.put("amount", request.amount());
+        auditMetadata.put("projectId", project.getId());
 
         auditService.log(
             currentUser.getCompany().getId(), currentUser.getId(),
@@ -122,6 +130,80 @@ public class ExpenseService {
     @Transactional(readOnly = true)
     public ExpenseStatus getStatus(User currentUser, UUID expenseId) {
         return getOwnedExpense(currentUser, expenseId).getStatus();
+    }
+
+    @Transactional
+    public ExpenseResponse retryOcr(User currentUser, UUID expenseId) {
+        Expense expense = getOwnedExpense(currentUser, expenseId);
+
+        if (expense.getAttachments().isEmpty()) {
+            throw BusinessException.badRequest("Expense has no attachment to analyze");
+        }
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.SUBMITTED);
+        expense.setAiAnalysis("OCR reenfileirado para analise");
+        expense.setAiDecisionReason("OCR reenfileirado para analise");
+        expense.setManualReviewReason(null);
+        expense.getStatusHistory().add(
+            new ExpenseStatusHistory(expense, from, ExpenseStatus.SUBMITTED, currentUser, "OCR retry requested")
+        );
+
+        Expense saved = expenseRepository.save(expense);
+        ocrService.processExpense(saved.getId());
+        return ExpenseResponse.from(saved);
+    }
+
+    @Transactional
+    public ExpenseResponse submitEmployeeCorrection(User currentUser, UUID expenseId,
+                                                    EmployeeExpenseCorrectionRequest request) {
+        Expense expense = getOwnedExpense(currentUser, expenseId);
+
+        if (expense.getStatus() != ExpenseStatus.NEEDS_REVISION) {
+            throw BusinessException.badRequest("Only expenses in NEEDS_REVISION can be corrected by the employee");
+        }
+        if (expense.getDuplicateOfExpense() != null) {
+            throw BusinessException.badRequest("Nota duplicada nao pode ser corrigida ou reenviada para reembolso");
+        }
+        if (expense.getAmount() == null || expense.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw BusinessException.badRequest(
+                "Valor da nota nao pode ser preenchido manualmente. Tire uma nova foto para o OCR ler o total."
+            );
+        }
+
+        expense.setTitle(request.title());
+        expense.setCategory(request.category());
+        expense.setExpenseDate(request.expenseDate());
+        expense.setDescription(request.description());
+        expense.setManualReviewReason(null);
+        expense.setAiDecision(AiDecision.READY_FOR_MANAGER);
+        expense.setAiDecisionReason("Campos nao financeiros preenchidos manualmente pelo funcionario.");
+        expense.setAiAnalysis("Aguardando decisao do gestor apos correcao manual de campos nao financeiros.");
+        expense.setAutoApprovalEligible(false);
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.PENDING_REVIEW);
+        expense.getStatusHistory().add(
+            new ExpenseStatusHistory(
+                expense, from, ExpenseStatus.PENDING_REVIEW, currentUser,
+                "Campos nao financeiros preenchidos pelo funcionario e enviados ao gestor"
+            )
+        );
+
+        Expense saved = expenseRepository.save(expense);
+
+        auditService.log(
+            currentUser.getCompany().getId(), currentUser.getId(),
+            "EXPENSE_EMPLOYEE_CORRECTED", "Expense", expense.getId(),
+            Map.of(
+                "title", request.title(),
+                "category", request.category().name(),
+                "amount", expense.getAmount().toPlainString(),
+                "amountSource", "OCR_LOCKED"
+            ), null
+        );
+
+        return ExpenseResponse.from(saved);
     }
 
     @Transactional

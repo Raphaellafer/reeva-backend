@@ -35,6 +35,9 @@ public class ExpensePolicy {
     @Column(name = "requires_receipt", nullable = false)
     private boolean requiresReceipt = true;
 
+    @Column(name = "auto_approval_min_score", nullable = false)
+    private short autoApprovalMinScore = 90;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -62,6 +65,7 @@ public class ExpensePolicy {
     public BigDecimal getDailyLimit() { return dailyLimit; }
     public BigDecimal getMonthlyLimit() { return monthlyLimit; }
     public boolean isRequiresReceipt() { return requiresReceipt; }
+    public short getAutoApprovalMinScore() { return autoApprovalMinScore; }
     public String getDescription() { return description; }
     public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
@@ -70,5 +74,8 @@ public class ExpensePolicy {
     public void setMaxAmount(BigDecimal maxAmount) { this.maxAmount = maxAmount; }
     public void setDailyLimit(BigDecimal dailyLimit) { this.dailyLimit = dailyLimit; }
     public void setMonthlyLimit(BigDecimal monthlyLimit) { this.monthlyLimit = monthlyLimit; }
+    public void setRequiresReceipt(boolean requiresReceipt) { this.requiresReceipt = requiresReceipt; }
+    public void setAutoApprovalMinScore(short autoApprovalMinScore) { this.autoApprovalMinScore = autoApprovalMinScore; }
+    public void setDescription(String description) { this.description = description; }
     public void setActive(boolean active) { this.active = active; }
 }

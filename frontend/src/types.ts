@@ -1,4 +1,4 @@
-export type ExpenseCategory = 'FOOD' | 'TRANSPORT' | 'LODGING' | 'PURCHASE';
+export type ExpenseCategory = 'FOOD' | 'TRANSPORT' | 'LODGING' | 'PURCHASE' | 'HARDWARE';
 
 export type PaymentMethod =
   | 'CASH'
@@ -67,6 +67,8 @@ export interface ExpenseResponse {
   title: string;
   description: string | null;
   category: ExpenseCategory;
+  projectId: string;
+  projectName: string;
   amount: number | null;
   currency: string;
   paymentMethod: PaymentMethod;
@@ -104,6 +106,39 @@ export interface DashboardResponse {
   automationRate: number;
 }
 
+export interface PolicyResponse {
+  id: string;
+  category: ExpenseCategory;
+  maxAmount: number;
+  dailyLimit: number | null;
+  monthlyLimit: number | null;
+  requiresReceipt: boolean;
+  autoApprovalMinScore: number;
+  description: string | null;
+}
+
+export interface PolicyPayload {
+  category: ExpenseCategory;
+  maxAmount: string;
+  dailyLimit: string | null;
+  monthlyLimit: string | null;
+  requiresReceipt: boolean;
+  autoApprovalMinScore: number;
+  description: string;
+}
+
+export interface PolicyAuditLogResponse {
+  id: string;
+  action: 'POLICY_CREATED' | 'POLICY_UPDATED' | 'POLICY_REACTIVATED' | string;
+  policyId: string;
+  changedByUserId: string;
+  changedByName: string | null;
+  category: ExpenseCategory | string | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  changedAt: string;
+}
+
 export interface PageResponse<T> {
   content: T[];
   totalElements: number;
@@ -139,66 +174,67 @@ export interface ProjectResponse {
 
 export interface ProjectPayload {
   name: string;
-  code?: string;
-  description?: string;
-  revenue?: number;
-  memberIds: string[];
+  code: string;
+  description: string;
+  revenue: string | null;
+  employeeIds: string[];
 }
 
-export interface PolicyResponse {
+export interface PaymentExpense {
   id: string;
-  category: ExpenseCategory;
-  dailyLimit: number | null;
-  monthlyLimit: number | null;
-  requiresReceipt: boolean;
-  minAutoApprovalScore: number;
-}
-
-export interface PolicyPayload {
-  category: ExpenseCategory;
-  dailyLimit?: number;
-  monthlyLimit?: number;
-  requiresReceipt: boolean;
-  minAutoApprovalScore: number;
-}
-
-export interface PolicyAuditLogResponse {
-  id: string;
-  userId: string;
-  userName: string;
-  action: string;
-  changedAt: string;
+  title: string;
+  projectName: string | null;
+  expenseDate: string;
+  amount: number;
+  autoApproved: boolean;
 }
 
 export interface EmployeePayment {
   userId: string;
-  userName: string;
-  pixKey: string | null;
+  name: string;
+  email: string;
+  pixKey: string;
   totalAmount: number;
-  expenseCount: number;
+  expenses: PaymentExpense[];
 }
 
 export interface PaymentBatchResponse {
+  from: string | null;
+  to: string | null;
   totalAmount: number;
   employeeCount: number;
-  payments: EmployeePayment[];
+  expenseCount: number;
+  employees: EmployeePayment[];
 }
 
-export interface ProjectFinancialEntry {
-  id: string;
-  description: string;
-  amount: number;
-  entryDate: string;
-  type: string;
+export interface ProjectMonthlyTrendResponse {
+  month: string;
+  revenue: number;
+  generalExpenses: number;
+  reimbursableExpenses: number;
+  totalCost: number;
+  profit: number;
 }
 
 export interface ProjectPerformanceResponse {
   projectId: string;
   projectName: string;
-  totalExpenses: number;
-  approvedExpenses: number;
-  revenue: number | null;
+  projectCode: string | null;
+  revenue: number;
+  generalExpenses: number;
+  reimbursableExpenses: number;
+  totalCost: number;
+  profit: number;
+  margin: number | null;
   roi: number | null;
+  avoidableLosses: number;
+  aiSavings: number;
+  reimbursedExpenseCount: number;
+  totalExpenseCount: number;
+  autoApprovedCount: number;
+  complianceRate: number;
+  autoApprovalRate: number;
+  monthlyTrend: ProjectMonthlyTrendResponse[];
 }
 
 // ── Employee (manager view) ───────────────────────────────────────
