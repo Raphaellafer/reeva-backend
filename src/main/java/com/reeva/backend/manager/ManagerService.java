@@ -1,11 +1,14 @@
 package com.reeva.backend.manager;
 
 import com.reeva.backend.common.audit.AuditService;
+import com.reeva.backend.common.audit.AuditLog;
+import com.reeva.backend.common.audit.AuditRepository;
 import com.reeva.backend.common.exception.BusinessException;
 import com.reeva.backend.expense.*;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.PaymentBatchResponse;
+import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
@@ -23,7 +26,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ManagerService {
@@ -32,14 +37,17 @@ public class ManagerService {
     private final ExpensePolicyRepository policyRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final AuditRepository auditRepository;
 
     public ManagerService(ExpenseRepository expenseRepository, ExpensePolicyRepository policyRepository,
                           UserRepository userRepository,
-                          AuditService auditService) {
+                          AuditService auditService,
+                          AuditRepository auditRepository) {
         this.expenseRepository = expenseRepository;
         this.policyRepository = policyRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.auditRepository = auditRepository;
     }
 
     @Transactional(readOnly = true)
@@ -154,11 +162,39 @@ public class ManagerService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<PolicyAuditLogResponse> listPolicyAuditLogs(User manager) {
+        List<com.reeva.backend.common.audit.AuditLog> logs = auditRepository.findByCompanyIdAndEntityTypeOrderByCreatedAtDesc(
+                manager.getCompany().getId(),
+                "ExpensePolicy",
+                org.springframework.data.domain.PageRequest.of(0, 100)
+            )
+            .stream()
+            .filter(log -> log.getAction() != null && log.getAction().startsWith("POLICY_"))
+            .toList();
+
+        Map<UUID, String> userNamesById = userRepository.findAllById(
+                logs.stream()
+                    .map(com.reeva.backend.common.audit.AuditLog::getUserId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet())
+            )
+            .stream()
+            .collect(Collectors.toMap(User::getId, User::getName));
+
+        return logs.stream()
+            .map(log -> PolicyAuditLogResponse.from(log, userNamesById.get(log.getUserId())))
+            .toList();
+    }
+
     @Transactional
     public PolicyResponse savePolicy(User manager, PolicyUpdateRequest request) {
-        ExpensePolicy policy = policyRepository
-            .findByCompanyIdAndCategory(manager.getCompany().getId(), request.category())
+        var existing = policyRepository.findByCompanyIdAndCategory(manager.getCompany().getId(), request.category());
+        boolean created = existing.isEmpty();
+        boolean reactivated = existing.map(policy -> !policy.isActive()).orElse(false);
+        ExpensePolicy policy = existing
             .orElseGet(() -> new ExpensePolicy(manager.getCompany(), request.category(), request.maxAmount()));
+        Map<String, Object> before = created ? Map.of() : policySnapshot(policy);
 
         policy.setMaxAmount(request.maxAmount());
         policy.setDailyLimit(request.dailyLimit());
@@ -171,10 +207,38 @@ public class ManagerService {
         policy.setActive(true);
 
         ExpensePolicy saved = policyRepository.save(policy);
-        auditService.log(manager.getCompany().getId(), manager.getId(),
-            "POLICY_UPDATED", "ExpensePolicy", saved.getId(),
-            Map.of("category", saved.getCategory().name()), null);
+        String action = created ? "POLICY_CREATED" : reactivated ? "POLICY_REACTIVATED" : "POLICY_UPDATED";
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("category", saved.getCategory().name());
+        metadata.put("changedByName", manager.getName());
+        metadata.put("changedByEmail", manager.getEmail());
+        metadata.put("before", before);
+        metadata.put("after", policySnapshot(saved));
+
+        auditRepository.save(
+            AuditLog.builder()
+                .companyId(manager.getCompany().getId())
+                .userId(manager.getId())
+                .action(action)
+                .entityType("ExpensePolicy")
+                .entityId(saved.getId())
+                .metadata(metadata)
+                .build()
+        );
         return PolicyResponse.from(saved);
+    }
+
+    private Map<String, Object> policySnapshot(ExpensePolicy policy) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("category", policy.getCategory().name());
+        snapshot.put("maxAmount", policy.getMaxAmount());
+        snapshot.put("dailyLimit", policy.getDailyLimit());
+        snapshot.put("monthlyLimit", policy.getMonthlyLimit());
+        snapshot.put("requiresReceipt", policy.isRequiresReceipt());
+        snapshot.put("autoApprovalMinScore", policy.getAutoApprovalMinScore());
+        snapshot.put("description", policy.getDescription());
+        snapshot.put("active", policy.isActive());
+        return snapshot;
     }
 
     @Transactional(readOnly = true)

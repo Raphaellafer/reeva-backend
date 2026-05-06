@@ -43,7 +43,7 @@ export function G04Notas() {
           </button>
         ))}
         <span className="self-center text-[11px] text-gray-300">|</span>
-        {(['TODOS', 'FOOD', 'TRANSPORT', 'LODGING', 'PURCHASE'] as FiltroCategoria[]).map((category) => (
+        {(['TODOS', 'FOOD', 'TRANSPORT', 'LODGING', 'PURCHASE', 'HARDWARE'] as FiltroCategoria[]).map((category) => (
           <button
             key={category}
             onClick={() => setFiltroCategoria(category)}

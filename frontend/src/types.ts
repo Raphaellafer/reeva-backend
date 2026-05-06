@@ -1,4 +1,4 @@
-export type ExpenseCategory = 'FOOD' | 'TRANSPORT' | 'LODGING' | 'PURCHASE';
+export type ExpenseCategory = 'FOOD' | 'TRANSPORT' | 'LODGING' | 'PURCHASE' | 'HARDWARE';
 
 export type PaymentMethod =
   | 'CASH'
@@ -124,6 +124,18 @@ export interface PolicyPayload {
   requiresReceipt: boolean;
   autoApprovalMinScore: number;
   description: string;
+}
+
+export interface PolicyAuditLogResponse {
+  id: string;
+  action: 'POLICY_CREATED' | 'POLICY_UPDATED' | 'POLICY_REACTIVATED' | string;
+  policyId: string;
+  changedByUserId: string;
+  changedByName: string | null;
+  category: ExpenseCategory | string | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  changedAt: string;
 }
 
 export interface PageResponse<T> {

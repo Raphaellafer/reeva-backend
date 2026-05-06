@@ -33,7 +33,8 @@ const categoryLabels: Record<string, string> = {
   FOOD: 'Alimentacao',
   TRANSPORT: 'Transporte',
   LODGING: 'Hospedagem',
-  PURCHASE: 'Compras'
+  PURCHASE: 'Compras',
+  HARDWARE: 'Hardware'
 };
 
 const REVIEWABLE_STATUSES: ExpenseStatus[] = ['SUBMITTED', 'PENDING_REVIEW'];

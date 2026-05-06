@@ -7,6 +7,7 @@ import type {
   PageResponse,
   PaymentBatchResponse,
   PolicyPayload,
+  PolicyAuditLogResponse,
   PolicyResponse,
   ProjectPerformanceResponse,
   PaymentMethod,
@@ -249,6 +250,10 @@ export async function requestRevision(token: string, expenseId: string, notes: s
 
 export async function getPolicies(token: string) {
   return request<PolicyResponse[]>('/manager/policies', { token });
+}
+
+export async function getPolicyAuditLogs(token: string) {
+  return request<PolicyAuditLogResponse[]>('/manager/policies/audit-logs', { token });
 }
 
 export async function savePolicy(token: string, payload: PolicyPayload) {

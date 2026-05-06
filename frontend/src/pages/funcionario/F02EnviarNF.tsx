@@ -12,6 +12,7 @@ const categories: Array<{ value: ExpenseCategory; label: string }> = [
   { value: 'TRANSPORT', label: 'Transporte' },
   { value: 'LODGING', label: 'Hospedagem' },
   { value: 'PURCHASE', label: 'Compras' },
+  { value: 'HARDWARE', label: 'Hardware' },
 ]
 
 export function F02EnviarNF() {

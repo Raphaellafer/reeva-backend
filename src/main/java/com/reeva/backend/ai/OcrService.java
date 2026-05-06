@@ -145,6 +145,7 @@ public class OcrService {
         - FOOD: restaurante, cafeteria, padaria, delivery, alimentacao.
         - TRANSPORT: Uber, 99, taxi, combustivel, estacionamento, pedagio, metro, onibus, locomocao.
         - LODGING: hotel, pousada, Airbnb, hospedagem.
+        - HARDWARE: computador, notebook, monitor, perifericos, mouse, teclado, equipamento de TI.
         - PURCHASE: farmacia, papelaria, mercado, materiais, eletronicos, compras em geral.
         - OTHER: despesa valida que nao encaixa acima.
 
@@ -387,7 +388,7 @@ public class OcrService {
         properties.put("reason", nullableString());
         properties.put("category", java.util.Map.of(
             "type", java.util.List.of("string", "null"),
-            "enum", java.util.Arrays.asList("FOOD", "TRANSPORT", "LODGING", "PURCHASE", "OTHER", null)
+            "enum", java.util.Arrays.asList("FOOD", "TRANSPORT", "LODGING", "PURCHASE", "HARDWARE", "OTHER", null)
         ));
         properties.put("description", nullableString());
         properties.put("score", java.util.Map.of("type", java.util.List.of("integer", "null"), "minimum", 0, "maximum", 100));

@@ -3,6 +3,7 @@ package com.reeva.backend.manager;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.PaymentBatchResponse;
+import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
@@ -44,6 +45,12 @@ public class ManagerController {
     @Operation(summary = "List company expense policies")
     public List<PolicyResponse> listPolicies(@AuthenticationPrincipal User currentUser) {
         return managerService.listPolicies(currentUser);
+    }
+
+    @GetMapping("/policies/audit-logs")
+    @Operation(summary = "List company expense policy audit logs")
+    public List<PolicyAuditLogResponse> listPolicyAuditLogs(@AuthenticationPrincipal User currentUser) {
+        return managerService.listPolicyAuditLogs(currentUser);
     }
 
     @PutMapping("/policies")

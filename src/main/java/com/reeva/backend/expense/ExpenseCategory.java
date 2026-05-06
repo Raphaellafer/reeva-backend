@@ -4,5 +4,6 @@ public enum ExpenseCategory {
     FOOD,
     TRANSPORT,
     LODGING,
-    PURCHASE
+    PURCHASE,
+    HARDWARE
 }

@@ -14,6 +14,7 @@ export const categoryLabels: Record<ExpenseCategory, string> = {
   TRANSPORT: 'Transporte',
   LODGING: 'Hospedagem',
   PURCHASE: 'Compras',
+  HARDWARE: 'Hardware',
 }
 
 export const reviewStatuses: ExpenseStatus[] = ['SUBMITTED', 'PENDING_REVIEW']
