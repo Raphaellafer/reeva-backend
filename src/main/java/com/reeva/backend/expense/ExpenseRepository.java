@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -115,6 +116,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("status") ExpenseStatus status,
         @Param("from") java.time.LocalDate from,
         @Param("to") java.time.LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.company.id = :companyId
+          AND e.project.id = :projectId
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate ASC, e.createdAt ASC
+        """)
+    List<Expense> findByProjectForCfoMetrics(
+        @Param("companyId") UUID companyId,
+        @Param("projectId") UUID projectId,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
     );
 
     @Query("""

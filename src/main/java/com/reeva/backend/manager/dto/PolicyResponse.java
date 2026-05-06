@@ -14,12 +14,8 @@ public record PolicyResponse(
     BigDecimal monthlyLimit,
     boolean requiresReceipt,
     short autoApprovalMinScore,
-<<<<<<< HEAD
     String description,
     boolean active
-=======
-    String description
->>>>>>> origin/main
 ) {
     public static PolicyResponse from(ExpensePolicy policy) {
         return new PolicyResponse(
@@ -30,12 +26,8 @@ public record PolicyResponse(
             policy.getMonthlyLimit(),
             policy.isRequiresReceipt(),
             policy.getAutoApprovalMinScore(),
-<<<<<<< HEAD
             policy.getDescription(),
             policy.isActive()
-=======
-            policy.getDescription()
->>>>>>> origin/main
         );
     }
 }
