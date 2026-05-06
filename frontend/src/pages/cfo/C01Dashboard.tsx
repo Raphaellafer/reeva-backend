@@ -1,121 +1,162 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getCfoOverview } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
-import { Card } from '../../components/ui/Card'
-import { MetricCard } from '../../components/ui/MetricCard'
 import { Badge } from '../../components/ui/Badge'
+import { Card } from '../../components/ui/Card'
 import { HorizontalBarChart } from '../../components/ui/HorizontalBarChart'
-import { mockAlertas, fmt } from '../../data/mock'
+import { MetricCard } from '../../components/ui/MetricCard'
+import { fmt } from '../../data/mock'
+import { getToken } from '../../session'
+import type { CfoOverviewResponse, ExpenseCategory } from '../../types'
 
-const deptos = [
-  { label: 'Vendas', value: 6760.50, color: '#97C459' },
-  { label: 'Marketing', value: 680.00, color: '#85B7EB' },
-  { label: 'Produto', value: 150.00, color: '#AFA9EC' },
-  { label: 'RH', value: 320.00, color: '#FAC775' },
-  { label: 'TI', value: 1200.00, color: '#F09595' },
-]
+const categoryLabels: Record<ExpenseCategory, string> = {
+  FOOD: 'Alimentacao',
+  TRANSPORT: 'Transporte',
+  LODGING: 'Hospedagem',
+  PURCHASE: 'Compras',
+  HARDWARE: 'Hardware',
+}
 
-const gerentes = [
-  { nome: 'Rafael Souza', equipe: 'Vendas', total: 6760.50, compliance: 92, alertas: 1 },
-  { nome: 'Mariana Costa', equipe: 'Marketing', total: 1000.00, compliance: 100, alertas: 0 },
-  { nome: 'Bruno Alves', equipe: 'TI / Produto', total: 1350.00, compliance: 88, alertas: 2 },
-]
+const colors = ['#97C459', '#85B7EB', '#AFA9EC', '#FAC775', '#F09595']
 
-const totalEmpresa = deptos.reduce((s, d) => s + d.value, 0)
+function riskVariant(score: number) {
+  if (score >= 70) return 'red' as const
+  if (score >= 35) return 'amber' as const
+  return 'green' as const
+}
 
 export function C01Dashboard() {
+  const [overview, setOverview] = useState<CfoOverviewResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+
+    setLoading(true)
+    getCfoOverview(token)
+      .then(setOverview)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar dashboard CFO.'))
+      .finally(() => setLoading(false))
+  }, [])
+
   return (
     <DesktopShell title="Dashboard executivo" role="CFO">
+      {error && (
+        <Card className="mb-4">
+          <p className="text-[13px] text-[#791F1F]">{error}</p>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <MetricCard label="Total reembolsado" value={fmt(totalEmpresa)} trend="up" trendValue="11%" subtext="vs mês ant." />
-        <MetricCard label="Economia pela IA" value={fmt(1240)} trend="up" trendValue="fraudes + itens" subtext="bloqueados" />
-        <MetricCard label="ROI médio almoços" value="4.1×" trend="up" trendValue="0.3×" subtext="vs mês ant." />
-        <MetricCard label="Compliance geral" value="94%" subtext="3 alertas abertos" />
+        <MetricCard label="Total reembolsado" value={loading ? '...' : fmt(overview?.totalReimbursedAmount ?? 0)} />
+        <MetricCard label="Economia pela IA" value={loading ? '...' : fmt(overview?.aiSavings ?? 0)} subtext="politica, duplicidade e automacao" />
+        <MetricCard label="Perdas evitaveis" value={loading ? '...' : fmt(overview?.avoidableLosses ?? 0)} subtext={`${overview?.policyViolationCount ?? 0} violacoes`} />
+        <MetricCard label="Compliance geral" value={loading ? '...' : `${overview?.complianceRate ?? 0}%`} subtext={`${overview?.processedExpenseCount ?? 0} notas analisadas`} />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
-        {/* Principal */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
         <div className="space-y-4">
           <Card>
-            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Reembolso por departamento</p>
-            <HorizontalBarChart items={deptos} formatValue={v => fmt(v)} />
+            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Gasto real por categoria</p>
+            {(overview?.categorySpend.length ?? 0) > 0 ? (
+              <HorizontalBarChart
+                items={(overview?.categorySpend ?? []).map((item, index) => ({
+                  label: categoryLabels[item.category] ?? item.category,
+                  value: item.amount,
+                  color: colors[index % colors.length],
+                }))}
+                formatValue={(value) => fmt(value)}
+              />
+            ) : (
+              <p className="text-[13px] text-gray-400">Ainda nao ha notas no periodo analisado.</p>
+            )}
           </Card>
 
           <Card>
-            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Gerentes</p>
+            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Projetos por risco em reembolso</p>
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px] min-w-[400px]">
+              <table className="w-full text-[13px] min-w-[560px]">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    {['Gerente', 'Equipe', 'Total', 'Compliance', 'Alertas'].map(h => (
-                      <th key={h} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
+                    {['Projeto', 'Reembolsado', 'Perda evitavel', 'Compliance', 'Risco'].map((header) => (
+                      <th key={header} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {gerentes.map(g => (
-                    <tr key={g.nome} className="border-b border-black/[0.04] hover:bg-gray-50">
-                      <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{g.nome}</td>
-                      <td className="py-3 pr-3 text-gray-500">{g.equipe}</td>
-                      <td className="py-3 pr-3 font-medium whitespace-nowrap">{fmt(g.total)}</td>
+                  {(overview?.projectRiskRanking ?? []).map((project) => (
+                    <tr key={project.projectId} className="border-b border-black/[0.04] hover:bg-gray-50">
+                      <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{project.projectName}</td>
+                      <td className="py-3 pr-3 font-medium whitespace-nowrap">{fmt(project.reimbursedAmount)}</td>
+                      <td className="py-3 pr-3 font-medium text-[#633806] whitespace-nowrap">{fmt(project.avoidableLosses)}</td>
                       <td className="py-3 pr-3">
-                        <Badge variant={g.compliance >= 95 ? 'green' : g.compliance >= 85 ? 'amber' : 'red'}>
-                          {g.compliance}%
+                        <Badge variant={project.complianceRate >= 95 ? 'green' : project.complianceRate >= 80 ? 'amber' : 'red'}>
+                          {project.complianceRate}%
                         </Badge>
                       </td>
                       <td className="py-3">
-                        {g.alertas > 0 ? <Badge variant="red">{g.alertas}</Badge> : <span className="text-gray-400">0</span>}
+                        <Badge variant={riskVariant(project.riskScore)}>{project.riskScore}</Badge>
                       </td>
                     </tr>
                   ))}
+                  {!loading && (overview?.projectRiskRanking.length ?? 0) === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-5 text-[13px] text-gray-400">Nenhum projeto com reembolso no periodo.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-4">
           <div className="rounded-[10px] border border-[#AFA9EC] p-4" style={{ background: '#EEEDFE' }}>
-            <p className="text-[11px] font-medium text-[#3C3489] uppercase tracking-wide mb-1">ROI almoços corporativos</p>
-            <p className="text-[40px] font-medium text-[#3C3489] leading-none">4.1×</p>
-            <p className="text-[12px] text-[#3C3489]/60 mt-1">Receita atribuída: {fmt(92000)}</p>
-            <p className="text-[12px] text-[#3C3489]/60">Custo total: {fmt(1720)}</p>
+            <p className="text-[11px] font-medium text-[#3C3489] uppercase tracking-wide mb-1">ROI corporativo</p>
+            <p className="text-[28px] font-medium text-[#3C3489] leading-tight">Projetos</p>
+            <p className="text-[12px] text-[#3C3489]/70 mt-1">Receita demo + reembolsos reais para analisar performance por projeto.</p>
             <Link to="/cfo/roi" className="mt-3 block text-[12px] font-medium text-[#3C3489]">
-              Ver detalhes de ROI →
+              Ver projetos de ROI
             </Link>
           </div>
 
           <Card>
-            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Economia gerada pela IA</p>
+            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Distribuicao por status</p>
             <div className="space-y-2 text-[13px]">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Fraudes bloqueadas</span>
-                <span className="font-medium text-[#791F1F]">{fmt(180)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Itens inelegíveis</span>
-                <span className="font-medium text-[#633806]">{fmt(560)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Horas RH economizadas</span>
-                <span className="font-medium text-[#27500A]">{fmt(500)}</span>
-              </div>
-              <div className="flex justify-between border-t border-black/[0.06] pt-2 mt-1">
-                <span className="font-medium">Total</span>
-                <span className="font-medium text-[#27500A]">{fmt(1240)}</span>
-              </div>
+              {(overview?.statusDistribution ?? []).map((item) => (
+                <div key={item.status} className="flex justify-between gap-3">
+                  <span className="text-gray-500">{item.status}</span>
+                  <span className="font-medium text-[#1a1a2e]">{item.count}</span>
+                </div>
+              ))}
+              {!loading && (overview?.statusDistribution.length ?? 0) === 0 && (
+                <p className="text-[13px] text-gray-400">Sem notas processadas.</p>
+              )}
             </div>
           </Card>
 
           <Card>
-            <p className="text-[14px] font-medium text-[#1a1a2e] mb-2">Alertas críticos</p>
-            {mockAlertas.filter(a => a.nivel === 'CRITICO').map(a => (
-              <div key={a.id} className="p-2.5 rounded-[7px] bg-[#FCEBEB] border border-[#F09595]">
-                <p className="text-[12px] font-medium text-[#791F1F]">{a.titulo}</p>
-                <p className="text-[11px] text-[#791F1F]/70">{a.funcionarioNome}</p>
-              </div>
-            ))}
+            <p className="text-[14px] font-medium text-[#1a1a2e] mb-3">Recomendacoes Reeva</p>
+            <div className="space-y-3">
+              {(overview?.recommendations ?? []).map((item) => (
+                <div key={`${item.type}-${item.title}`} className="rounded-[7px] border border-black/[0.06] p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[12px] font-medium text-[#1a1a2e]">{item.title}</p>
+                    <Badge variant={item.severity === 'HIGH' ? 'red' : item.severity === 'MEDIUM' ? 'amber' : 'green'}>
+                      {item.severity}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">{item.description}</p>
+                  <p className="text-[11px] text-gray-700 mt-2">{item.action}</p>
+                </div>
+              ))}
+              {!loading && (overview?.recommendations.length ?? 0) === 0 && (
+                <p className="text-[13px] text-gray-400">Sem recomendacoes criticas no periodo.</p>
+              )}
+            </div>
           </Card>
         </div>
       </div>

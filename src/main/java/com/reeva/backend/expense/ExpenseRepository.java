@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -113,8 +114,81 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     List<Expense> findApprovedForPayment(
         @Param("managerId") UUID managerId,
         @Param("status") ExpenseStatus status,
-        @Param("from") java.time.LocalDate from,
-        @Param("to") java.time.LocalDate to
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        WHERE e.company.id = :companyId
+          AND e.project.id = :projectId
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate ASC, e.createdAt ASC
+        """)
+    List<Expense> findByProjectForCfoMetrics(
+        @Param("companyId") UUID companyId,
+        @Param("projectId") UUID projectId,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        JOIN FETCH e.user u
+        JOIN FETCH e.project p
+        LEFT JOIN FETCH u.department d
+        LEFT JOIN FETCH u.manager m
+        WHERE e.company.id = :companyId
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate DESC, e.createdAt DESC
+        """)
+    List<Expense> findByCompanyForCfoMetrics(
+        @Param("companyId") UUID companyId,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
+
+    @Query(
+        value = """
+            SELECT e FROM Expense e
+            JOIN FETCH e.user u
+            JOIN FETCH e.project p
+            LEFT JOIN FETCH u.department d
+            LEFT JOIN FETCH u.manager m
+            WHERE e.company.id = :companyId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+              AND (:projectId IS NULL OR p.id = :projectId)
+              AND (:category IS NULL OR e.category = :category)
+              AND e.expenseDate >= :from
+              AND e.expenseDate <= :to
+            ORDER BY e.createdAt DESC
+            """,
+        countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            JOIN e.user u
+            JOIN e.project p
+            WHERE e.company.id = :companyId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+              AND (:projectId IS NULL OR p.id = :projectId)
+              AND (:category IS NULL OR e.category = :category)
+              AND e.expenseDate >= :from
+              AND e.expenseDate <= :to
+            """
+    )
+    Page<Expense> findByCompanyForCfoExpenses(
+        @Param("companyId") UUID companyId,
+        @Param("status") ExpenseStatus status,
+        @Param("projectId") UUID projectId,
+        @Param("category") ExpenseCategory category,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to,
+        Pageable pageable
     );
 
     @Query("""

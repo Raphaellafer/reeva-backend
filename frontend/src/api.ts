@@ -1,11 +1,15 @@
 import type {
   ApiError,
   AuthResponse,
+  CfoComplianceResponse,
+  CfoExpenseResponse,
+  CfoOverviewResponse,
   CreateEmployeePayload,
   DashboardResponse,
   EmployeeListItem,
   EmployeeProfile,
   ExpenseCategory,
+  ExpenseStatus,
   ExpenseResponse,
   PageResponse,
   PaymentBatchResponse,
@@ -325,4 +329,48 @@ export async function getCfoProjectPerformance(token: string, from?: string, to?
   if (to) params.set('to', to);
   const query = params.toString();
   return request<ProjectPerformanceResponse[]>(`/cfo/projects/performance${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getCfoOverview(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<CfoOverviewResponse>(`/cfo/overview${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getCfoCompliance(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<CfoComplianceResponse>(`/cfo/compliance${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getCfoPolicies(token: string) {
+  return request<PolicyResponse[]>('/cfo/policies', { token });
+}
+
+export interface CfoExpenseFilters {
+  status?: ExpenseStatus | '';
+  projectId?: string;
+  category?: ExpenseCategory | '';
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+}
+
+export async function getCfoExpenses(token: string, filters: CfoExpenseFilters = {}) {
+  const params = new URLSearchParams({
+    page: String(filters.page ?? 0),
+    size: String(filters.size ?? 20),
+    sort: 'createdAt,desc'
+  });
+  if (filters.status) params.set('status', filters.status);
+  if (filters.projectId) params.set('projectId', filters.projectId);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  return request<PageResponse<CfoExpenseResponse>>(`/cfo/expenses?${params}`, { token });
 }

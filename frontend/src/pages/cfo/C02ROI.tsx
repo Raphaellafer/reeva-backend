@@ -45,6 +45,7 @@ function latestTrend(projects: ProjectPerformanceResponse[]) {
 
 export function C02ROI() {
   const [projects, setProjects] = useState<ProjectPerformanceResponse[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -61,18 +62,25 @@ export function C02ROI() {
       .finally(() => setLoading(false))
   }, [])
 
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.projectId === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  )
+
+  const detailProjects = selectedProject ? [selectedProject] : projects
+
   const totals = useMemo(() => {
-    const revenue = projects.reduce((sum, project) => sum + project.revenue, 0)
-    const totalCost = projects.reduce((sum, project) => sum + project.totalCost, 0)
-    const profit = projects.reduce((sum, project) => sum + project.profit, 0)
-    const aiSavings = projects.reduce((sum, project) => sum + project.aiSavings, 0)
-    const avoidableLosses = projects.reduce((sum, project) => sum + project.avoidableLosses, 0)
+    const revenue = detailProjects.reduce((sum, project) => sum + project.revenue, 0)
+    const totalCost = detailProjects.reduce((sum, project) => sum + project.totalCost, 0)
+    const profit = detailProjects.reduce((sum, project) => sum + project.profit, 0)
+    const aiSavings = detailProjects.reduce((sum, project) => sum + project.aiSavings, 0)
+    const avoidableLosses = detailProjects.reduce((sum, project) => sum + project.avoidableLosses, 0)
     const margin = revenue > 0 ? profit / revenue : null
     const roi = totalCost > 0 ? profit / totalCost : null
     return { revenue, totalCost, profit, aiSavings, avoidableLosses, margin, roi }
-  }, [projects])
+  }, [detailProjects])
 
-  const roiBarItems = projects
+  const roiBarItems = detailProjects
     .map((project) => ({
       label: project.projectCode ? project.projectCode : project.projectName,
       value: project.roi ?? 0,
@@ -80,7 +88,7 @@ export function C02ROI() {
     }))
     .sort((a, b) => b.value - a.value)
 
-  const lossBarItems = projects
+  const lossBarItems = detailProjects
     .filter((project) => project.avoidableLosses > 0)
     .map((project) => ({
       label: project.projectCode ? project.projectCode : project.projectName,
@@ -89,19 +97,94 @@ export function C02ROI() {
     }))
     .sort((a, b) => b.value - a.value)
 
-  const trend = latestTrend(projects)
+  const trend = latestTrend(detailProjects)
 
   return (
     <DesktopShell title="Performance por projeto" role="CFO">
+      {error && <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3 mb-4">{error}</p>}
+      {loading && <p className="text-[13px] text-gray-400 mb-4">Carregando performance financeira...</p>}
+
+      {!selectedProject && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <MetricCard label="Projetos" value={projects.length} subtext="centros de analise" />
+            <MetricCard label="Receita demo" value={fmt(totals.revenue)} subtext="contexto financeiro" />
+            <MetricCard label="Lucro total" value={fmt(totals.profit)} subtext={`margem ${pct(totals.margin)}`} />
+            <MetricCard label="Economia IA" value={fmt(totals.aiSavings)} subtext={`${fmt(totals.avoidableLosses)} evitaveis`} />
+          </div>
+
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos</p>
+                <p className="text-[12px] text-gray-400 mt-1">Clique em um projeto para abrir a performance detalhada.</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px] min-w-[760px]">
+                <thead>
+                  <tr className="border-b border-black/[0.06]">
+                    {['Projeto', 'Receita demo', 'Custo', 'Lucro', 'Margem', 'ROI', 'Economia IA', 'Compliance', ''].map(h => (
+                      <th key={h} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((project) => (
+                    <tr
+                      key={project.projectId}
+                      className="border-b border-black/[0.04] hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setSelectedProjectId(project.projectId)}
+                    >
+                      <td className="py-3 pr-3">
+                        <p className="font-medium text-[#1a1a2e] whitespace-nowrap">{project.projectName}</p>
+                        {project.projectCode && <p className="text-[11px] text-gray-400 mt-0.5">{project.projectCode}</p>}
+                      </td>
+                      <td className="py-3 pr-3 font-medium text-[#27500A] whitespace-nowrap">{fmt(project.revenue)}</td>
+                      <td className="py-3 pr-3 whitespace-nowrap">{fmt(project.totalCost)}</td>
+                      <td className="py-3 pr-3 whitespace-nowrap">{fmt(project.profit)}</td>
+                      <td className="py-3 pr-3 whitespace-nowrap">{pct(project.margin)}</td>
+                      <td className="py-3 pr-3">
+                        <span className="font-medium" style={{ color: roiColor(project.roi ?? 0) }}>{multiple(project.roi)}</span>
+                      </td>
+                      <td className="py-3 pr-3 text-[#27500A] font-medium whitespace-nowrap">{fmt(project.aiSavings)}</td>
+                      <td className="py-3 pr-3"><Badge variant={project.complianceRate >= 90 ? 'green' : project.complianceRate >= 70 ? 'amber' : 'red'}>{project.complianceRate}%</Badge></td>
+                      <td className="py-3 text-right text-[12px] font-medium text-[#3C3489] whitespace-nowrap">Abrir</td>
+                    </tr>
+                  ))}
+                  {!loading && projects.length === 0 && (
+                    <tr><td colSpan={9} className="py-8 text-center text-gray-400">Nenhum projeto encontrado.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {selectedProject && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <p className="text-[12px] text-gray-400">Projeto selecionado</p>
+              <h2 className="text-[20px] font-medium text-[#1a1a2e]">{selectedProject.projectName}</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedProjectId(null)}
+              className="rounded-[7px] border border-black/10 bg-white px-3 py-2 text-[13px] font-medium text-[#1a1a2e] hover:border-[#3C3489] hover:text-[#3C3489]"
+            >
+              Voltar para projetos
+            </button>
+          </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <MetricCard label="Receita demo" value={fmt(totals.revenue)} subtext="contexto por projeto" />
         <MetricCard label="Lucro" value={fmt(totals.profit)} subtext={`margem ${pct(totals.margin)}`} />
         <MetricCard label="ROI" value={multiple(totals.roi)} subtext="lucro sobre custo" />
         <MetricCard label="Economia IA" value={fmt(totals.aiSavings)} subtext={`${fmt(totals.avoidableLosses)} evitaveis`} />
       </div>
-
-      {error && <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3 mb-4">{error}</p>}
-      {loading && <p className="text-[13px] text-gray-400 mb-4">Carregando performance financeira...</p>}
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
         <div className="space-y-4">
@@ -131,7 +214,7 @@ export function C02ROI() {
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((project) => (
+                  {detailProjects.map((project) => (
                     <tr key={project.projectId} className="border-b border-black/[0.04] hover:bg-gray-50">
                       <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{project.projectName}</td>
                       <td className="py-3 pr-3 font-medium text-[#27500A] whitespace-nowrap">{fmt(project.revenue)}</td>
@@ -145,7 +228,7 @@ export function C02ROI() {
                       <td className="py-3"><Badge variant={project.complianceRate >= 90 ? 'green' : project.complianceRate >= 70 ? 'amber' : 'red'}>{project.complianceRate}%</Badge></td>
                     </tr>
                   ))}
-                  {!loading && projects.length === 0 && (
+                  {!loading && detailProjects.length === 0 && (
                     <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhuma performance encontrada.</td></tr>
                   )}
                 </tbody>
@@ -194,6 +277,8 @@ export function C02ROI() {
           </Card>
         </div>
       </div>
+        </>
+      )}
     </DesktopShell>
   )
 }

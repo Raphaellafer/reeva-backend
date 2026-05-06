@@ -29,7 +29,8 @@ export type AiDecision =
   | 'READY_FOR_MANAGER'
   | 'NEEDS_EMPLOYEE_CORRECTION'
   | 'REJECTED_BY_POLICY'
-  | 'PENDING_MANUAL_REVIEW';
+  | 'PENDING_MANUAL_REVIEW'
+  | 'DUPLICATE_REJECTED';
 
 export type SefazStatus =
   | 'NOT_APPLICABLE'
@@ -235,6 +236,143 @@ export interface ProjectPerformanceResponse {
   complianceRate: number;
   autoApprovalRate: number;
   monthlyTrend: ProjectMonthlyTrendResponse[];
+}
+
+export interface CfoRecommendationResponse {
+  type: string;
+  title: string;
+  description: string;
+  action: string;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  estimatedImpact: number;
+  projectId: string | null;
+  projectName: string | null;
+}
+
+export interface CfoProjectRiskItem {
+  projectId: string;
+  projectName: string;
+  projectCode: string | null;
+  reimbursedAmount: number;
+  avoidableLosses: number;
+  complianceRate: number;
+  riskScore: number;
+}
+
+export interface CfoCategorySpendItem {
+  category: ExpenseCategory;
+  amount: number;
+  expenseCount: number;
+  avoidableLosses: number;
+}
+
+export interface CfoStatusDistributionItem {
+  status: ExpenseStatus;
+  count: number;
+  amount: number;
+}
+
+export interface CfoMonthlyReimbursementTrendItem {
+  month: string;
+  reimbursedAmount: number;
+  submittedAmount: number;
+  avoidableLosses: number;
+}
+
+export interface CfoOverviewResponse {
+  totalReimbursedAmount: number;
+  totalSubmittedAmount: number;
+  avoidableLosses: number;
+  aiSavings: number;
+  complianceRate: number;
+  autoApprovalRate: number;
+  processedExpenseCount: number;
+  duplicateRejectedCount: number;
+  policyViolationCount: number;
+  lowOcrConfidenceCount: number;
+  projectRiskRanking: CfoProjectRiskItem[];
+  categorySpend: CfoCategorySpendItem[];
+  statusDistribution: CfoStatusDistributionItem[];
+  monthlyReimbursementTrend: CfoMonthlyReimbursementTrendItem[];
+  recommendations: CfoRecommendationResponse[];
+}
+
+export interface CfoExpenseResponse {
+  id: string;
+  title: string;
+  supplierName: string | null;
+  employeeId: string;
+  employeeName: string;
+  departmentName: string | null;
+  managerId: string | null;
+  managerName: string | null;
+  projectId: string;
+  projectName: string;
+  projectCode: string | null;
+  category: ExpenseCategory;
+  amount: number | null;
+  currency: string;
+  expenseDate: string;
+  status: ExpenseStatus;
+  aiScore: number | null;
+  aiAlertLevel: string | null;
+  aiDecision: AiDecision | null;
+  policyCompliant: boolean | null;
+  policyViolationReason: string | null;
+  sefazStatus: SefazStatus | null;
+  duplicate: boolean;
+  duplicateOfExpenseId: string | null;
+  manualReviewReason: string | null;
+}
+
+export interface CfoRiskyEmployeeItem {
+  employeeId: string;
+  employeeName: string;
+  departmentName: string | null;
+  managerName: string | null;
+  expenseCount: number;
+  totalAmount: number;
+  policyViolationCount: number;
+  duplicateRejectedCount: number;
+  lowOcrConfidenceCount: number;
+  avoidedAmount: number;
+  riskScore: number;
+  riskLevel: string;
+}
+
+export interface CfoRiskyProjectItem {
+  projectId: string;
+  projectName: string;
+  projectCode: string | null;
+  expenseCount: number;
+  totalAmount: number;
+  policyViolationCount: number;
+  duplicateRejectedCount: number;
+  avoidedAmount: number;
+  riskScore: number;
+  riskLevel: string;
+}
+
+export interface CfoRiskyCategoryItem {
+  category: ExpenseCategory;
+  expenseCount: number;
+  totalAmount: number;
+  policyViolationCount: number;
+  avoidedAmount: number;
+  riskScore: number;
+  riskLevel: string;
+}
+
+export interface CfoComplianceResponse {
+  processedExpenseCount: number;
+  policyViolationCount: number;
+  duplicateRejectedCount: number;
+  lowOcrConfidenceCount: number;
+  totalAvoidedAmount: number;
+  complianceRate: number;
+  riskyEmployees: CfoRiskyEmployeeItem[];
+  riskyProjects: CfoRiskyProjectItem[];
+  riskyCategories: CfoRiskyCategoryItem[];
 }
 
 // ── Employee (manager view) ───────────────────────────────────────

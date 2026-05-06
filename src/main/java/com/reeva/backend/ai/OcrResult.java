@@ -21,7 +21,8 @@ public record OcrResult(
     String sefazReason,
     String suggestedAction,
     List<LineItem> lineItems,
-    String rawJson
+    String rawJson,
+    String imageSha256
 ) {
     public record LineItem(
         String name,

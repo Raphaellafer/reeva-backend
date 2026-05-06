@@ -26,7 +26,8 @@ const statusLabels: Record<ExpenseStatus, string> = {
   FINANCE_REJECTED: 'Rejeitada fin.',
   PAID: 'Paga',
   CANCELLED: 'Cancelada',
-  NEEDS_REVISION: 'Revisao necessaria'
+  NEEDS_REVISION: 'Revisao necessaria',
+  OCR_FAILED: 'OCR falhou'
 };
 
 const categoryLabels: Record<string, string> = {
@@ -44,7 +45,8 @@ const aiDecisionLabels: Record<string, string> = {
   READY_FOR_MANAGER: 'Revisao do gestor',
   NEEDS_EMPLOYEE_CORRECTION: 'Correcao do funcionario',
   REJECTED_BY_POLICY: 'Fora da politica',
-  PENDING_MANUAL_REVIEW: 'Revisao manual'
+  PENDING_MANUAL_REVIEW: 'Revisao manual',
+  DUPLICATE_REJECTED: 'Duplicada rejeitada'
 };
 
 const sefazLabels: Record<string, string> = {
