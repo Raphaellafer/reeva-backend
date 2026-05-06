@@ -16,6 +16,7 @@ import { G02Aprovacoes } from '../pages/gerente/G02Aprovacoes'
 import { G03Alertas } from '../pages/gerente/G03Alertas'
 import { G04Notas } from '../pages/gerente/G04Notas'
 import { G05Funcionario } from '../pages/gerente/G05Funcionario'
+import { G05FuncionariosList } from '../pages/gerente/G05FuncionariosList'
 
 import { C01Dashboard } from '../pages/cfo/C01Dashboard'
 import { C02ROI } from '../pages/cfo/C02ROI'
@@ -54,11 +55,12 @@ export function AppRouter() {
         <Route path="/funcionario/perfil"   element={<RequireRole role="FUNCIONARIO"><F05Perfil /></RequireRole>} />
 
         {/* Gerente */}
-        <Route path="/gerente"                  element={<RequireRole role="GERENTE"><G01Dashboard /></RequireRole>} />
-        <Route path="/gerente/aprovacoes"       element={<RequireRole role="GERENTE"><G02Aprovacoes /></RequireRole>} />
-        <Route path="/gerente/alertas"          element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
-        <Route path="/gerente/notas"            element={<RequireRole role="GERENTE"><G04Notas /></RequireRole>} />
-        <Route path="/gerente/funcionario/:id"  element={<RequireRole role="GERENTE"><G05Funcionario /></RequireRole>} />
+        <Route path="/gerente"                    element={<RequireRole role="GERENTE"><G01Dashboard /></RequireRole>} />
+        <Route path="/gerente/aprovacoes"         element={<RequireRole role="GERENTE"><G02Aprovacoes /></RequireRole>} />
+        <Route path="/gerente/alertas"            element={<RequireRole role="GERENTE"><G03Alertas /></RequireRole>} />
+        <Route path="/gerente/notas"              element={<RequireRole role="GERENTE"><G04Notas /></RequireRole>} />
+        <Route path="/gerente/funcionarios"       element={<RequireRole role="GERENTE"><G05FuncionariosList /></RequireRole>} />
+        <Route path="/gerente/funcionario/:id"    element={<RequireRole role="GERENTE"><G05Funcionario /></RequireRole>} />
 
         {/* CFO */}
         <Route path="/cfo"                element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
