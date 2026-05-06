@@ -9,6 +9,7 @@ import com.reeva.backend.expense.attachment.ExpenseAttachment;
 import com.reeva.backend.expense.comment.CommentService;
 import com.reeva.backend.expense.comment.dto.CommentRequest;
 import com.reeva.backend.expense.comment.dto.CommentResponse;
+import com.reeva.backend.expense.dto.EmployeeExpenseCorrectionRequest;
 import com.reeva.backend.expense.dto.ExpenseRequest;
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.expense.dto.ExpenseUpdateRequest;
@@ -146,6 +147,50 @@ public class ExpenseService {
 
         Expense saved = expenseRepository.save(expense);
         ocrService.processExpense(saved.getId());
+        return ExpenseResponse.from(saved);
+    }
+
+    @Transactional
+    public ExpenseResponse submitEmployeeCorrection(User currentUser, UUID expenseId,
+                                                    EmployeeExpenseCorrectionRequest request) {
+        Expense expense = getOwnedExpense(currentUser, expenseId);
+
+        if (expense.getStatus() != ExpenseStatus.NEEDS_REVISION) {
+            throw BusinessException.badRequest("Only expenses in NEEDS_REVISION can be corrected by the employee");
+        }
+
+        expense.setTitle(request.title());
+        expense.setCategory(request.category());
+        expense.setAmount(request.amount());
+        expense.setExpenseDate(request.expenseDate());
+        expense.setDescription(request.description());
+        expense.setManualReviewReason(null);
+        expense.setAiDecision(AiDecision.READY_FOR_MANAGER);
+        expense.setAiDecisionReason("Campos obrigatorios preenchidos manualmente pelo funcionario.");
+        expense.setAiAnalysis("Aguardando decisao do gestor apos correcao manual dos campos obrigatorios.");
+        expense.setAutoApprovalEligible(false);
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.PENDING_REVIEW);
+        expense.getStatusHistory().add(
+            new ExpenseStatusHistory(
+                expense, from, ExpenseStatus.PENDING_REVIEW, currentUser,
+                "Campos obrigatorios preenchidos pelo funcionario e enviados ao gestor"
+            )
+        );
+
+        Expense saved = expenseRepository.save(expense);
+
+        auditService.log(
+            currentUser.getCompany().getId(), currentUser.getId(),
+            "EXPENSE_EMPLOYEE_CORRECTED", "Expense", expense.getId(),
+            Map.of(
+                "title", request.title(),
+                "category", request.category().name(),
+                "amount", request.amount().toPlainString()
+            ), null
+        );
+
         return ExpenseResponse.from(saved);
     }
 

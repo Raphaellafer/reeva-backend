@@ -6,6 +6,21 @@ import { Badge } from '../ui/Badge'
 import { Card } from '../ui/Card'
 import { StatusBadge } from '../ui/StatusBadge'
 
+type ParsedOcrData = {
+  readable?: boolean
+  document_type?: string | null
+  supplier_name?: string | null
+  supplier_cnpj?: string | null
+  supplier_address?: string | null
+  total_amount?: number | null
+  tax_amount?: number | null
+  issue_date?: string | null
+  payment_method?: string | null
+  category?: string | null
+  description?: string | null
+  sefaz_verification_code?: string | null
+}
+
 function AttachmentPreview({ attachment, token }: { attachment: AttachmentItem; token: string }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +79,20 @@ interface ExpenseDetailPanelProps {
 export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPanelProps) {
   const items = getReceiptLineItems(expense)
   const attachment = expense.attachments[0]
+  const ocr = parseOcrData(expense.ocrData)
+  const noteData = [
+    { label: 'Estabelecimento', value: firstValue(expense.title, ocr?.supplier_name) },
+    { label: 'Categoria', value: categoryLabels[expense.category] ?? ocrCategoryLabel(ocr?.category) },
+    { label: 'Valor', value: expense.amount != null ? fmt(expense.amount) : formatNullableMoney(ocr?.total_amount) },
+    { label: 'Data da nota', value: expense.expenseDate ? fmtDate(expense.expenseDate) : fmtDate(ocr?.issue_date) },
+    { label: 'Descricao', value: firstValue(expense.description, ocr?.description) },
+    { label: 'Tipo de documento', value: documentTypeLabel(ocr?.document_type) },
+    { label: 'Forma de pagamento', value: paymentMethodLabel(ocr?.payment_method) },
+    { label: 'CNPJ', value: ocr?.supplier_cnpj },
+    { label: 'Endereco', value: ocr?.supplier_address },
+    { label: 'Valor de imposto', value: formatNullableMoney(ocr?.tax_amount) },
+    { label: 'Codigo SEFAZ', value: ocr?.sefaz_verification_code },
+  ].filter((item) => hasValue(item.value))
 
   return (
     <div className="space-y-3">
@@ -129,21 +158,29 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
       </Card>
 
       <Card>
-        <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Dados brutos da IA</p>
+        <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Dados da nota</p>
+        {noteData.length === 0 ? (
+          <p className="text-[12px] text-gray-400 mb-3">A IA ainda nao conseguiu extrair campos legiveis desta nota.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] mb-3">
+            {noteData.map((item) => (
+              <div key={item.label} className={item.label === 'Descricao' || item.label === 'Endereco' ? 'md:col-span-2' : undefined}>
+                <p className="text-gray-400">{item.label}</p>
+                <p className="font-medium text-[#1a1a2e] whitespace-pre-wrap break-words">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="border-t border-black/[0.06] pt-3">
+          <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Analise da IA</p>
+        </div>
         <div className="grid grid-cols-2 gap-2 text-[12px]">
           <div><p className="text-gray-400">Decisao</p><p className="font-medium">{expense.aiDecision ?? '-'}</p></div>
           <div><p className="text-gray-400">Elegivel autoaprovacao</p><p className="font-medium">{expense.autoApprovalEligible ? 'Sim' : 'Nao'}</p></div>
           <div><p className="text-gray-400">Alerta</p><p className="font-medium">{expense.aiAlertLevel ?? '-'}</p></div>
           <div><p className="text-gray-400">SEFAZ</p><p className="font-medium">{expense.sefazValidationMessage ?? '-'}</p></div>
         </div>
-        {expense.ocrData && (
-          <details className="mt-3">
-            <summary className="text-[12px] text-[#3C3489] cursor-pointer">Ver JSON OCR</summary>
-            <pre className="mt-2 max-h-56 overflow-auto rounded-[8px] bg-gray-50 p-3 text-[11px] text-gray-700 whitespace-pre-wrap">
-              {formatOcrJson(expense.ocrData)}
-            </pre>
-          </details>
-        )}
         {expense.aiDecision === 'READY_FOR_MANAGER' && (
           <div className="mt-3 rounded-[8px] border border-[#FAC775] bg-[#FAEEDA] p-3 text-[12px] text-[#633806]">
             <Badge variant="amber" className="mb-2">Motivo da fila</Badge>
@@ -155,10 +192,60 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
   )
 }
 
-function formatOcrJson(raw: string) {
+function parseOcrData(raw: string | null): ParsedOcrData | null {
+  if (!raw) return null
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
+    return JSON.parse(raw) as ParsedOcrData
   } catch {
-    return raw
+    return null
   }
+}
+
+function hasValue(value: string | null | undefined) {
+  return value != null && value.trim().length > 0
+}
+
+function firstValue(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (hasValue(value)) return value!.trim()
+  }
+  return null
+}
+
+function formatNullableMoney(value: number | null | undefined) {
+  return value == null ? null : fmt(value)
+}
+
+function ocrCategoryLabel(category: string | null | undefined) {
+  if (!category) return null
+  return categoryLabels[category as keyof typeof categoryLabels] ?? category
+}
+
+function paymentMethodLabel(value: string | null | undefined) {
+  if (!value) return null
+  return {
+    CASH: 'Dinheiro',
+    CREDIT_CARD: 'Cartao de credito',
+    DEBIT_CARD: 'Cartao de debito',
+    PIX: 'Pix',
+    CORPORATE_CARD: 'Cartao corporativo',
+    MEAL_VOUCHER: 'Vale-refeicao',
+    UNKNOWN: 'Nao identificado',
+    OTHER: 'Outro',
+  }[value] ?? value
+}
+
+function documentTypeLabel(value: string | null | undefined) {
+  if (!value) return null
+  return {
+    NFE: 'NF-e',
+    NFCE: 'NFC-e',
+    CUPOM: 'Cupom fiscal',
+    RECIBO: 'Recibo',
+    HOTEL: 'Hospedagem',
+    APP_RIDE: 'Aplicativo de transporte',
+    PEDAGIO: 'Pedagio',
+    PARKING: 'Estacionamento',
+    OTHER: 'Outro',
+  }[value] ?? value
 }
