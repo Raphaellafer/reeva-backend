@@ -111,8 +111,12 @@ public class OcrService {
         - Em restaurantes, bares, hoteis e servicos, linhas como "comissao", "taxa de servico",
           "servico", "gorjeta", "10%" ou "couvert" sao encargos validos e devem ser extraidos como line_items
           quando estiverem visiveis.
+        - Linhas como "desconto", "descontos", "abatimento", "valor descontado" ou "voce economizou" devem ser
+          tratadas como redutores validos do total quando estiverem visiveis.
+        - Se houver subtotal/produtos, desconto e valor a pagar, considere "valor a pagar" ou "valor pago" como
+          total_amount correto. Nao marque divergencia quando a diferenca for explicada por desconto visivel.
         - Se a soma de produtos divergir do total_amount apenas por taxa de servico/comissao visivel ou por
-          diferenca pequena compativel com taxa de servico, preserve o total_amount como valor correto.
+          desconto visivel, preserve o total_amount como valor correto.
         - Se o total geral e a soma dos itens divergirem muito, preserve ambos, mas registre a divergencia em extraction_notes.
         - supplier_name: priorize o nome fantasia principal.
         - supplier_cnpj: nunca invente digitos faltantes.
@@ -529,7 +533,7 @@ public class OcrService {
             BigDecimal amount = readMoneyField(extraction, "total_amount");
             LocalDate issueDate = readFieldLocalDate(extraction, "issue_date");
             java.util.List<OcrResult.LineItem> lineItems = readLineItems(extraction);
-            String validationReason = validateExtractedAmount(amount, lineItems);
+            String validationReason = validateExtractedAmount(amount, lineItems, extraction, rawOcrText);
             if (validationReason != null) {
                 readable = false;
             }
@@ -591,7 +595,8 @@ public class OcrService {
         return items;
     }
 
-    private String validateExtractedAmount(BigDecimal totalAmount, java.util.List<OcrResult.LineItem> lineItems) {
+    private String validateExtractedAmount(BigDecimal totalAmount, java.util.List<OcrResult.LineItem> lineItems,
+                                           JsonNode extraction, String rawOcrText) {
         if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return "Valor total da nota nao foi lido com confianca. Funcionario deve tirar uma nova foto.";
         }
@@ -642,11 +647,37 @@ public class OcrService {
             return null;
         }
 
+        boolean totalLowerThanItems = totalAmount.compareTo(sum) < 0;
+        boolean plausibleDiscount = totalLowerThanItems
+            && hasDiscountEvidence(extraction, rawOcrText)
+            && serviceFeeRatio.compareTo(new BigDecimal("0.50")) <= 0;
+        if (plausibleDiscount) {
+            return null;
+        }
+
         if (difference.compareTo(new BigDecimal("0.05")) > 0) {
-            return "Valor total da nota diverge da soma dos itens lidos. Total: " + totalAmount
-                + "; soma dos itens: " + sum + ". Funcionario deve tirar uma nova foto.";
+            return "Leitura inconsistente da nota: o OCR nao conseguiu reconciliar total, itens, descontos ou taxas com confianca. "
+                + "Total lido: " + totalAmount + "; soma parcial lida: " + sum
+                + ". Funcionario deve tirar uma nova foto mais nitida e centralizada.";
         }
         return null;
+    }
+
+    private boolean hasDiscountEvidence(JsonNode extraction, String rawOcrText) {
+        String text = java.text.Normalizer.normalize(
+                ((extraction == null ? "" : extraction.toString()) + " " + (rawOcrText == null ? "" : rawOcrText))
+                    .toLowerCase(Locale.ROOT),
+                java.text.Normalizer.Form.NFD
+            )
+            .replaceAll("\\p{M}", "");
+        return text.contains("desconto")
+            || text.contains("descontos")
+            || text.contains("abatimento")
+            || text.contains("valor descontado")
+            || text.contains("voce economizou")
+            || text.contains("você economizou")
+            || text.contains("valor a pagar")
+            || text.contains("valor pago");
     }
 
     private String appendReason(String current, String addition) {
