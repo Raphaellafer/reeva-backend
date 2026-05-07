@@ -26,15 +26,15 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
     [
       'Periodo de',
       'Periodo ate',
-      'Funcionário',
+      'Funcionario',
       'Email',
       'Pix',
       'Projeto',
       'Nota',
       'Data da despesa',
-      'Origem da aprovação',
+      'Origem da aprovacao',
       'Valor da despesa',
-      'Total do funcionário',
+      'Total do funcionario',
       'Total geral do lote',
     ],
   ]
@@ -42,7 +42,7 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
   batch.employees.forEach((employee) => {
     employee.expenses.forEach((expense) => {
       rows.push([
-        from || 'início',
+        from || 'inicio',
         to || 'hoje',
         employee.name,
         employee.email,
@@ -63,7 +63,7 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `reeva-reembolsos-${from || 'inicio'}-${to || 'hoje'}.csv`
+  link.download = `reeva-pagamentos-${from || 'inicio'}-${to || 'hoje'}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -93,7 +93,10 @@ export function G08Pagamentos() {
     void load()
   }, [])
 
-  const expenses = useMemo(() => batch?.employees.flatMap((employee) => employee.expenses.map((expense) => ({ employee, expense }))) ?? [], [batch])
+  const expenses = useMemo(
+    () => batch?.employees.flatMap((employee) => employee.expenses.map((expense) => ({ employee, expense }))) ?? [],
+    [batch]
+  )
 
   return (
     <DesktopShell
@@ -112,7 +115,7 @@ export function G08Pagamentos() {
             <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="block mt-1 rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]" />
           </label>
           <label className="text-[12px] text-gray-500">
-            Até
+            Ate
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="block mt-1 rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]" />
           </label>
           <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
@@ -125,7 +128,7 @@ export function G08Pagamentos() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <Card><p className="text-[11px] text-gray-400 uppercase">Total aprovado</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{fmt(batch?.totalAmount ?? 0)}</p></Card>
-        <Card><p className="text-[11px] text-gray-400 uppercase">Funcionários</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.employeeCount ?? 0}</p></Card>
+        <Card><p className="text-[11px] text-gray-400 uppercase">Funcionarios</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.employeeCount ?? 0}</p></Card>
         <Card><p className="text-[11px] text-gray-400 uppercase">Notas</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.expenseCount ?? 0}</p></Card>
       </div>
 
@@ -134,20 +137,20 @@ export function G08Pagamentos() {
           <table className="w-full text-[13px] min-w-[940px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionário', 'Email', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
+                {['Funcionario', 'Email', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
                   <th key={header} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {!loading && expenses.length === 0 && (
-                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no período.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no periodo.</td></tr>
               )}
               {expenses.map(({ employee, expense }) => (
                 <tr key={expense.id} className="border-b border-black/[0.04]">
                   <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{employee.name}</td>
                   <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.email}</td>
-                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.pixKey || employee.email}</td>
+                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.pixKey || <span className="text-[#791F1F]">Sem Pix</span>}</td>
                   <td className="py-3 pr-3 text-gray-700 max-w-[150px] truncate">{expense.projectName || '-'}</td>
                   <td className="py-3 pr-3 text-gray-700 max-w-[190px] truncate">{expense.title}</td>
                   <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{fmtDate(expense.expenseDate)}</td>

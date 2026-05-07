@@ -17,7 +17,6 @@ public record PolicyAuditLogResponse(
     Map<String, Object> after,
     Instant changedAt
 ) {
-    @SuppressWarnings("unchecked")
     public static PolicyAuditLogResponse from(AuditLog log) {
         return from(log, null);
     }

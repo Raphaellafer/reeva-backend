@@ -54,6 +54,7 @@ export const aiDecisionLabels: Record<AiDecision | string, string> = {
   REJECTED_BY_POLICY: 'Reprovada pela política',
   REJECTED_BY_FISCAL_VALIDATION: 'Reprovada na validação fiscal',
   PENDING_MANUAL_REVIEW: 'Revisão manual',
+  DUPLICATE_REJECTED: 'Duplicada rejeitada',
 }
 
 export const sefazStatusLabels: Record<SefazStatus | string, string> = {

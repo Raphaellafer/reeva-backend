@@ -35,6 +35,9 @@ public class ExpenseAttachment {
     @Column(name = "mime_type", length = 100)
     private String mimeType;
 
+    @Column(name = "file_sha256", length = 64)
+    private String fileSha256;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "attachment_type", nullable = false, columnDefinition = "attachment_type")
     private AttachmentType attachmentType = AttachmentType.RECEIPT_IMAGE;
@@ -63,6 +66,9 @@ public class ExpenseAttachment {
     public String getFileUrl() { return fileUrl; }
     public Integer getFileSizeKb() { return fileSizeKb; }
     public String getMimeType() { return mimeType; }
+    public String getFileSha256() { return fileSha256; }
     public AttachmentType getAttachmentType() { return attachmentType; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public void setFileSha256(String fileSha256) { this.fileSha256 = fileSha256; }
 }

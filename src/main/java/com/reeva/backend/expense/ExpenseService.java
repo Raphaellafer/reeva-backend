@@ -18,6 +18,8 @@ import com.reeva.backend.project.Project;
 import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -34,6 +38,8 @@ import java.util.UUID;
 
 @Service
 public class ExpenseService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExpenseService.class);
 
     private final ExpenseRepository expenseRepository;
     private final StorageService storageService;
@@ -76,10 +82,10 @@ public class ExpenseService {
 
         AttachmentType attachType = resolveAttachmentType(stored.mimeType());
         int sizeKb = (int) (stored.fileSize() / 1024);
-        expense.getAttachments().add(
-            new ExpenseAttachment(expense, currentUser, stored.originalName(),
-                stored.filePath(), sizeKb, stored.mimeType(), attachType)
-        );
+        var attachment = new ExpenseAttachment(expense, currentUser, stored.originalName(),
+            stored.filePath(), sizeKb, stored.mimeType(), attachType);
+        attachment.setFileSha256(sha256(file));
+        expense.getAttachments().add(attachment);
 
         expenseRepository.save(expense);
 
@@ -105,6 +111,19 @@ public class ExpenseService {
             throw BusinessException.badRequest("Only DRAFT expenses can be submitted");
         }
 
+        if (!expense.getAttachments().isEmpty()) {
+            var attachment = expense.getAttachments().get(0);
+            String fileSha256 = attachment.getFileSha256();
+            if (fileSha256 != null && !fileSha256.isBlank()) {
+                var duplicates = attachmentRepository.findActiveDuplicatesByFileSha256(
+                    currentUser.getCompany().getId(), expense.getId(), fileSha256);
+                if (!duplicates.isEmpty()) {
+                    return ExpenseResponse.from(rejectDuplicateOnSubmit(
+                        expense, duplicates.get(0).getExpense(), currentUser, "imagem identica ja enviada"));
+                }
+            }
+        }
+
         ExpenseStatus from = expense.getStatus();
         expense.transitionTo(ExpenseStatus.SUBMITTED);
         expense.getStatusHistory().add(
@@ -112,8 +131,38 @@ public class ExpenseService {
         );
 
         Expense saved = expenseRepository.save(expense);
-        ocrQueuePublisher.publish(saved.getId());
+        try {
+            ocrQueuePublisher.publish(saved.getId());
+        } catch (Exception ex) {
+            log.warn("Could not enqueue OCR job for expense {}; processing synchronously. Cause: {}",
+                saved.getId(), ex.getMessage());
+            ocrService.processExpense(saved.getId());
+        }
         return ExpenseResponse.from(saved);
+    }
+
+    private Expense rejectDuplicateOnSubmit(Expense expense, Expense original, User currentUser, String evidence) {
+        ExpenseStatus from = expense.getStatus();
+        expense.setDuplicateOfExpense(original);
+        expense.setAiScore((short) 0);
+        expense.setAiAlertLevel(AiAlertLevel.HIGH);
+        expense.setAiAnalysis("Nota rejeitada automaticamente por duplicidade: " + evidence + ".");
+        expense.setAiDecision(AiDecision.DUPLICATE_REJECTED);
+        expense.setAiDecisionReason("Duplicidade confirmada contra a despesa " + original.getId() + " por " + evidence + ".");
+        expense.setPolicyCompliant(false);
+        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso rejeitado automaticamente.");
+        expense.setSefazStatus(SefazStatus.INVALID);
+        expense.setSefazValidationMessage("Documento duplicado confirmado na base da empresa.");
+        expense.setAutoApprovalEligible(false);
+        expense.setManualReviewReason(null);
+        expense.transitionTo(ExpenseStatus.MANAGER_REJECTED);
+        expense.getStatusHistory().add(
+            new ExpenseStatusHistory(
+                expense, from, ExpenseStatus.MANAGER_REJECTED, currentUser,
+                "Sistema: nota rejeitada por duplicidade da despesa " + original.getId() + " (" + evidence + ")"
+            )
+        );
+        return expenseRepository.save(expense);
     }
 
     @Transactional(readOnly = true)
@@ -275,6 +324,15 @@ public class ExpenseService {
             case "image/jpeg", "image/png", "image/webp" -> AttachmentType.RECEIPT_IMAGE;
             default -> AttachmentType.OTHER;
         };
+    }
+
+    private String sha256(MultipartFile file) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(file.getBytes()));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to hash attachment", ex);
+        }
     }
 
     public record AttachmentFile(

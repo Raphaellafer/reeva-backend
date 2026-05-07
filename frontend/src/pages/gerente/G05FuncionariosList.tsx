@@ -78,11 +78,11 @@ export function G05FuncionariosList() {
     setFormError(null)
 
     if (form.password.length < 8) {
-      setFormError('A senha temporária precisa ter pelo menos 8 caracteres.')
+      setFormError('A senha temporaria precisa ter pelo menos 8 caracteres.')
       return
     }
     if (!form.pixKey.trim()) {
-      setFormError('Informe a chave Pix do funcionário.')
+      setFormError('Informe a chave Pix do funcionario.')
       return
     }
 
@@ -96,9 +96,9 @@ export function G05FuncionariosList() {
       })
       setEmployees((current) => [...current, created])
       setForm(emptyForm)
-      setMessage('Funcionário cadastrado com sucesso.')
+      setMessage('Funcionario cadastrado com sucesso.')
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionário.')
+      setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionario.')
     } finally {
       setSaving(false)
     }
@@ -108,19 +108,19 @@ export function G05FuncionariosList() {
     <DesktopShell
       title="Equipe"
       role="GERENTE"
-      actions={<Button onClick={openDrawer}>Cadastrar funcionário</Button>}
+      actions={<Button onClick={openDrawer}>Cadastrar funcionario</Button>}
     >
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card><Metric label="Funcionários" value={employees.length} /></Card>
-        <Card><Metric label="Pendências abertas" value={pendingCount} tone={pendingCount > 0 ? 'amber' : 'normal'} /></Card>
+        <Card><Metric label="Funcionarios" value={employees.length} /></Card>
+        <Card><Metric label="Pendencias abertas" value={pendingCount} tone={pendingCount > 0 ? 'amber' : 'normal'} /></Card>
         <Card><Metric label="Total reembolsado" value={fmt(totalReimbursed)} /></Card>
       </div>
 
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[14px] font-medium text-[#1a1a2e]">Funcionários da equipe</p>
-            <p className="mt-0.5 text-[12px] text-gray-400">Acompanhe pendências, aprovações e histórico individual.</p>
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Funcionarios da equipe</p>
+            <p className="mt-0.5 text-[12px] text-gray-400">Acompanhe pendencias, aprovacoes e historico individual.</p>
           </div>
           <input
             value={query}
@@ -134,7 +134,7 @@ export function G05FuncionariosList() {
         {error && <p className="py-4 text-[13px] text-red-500">{error}</p>}
 
         {!loading && !error && filtered.length === 0 && (
-          <p className="py-6 text-center text-[13px] text-gray-400">Nenhum funcionário encontrado.</p>
+          <p className="py-6 text-center text-[13px] text-gray-400">Nenhum funcionario encontrado.</p>
         )}
 
         {!loading && filtered.length > 0 && (
@@ -142,7 +142,7 @@ export function G05FuncionariosList() {
             <table className="w-full min-w-[680px] text-[13px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Funcionário', 'Departamento', 'Pendentes', 'Aprovadas', 'Total reembolsado', ''].map((header) => (
+                  {['Funcionario', 'Departamento', 'Pendentes', 'Aprovadas', 'Total reembolsado', ''].map((header) => (
                     <th key={header} className="py-2.5 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                   ))}
                 </tr>
@@ -182,7 +182,7 @@ export function G05FuncionariosList() {
 
       <SideDrawer
         open={drawerOpen}
-        title="Cadastrar funcionário"
+        title="Cadastrar funcionario"
         onClose={closeDrawer}
         footer={
           <div className="space-y-3">
@@ -191,7 +191,7 @@ export function G05FuncionariosList() {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="ghost" onClick={closeDrawer} disabled={saving} className="justify-center">Cancelar</Button>
               <Button type="submit" form="employee-drawer-form" disabled={saving} className="justify-center">
-                {saving ? 'Cadastrando...' : 'Cadastrar funcionário'}
+                {saving ? 'Cadastrando...' : 'Cadastrar funcionario'}
               </Button>
             </div>
           </div>
@@ -199,8 +199,8 @@ export function G05FuncionariosList() {
       >
         <form id="employee-drawer-form" onSubmit={(event) => void handleCreate(event)} className="space-y-4">
           <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3">
-            <p className="text-[13px] font-medium text-[#1a1a2e]">Novo acesso de funcionário</p>
-            <p className="mt-1 text-[12px] text-gray-500">O usuário poderá entrar com este e-mail e a senha temporária informada.</p>
+            <p className="text-[13px] font-medium text-[#1a1a2e]">Novo acesso de funcionario</p>
+            <p className="mt-1 text-[12px] text-gray-500">O usuario podera entrar com este e-mail e a senha temporaria informada.</p>
           </div>
           <label className={labelClass}>
             Nome completo
@@ -226,7 +226,7 @@ export function G05FuncionariosList() {
             />
           </label>
           <label className={labelClass}>
-            Senha temporária
+            Senha temporaria
             <input
               type="password"
               required
@@ -234,7 +234,7 @@ export function G05FuncionariosList() {
               value={form.password}
               onChange={(event) => handleField('password', event.target.value)}
               className={fieldClass}
-              placeholder="Mínimo 8 caracteres"
+              placeholder="Minimo 8 caracteres"
             />
           </label>
           <label className={labelClass}>
@@ -245,10 +245,10 @@ export function G05FuncionariosList() {
               value={form.pixKey}
               onChange={(event) => handleField('pixKey', event.target.value)}
               className={fieldClass}
-              placeholder="CPF, e-mail, telefone ou chave aleatória"
+              placeholder="CPF, e-mail, telefone ou chave aleatoria"
             />
             <span className="mt-1 block text-[11px] font-normal text-gray-400">
-              Obrigatória para gerar a planilha de pagamento do financeiro.
+              Obrigatoria para gerar a planilha de pagamento do financeiro.
             </span>
           </label>
         </form>

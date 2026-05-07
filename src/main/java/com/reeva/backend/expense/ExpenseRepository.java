@@ -97,6 +97,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         SELECT COUNT(e) FROM Expense e
         WHERE e.user.manager.id = :managerId
           AND e.policyCompliant = false
+          AND (e.aiDecision IS NULL OR e.aiDecision <> com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)
           AND e.deleted = false
         """)
     long countPolicyViolationsByManagerId(@Param("managerId") UUID managerId);
@@ -114,8 +115,8 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     List<Expense> findApprovedForPayment(
         @Param("managerId") UUID managerId,
         @Param("status") ExpenseStatus status,
-        @Param("from") java.time.LocalDate from,
-        @Param("to") java.time.LocalDate to
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
     );
 
     @Query("""
@@ -132,6 +133,63 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("projectId") UUID projectId,
         @Param("from") LocalDate from,
         @Param("to") LocalDate to
+    );
+
+    @Query("""
+        SELECT e FROM Expense e
+        JOIN FETCH e.user u
+        JOIN FETCH e.project p
+        LEFT JOIN FETCH u.department d
+        LEFT JOIN FETCH u.manager m
+        WHERE e.company.id = :companyId
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate DESC, e.createdAt DESC
+        """)
+    List<Expense> findByCompanyForCfoMetrics(
+        @Param("companyId") UUID companyId,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
+
+    @Query(
+        value = """
+            SELECT e FROM Expense e
+            JOIN FETCH e.user u
+            JOIN FETCH e.project p
+            LEFT JOIN FETCH u.department d
+            LEFT JOIN FETCH u.manager m
+            WHERE e.company.id = :companyId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+              AND (:projectId IS NULL OR p.id = :projectId)
+              AND (:category IS NULL OR e.category = :category)
+              AND e.expenseDate >= :from
+              AND e.expenseDate <= :to
+            ORDER BY e.createdAt DESC
+            """,
+        countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            JOIN e.user u
+            JOIN e.project p
+            WHERE e.company.id = :companyId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+              AND (:projectId IS NULL OR p.id = :projectId)
+              AND (:category IS NULL OR e.category = :category)
+              AND e.expenseDate >= :from
+              AND e.expenseDate <= :to
+            """
+    )
+    Page<Expense> findByCompanyForCfoExpenses(
+        @Param("companyId") UUID companyId,
+        @Param("status") ExpenseStatus status,
+        @Param("projectId") UUID projectId,
+        @Param("category") ExpenseCategory category,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to,
+        Pageable pageable
     );
 
     @Query("""

@@ -26,40 +26,51 @@ public class AiExpenseDecisionService {
             result.supplierCnpj(), result.issueDate(), result.totalAmount(), result.sefazVerificationCode()
         ));
 
+        ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
+        PolicyCheck policy = checkPolicy(expense, result, category);
+
+        if (sefaz.status() == SefazStatus.INVALID) {
+            return decision(AiDecision.REJECTED_BY_FISCAL_VALIDATION, ExpenseStatus.MANAGER_REJECTED,
+                AiAlertLevel.HIGH, score, false, null, sefaz, false,
+                null, "Reembolso recusado automaticamente por falha fiscal critica. " + sefaz.message());
+        }
+
         if (!result.readable()) {
+            String summary = "Foto precisa ser reenviada: " + result.reason();
+            if (!policy.compliant()) {
+                summary += " " + policyFallbackReason(policy.reason());
+            }
             return decision(AiDecision.NEEDS_EMPLOYEE_CORRECTION, ExpenseStatus.NEEDS_REVISION,
-                AiAlertLevel.HIGH, score, false, "Comprovante ilegivel ou invalido.",
-                sefaz, false, result.reason(), "Foto precisa ser reenviada: " + result.reason());
+                AiAlertLevel.HIGH, score, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
+                sefaz, false, result.reason(), summary);
         }
 
         if (hasMissingMandatoryFields(result)) {
+            String summary = "Dados obrigatorios incompletos. Solicite correcao ao funcionario.";
+            if (!policy.compliant()) {
+                summary += " " + policyFallbackReason(policy.reason());
+            }
             return decision(AiDecision.NEEDS_EMPLOYEE_CORRECTION, ExpenseStatus.NEEDS_REVISION,
-                AiAlertLevel.HIGH, score, false, "Campos obrigatorios ausentes ou ilegiveis.",
+                AiAlertLevel.HIGH, score, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
                 sefaz, false, "Funcionario deve corrigir campos ou reenviar a foto.",
-                "Dados obrigatorios incompletos. Solicite correcao ao funcionario.");
+                summary);
         }
 
-        ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
-        PolicyCheck policy = checkPolicy(expense, result, category);
         if (!policy.compliant()) {
-            return decision(AiDecision.REJECTED_BY_POLICY, ExpenseStatus.NEEDS_REVISION,
+            return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
                 AiAlertLevel.HIGH, score, false, policy.reason(), sefaz, false,
-                "Fora da politica da empresa.", "Reembolso fora da politica: " + policy.reason());
+                "Fora da politica da empresa. Gestor deve revisar antes de aprovar.",
+                "Revisao obrigatoria do gestor: reembolso fora da politica. " + policy.reason());
         }
 
         if (Boolean.FALSE.equals(result.policyCompliant())) {
             String reason = result.policyReason() != null && !result.policyReason().isBlank()
                 ? result.policyReason()
                 : "IA identificou descumprimento da politica cadastrada.";
-            return decision(AiDecision.REJECTED_BY_POLICY, ExpenseStatus.NEEDS_REVISION,
-                AiAlertLevel.HIGH, score, false, reason, sefaz, false,
-                "Fora da politica da empresa.", "Reembolso fora da politica: " + reason);
-        }
-
-        if (sefaz.status() == SefazStatus.INVALID) {
             return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
-                AiAlertLevel.HIGH, score, true, null, sefaz, false,
-                "SEFAZ indicou documento invalido.", "Validacao fiscal falhou. Revisao obrigatoria.");
+                AiAlertLevel.HIGH, score, false, reason, sefaz, false,
+                "Fora da politica da empresa. Gestor deve revisar antes de aprovar.",
+                "Revisao obrigatoria do gestor: reembolso fora da politica. " + reason);
         }
 
         short minScore = autoApprovalMinScore(expense, category);
@@ -111,6 +122,13 @@ public class AiExpenseDecisionService {
             return "criterios de autoaprovacao nao atendidos.";
         }
         return "Autoaprovacao bloqueada: " + String.join("; ", reasons) + ".";
+    }
+
+    private String policyFallbackReason(String policyReason) {
+        if (policyReason == null || policyReason.isBlank()) {
+            return "Valor informado pelo funcionario tambem exige revisao de politica.";
+        }
+        return "Valor informado pelo funcionario exige revisao de politica: " + policyReason + ".";
     }
 
     private boolean hasMissingMandatoryFields(OcrResult result) {

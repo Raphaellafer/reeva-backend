@@ -3,6 +3,7 @@ package com.reeva.backend.ai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reeva.backend.expense.*;
+import com.reeva.backend.expense.attachment.AttachmentRepository;
 import com.reeva.backend.storage.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,6 +82,15 @@ public class OcrService {
         Mesmo quando extraction_status != FOUND, preserve qualquer informacao parcial util em raw_text.
         Exemplo: supplier_cnpj.raw_text = "12.345.xxx".
 
+        DUPLICIDADE:
+        - Voce NAO deve afirmar que uma nota e duplicada.
+        - Voce NAO tem acesso ao banco da aplicacao.
+        - Voce NAO sabe se essa nota ja foi enviada antes.
+        - Nao use duplicate_suspected.
+        - Nao rejeite e nao classifique duplicidade.
+        - Sua responsabilidade e apenas extrair identificadores fiscais visiveis com maxima precisao.
+        - A duplicidade sera decidida pelo backend comparando hash da imagem e codigo fiscal contra o banco.
+
         Prioridade visual:
         Campos proximos a TOTAL, VALOR TOTAL, TOTAL R$, TOTAL A PAGAR, VALOR PAGO, CNPJ, DATA, CPF,
         VALOR, QR CODE, CHAVE DE ACESSO e COO devem receber prioridade de atencao.
@@ -98,7 +108,16 @@ public class OcrService {
         - Nunca transforme "1,0000" em 1000.
         - total_amount deve ser conferido contra a soma dos itens quando os itens estiverem legiveis.
         - Se houver itens legiveis, confira se sum(line_items.total_price) bate com total_amount.
-        - Se o total geral e a soma dos itens divergirem, preserve ambos, mas registre a divergencia em extraction_notes.
+        - Em restaurantes, bares, hoteis e servicos, linhas como "comissao", "taxa de servico",
+          "servico", "gorjeta", "10%" ou "couvert" sao encargos validos e devem ser extraidos como line_items
+          quando estiverem visiveis.
+        - Linhas como "desconto", "descontos", "abatimento", "valor descontado" ou "voce economizou" devem ser
+          tratadas como redutores validos do total quando estiverem visiveis.
+        - Se houver subtotal/produtos, desconto e valor a pagar, considere "valor a pagar" ou "valor pago" como
+          total_amount correto. Nao marque divergencia quando a diferenca for explicada por desconto visivel.
+        - Se a soma de produtos divergir do total_amount apenas por taxa de servico/comissao visivel ou por
+          desconto visivel, preserve o total_amount como valor correto.
+        - Se o total geral e a soma dos itens divergirem muito, preserve ambos, mas registre a divergencia em extraction_notes.
         - supplier_name: priorize o nome fantasia principal.
         - supplier_cnpj: nunca invente digitos faltantes.
         - issue_date: normalize value em YYYY-MM-DD quando possivel; preserve raw_text original.
@@ -107,6 +126,16 @@ public class OcrService {
         - QR code/chave fiscal: preserve qualquer texto relacionado.
         - Se houver chave de acesso, QR code textual, codigo de consulta, COO, NFC-e ou numero de documento,
           extraia em sefaz_verification_code com raw_text.
+        - Chave de acesso NF-e/NFC-e normalmente possui 44 digitos. Se ela estiver impressa em blocos,
+          junte os blocos em value preservando raw_text original.
+        - Nunca invente conteudo do QR code. Se o QR code existir visualmente mas nao houver texto decodificavel,
+          registre em extraction_notes que o QR code visual nao foi decodificado.
+        - CNPJ de exemplo ou placeholder, como 12.345.678/0001-90, sequencias obvias, fornecedor generico,
+          chave fiscal padronizada ou numeros artificiais devem ser preservados como lidos e registrados em
+          extraction_notes como possivel dado sintetico/placeholder.
+        - Para sefaz_verification_code, preserve apenas o que esta visivel. Nao deduza codigo fiscal.
+        - Se o codigo fiscal estiver parcial, use extraction_status=PARTIAL ou UNCERTAIN.
+        - Se o codigo fiscal estiver ilegivel, use extraction_status=ILLEGIBLE.
         - Primeiro capture raw_text, depois normalize value.
 
         Regras finais:
@@ -152,7 +181,9 @@ public class OcrService {
         - Nao use politica, fraude ou aprovacao.
         - Nao puna automaticamente campos ausentes quando outros campos foram extraidos com confianca.
         - Se total_amount estiver ausente, incerto ou ilegivel, readable=false.
-        - Se a soma dos itens legiveis divergir do total_amount, readable=false.
+        - Se a soma dos itens legiveis divergir muito do total_amount, readable=false.
+        - Nao marque readable=false quando a diferenca for explicada por comissao, taxa de servico, gorjeta,
+          couvert ou outra taxa legitima visivel na nota.
         - O score deve refletir a confianca tecnica nos campos recuperados e a qualidade da imagem.
         - Se houver valor total validado e fornecedor ou data com boa confianca, o documento pode ser considerado readable.
         - Se nao houver documento de despesa detectado, readable=false.
@@ -166,6 +197,7 @@ public class OcrService {
     private final AiExpenseDecisionService aiExpenseDecisionService;
     private final ExpensePolicyRepository policyRepository;
     private final TraditionalOcrService traditionalOcrService;
+    private final AttachmentRepository attachmentRepository;
     private final HttpClient httpClient;
 
     @Value("${openai.api-key:}")
@@ -179,13 +211,15 @@ public class OcrService {
 
     public OcrService(ExpenseRepository expenseRepository, StorageService storageService,
                       ObjectMapper objectMapper, AiExpenseDecisionService aiExpenseDecisionService,
-                      ExpensePolicyRepository policyRepository, TraditionalOcrService traditionalOcrService) {
+                      ExpensePolicyRepository policyRepository, TraditionalOcrService traditionalOcrService,
+                      AttachmentRepository attachmentRepository) {
         this.expenseRepository = expenseRepository;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
         this.aiExpenseDecisionService = aiExpenseDecisionService;
         this.policyRepository = policyRepository;
         this.traditionalOcrService = traditionalOcrService;
+        this.attachmentRepository = attachmentRepository;
         this.httpClient = HttpClient.newHttpClient();
     }
 
@@ -233,6 +267,7 @@ public class OcrService {
 
     private OcrResult analyzeImage(String fileUrl, String mimeType, Expense expense) throws Exception {
         byte[] imageBytes = storageService.downloadBytes(fileUrl);
+        String imageSha256 = sha256(imageBytes);
         String base64 = Base64.getEncoder().encodeToString(imageBytes);
         String dataUrl = "data:" + mimeType + ";base64," + base64;
         String rawOcrText = traditionalOcrService.extractText(imageBytes, mimeType);
@@ -253,7 +288,7 @@ public class OcrService {
             "content", ANALYSIS_PROMPT + "\n\nExtracao OCR:\n" + extractionJson
         )), analysisResponseFormat());
 
-        return parseOcrJson(extractionJson, analysisJson, rawOcrText);
+        return parseOcrJson(extractionJson, analysisJson, rawOcrText, imageSha256);
     }
 
     private String callOpenAi(java.util.List<java.util.Map<String, Object>> messages,
@@ -489,7 +524,7 @@ public class OcrService {
         );
     }
 
-    private OcrResult parseOcrJson(String extractionJson, String analysisJson, String rawOcrText) {
+    private OcrResult parseOcrJson(String extractionJson, String analysisJson, String rawOcrText, String imageSha256) {
         try {
             JsonNode extraction = objectMapper.readTree(extractionJson);
             JsonNode analysis = objectMapper.readTree(analysisJson);
@@ -498,12 +533,13 @@ public class OcrService {
             BigDecimal amount = readMoneyField(extraction, "total_amount");
             LocalDate issueDate = readFieldLocalDate(extraction, "issue_date");
             java.util.List<OcrResult.LineItem> lineItems = readLineItems(extraction);
-            String validationReason = validateExtractedAmount(amount, lineItems);
+            String validationReason = validateExtractedAmount(amount, lineItems, extraction, rawOcrText);
             if (validationReason != null) {
                 readable = false;
             }
             String rawJson = objectMapper.writeValueAsString(java.util.Map.of(
                 "raw_ocr_text", rawOcrText == null ? "" : rawOcrText,
+                "image_sha256", imageSha256 == null ? "" : imageSha256,
                 "extraction", objectMapper.readTree(extractionJson),
                 "analysis", objectMapper.readTree(analysisJson),
                 "amount_validation", validationReason == null ? "OK" : validationReason
@@ -530,13 +566,14 @@ public class OcrService {
                 buildSefazReason(extraction),
                 null,
                 lineItems,
-                rawJson
+                rawJson,
+                imageSha256
             );
         } catch (Exception e) {
             log.warn("Failed to parse OCR JSON: extraction={} analysis={}", extractionJson, analysisJson, e);
-            return new OcrResult(false, "Erro ao interpretar resposta da IA", null, null, null,
+            return new OcrResult(false, "Resposta da IA veio incompleta ou fora do formato esperado. Tente reenviar para nova analise OCR.", null, null, null,
                 null, null, null, (short) 0, null, null, null, null, null,
-                null, java.util.List.of(), extractionJson);
+                null, java.util.List.of(), extractionJson, imageSha256);
         }
     }
 
@@ -558,7 +595,8 @@ public class OcrService {
         return items;
     }
 
-    private String validateExtractedAmount(BigDecimal totalAmount, java.util.List<OcrResult.LineItem> lineItems) {
+    private String validateExtractedAmount(BigDecimal totalAmount, java.util.List<OcrResult.LineItem> lineItems,
+                                           JsonNode extraction, String rawOcrText) {
         if (totalAmount == null || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
             return "Valor total da nota nao foi lido com confianca. Funcionario deve tirar uma nova foto.";
         }
@@ -596,11 +634,50 @@ public class OcrService {
         }
 
         BigDecimal difference = totalAmount.subtract(sum).abs();
+        if (difference.compareTo(new BigDecimal("0.05")) <= 0) {
+            return null;
+        }
+
+        BigDecimal serviceFeeRatio = sum.compareTo(BigDecimal.ZERO) > 0
+            ? difference.divide(sum, 4, java.math.RoundingMode.HALF_UP)
+            : BigDecimal.ZERO;
+        boolean plausibleServiceFee = difference.compareTo(new BigDecimal("30.00")) <= 0
+            && serviceFeeRatio.compareTo(new BigDecimal("0.20")) <= 0;
+        if (plausibleServiceFee) {
+            return null;
+        }
+
+        boolean totalLowerThanItems = totalAmount.compareTo(sum) < 0;
+        boolean plausibleDiscount = totalLowerThanItems
+            && hasDiscountEvidence(extraction, rawOcrText)
+            && serviceFeeRatio.compareTo(new BigDecimal("0.50")) <= 0;
+        if (plausibleDiscount) {
+            return null;
+        }
+
         if (difference.compareTo(new BigDecimal("0.05")) > 0) {
-            return "Valor total da nota diverge da soma dos itens lidos. Total: " + totalAmount
-                + "; soma dos itens: " + sum + ". Funcionario deve tirar uma nova foto.";
+            return "Leitura inconsistente da nota: o OCR nao conseguiu reconciliar total, itens, descontos ou taxas com confianca. "
+                + "Total lido: " + totalAmount + "; soma parcial lida: " + sum
+                + ". Funcionario deve tirar uma nova foto mais nitida e centralizada.";
         }
         return null;
+    }
+
+    private boolean hasDiscountEvidence(JsonNode extraction, String rawOcrText) {
+        String text = java.text.Normalizer.normalize(
+                ((extraction == null ? "" : extraction.toString()) + " " + (rawOcrText == null ? "" : rawOcrText))
+                    .toLowerCase(Locale.ROOT),
+                java.text.Normalizer.Form.NFD
+            )
+            .replaceAll("\\p{M}", "");
+        return text.contains("desconto")
+            || text.contains("descontos")
+            || text.contains("abatimento")
+            || text.contains("valor descontado")
+            || text.contains("voce economizou")
+            || text.contains("você economizou")
+            || text.contains("valor a pagar")
+            || text.contains("valor pago");
     }
 
     private String appendReason(String current, String addition) {
@@ -729,29 +806,12 @@ public class OcrService {
     }
 
     private String buildReceiptFingerprint(OcrResult result) {
-        if (result.totalAmount() == null || result.issueDate() == null) {
-            return null;
-        }
-
         String fiscalCode = normalizeFingerprintPart(result.sefazVerificationCode());
-        String supplierCnpj = normalizeDigits(result.supplierCnpj());
-        String supplierName = normalizeFingerprintPart(result.supplierName());
-
-        String identity;
-        if (fiscalCode != null && fiscalCode.length() >= 8) {
-            identity = "code:" + fiscalCode;
-        } else if (supplierCnpj != null && supplierCnpj.length() >= 8) {
-            identity = "cnpj:" + supplierCnpj;
-        } else if (supplierName != null && supplierName.length() >= 4) {
-            identity = "supplier:" + supplierName;
-        } else {
+        if (fiscalCode == null || fiscalCode.length() < 12) {
             return null;
         }
 
-        String source = identity
-            + "|date:" + result.issueDate()
-            + "|amount:" + result.totalAmount().setScale(2, java.math.RoundingMode.HALF_UP);
-        return sha256(source);
+        return sha256("fiscal-code:" + fiscalCode);
     }
 
     private String normalizeFingerprintPart(String value) {
@@ -774,6 +834,16 @@ public class OcrService {
             return HexFormat.of().formatHex(hash);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to hash receipt fingerprint", ex);
+        }
+    }
+
+    private String sha256(byte[] value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value);
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to hash receipt image", ex);
         }
     }
 
@@ -822,6 +892,19 @@ public class OcrService {
             } catch (IllegalArgumentException ignored) {}
         }
 
+        String imageHash = result.imageSha256();
+        if (imageHash != null && !imageHash.isBlank() && !expense.getAttachments().isEmpty()) {
+            var attachment = expense.getAttachments().get(0);
+            attachment.setFileSha256(imageHash);
+            var imageDuplicates = attachmentRepository.findActiveDuplicatesByFileSha256(
+                expense.getCompany().getId(), expense.getId(), imageHash
+            );
+            if (!imageDuplicates.isEmpty()) {
+                markAsDuplicate(expense, imageDuplicates.get(0).getExpense(), result, "imagem identica ja enviada");
+                return;
+            }
+        }
+
         String fingerprint = buildReceiptFingerprint(result);
         if (fingerprint != null) {
             expense.setReceiptFingerprint(fingerprint);
@@ -829,7 +912,7 @@ public class OcrService {
                 expense.getCompany().getId(), fingerprint, expense.getId()
             );
             if (!duplicates.isEmpty()) {
-                markAsDuplicate(expense, duplicates.get(0), result);
+                markAsDuplicate(expense, duplicates.get(0), result, "codigo fiscal/chave da nota ja enviado");
                 return;
             }
         }
@@ -860,26 +943,26 @@ public class OcrService {
             expense.getId(), decision.status(), decision.score(), decision.decision());
     }
 
-    private void markAsDuplicate(Expense expense, Expense original, OcrResult result) {
+    private void markAsDuplicate(Expense expense, Expense original, OcrResult result, String evidence) {
         expense.setDuplicateOfExpense(original);
         expense.setAiScore(result.score() == null ? 0 : (short) Math.min(result.score(), 20));
         expense.setAiAlertLevel(AiAlertLevel.HIGH);
-        expense.setAiAnalysis("Nota duplicada: este documento ja foi enviado anteriormente por outro usuario ou pela mesma conta.");
-        expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
-        expense.setAiDecisionReason("Duplicidade detectada contra a despesa " + original.getId() + ".");
+        expense.setAiAnalysis("Nota rejeitada automaticamente por duplicidade: " + evidence + ".");
+        expense.setAiDecision(AiDecision.DUPLICATE_REJECTED);
+        expense.setAiDecisionReason("Duplicidade confirmada contra a despesa " + original.getId() + " por " + evidence + ".");
         expense.setPolicyCompliant(false);
-        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso bloqueado.");
+        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso rejeitado automaticamente.");
         expense.setSefazStatus(SefazStatus.INVALID);
-        expense.setSefazValidationMessage("Documento duplicado na base da empresa.");
+        expense.setSefazValidationMessage("Documento duplicado confirmado na base da empresa.");
         expense.setAutoApprovalEligible(false);
-        expense.setManualReviewReason("Nota duplicada. Esta nota ja existe no sistema e nao pode ser reenviada.");
+        expense.setManualReviewReason(null);
         expense.setAiCheckedAt(Instant.now());
 
         ExpenseStatus from = expense.getStatus();
-        expense.transitionTo(ExpenseStatus.NEEDS_REVISION);
+        expense.transitionTo(ExpenseStatus.MANAGER_REJECTED);
         var history = new ExpenseStatusHistory(
-            expense, from, ExpenseStatus.NEEDS_REVISION, null,
-            "IA: nota duplicada da despesa " + original.getId()
+            expense, from, ExpenseStatus.MANAGER_REJECTED, null,
+            "IA: nota rejeitada por duplicidade da despesa " + original.getId() + " (" + evidence + ")"
         );
         history.setAiScore(expense.getAiScore());
         expense.getStatusHistory().add(history);

@@ -102,7 +102,7 @@ export function F04Detalhe() {
     ? uniqueMessages([
         expense.aiAnalysis,
         expense.aiDecisionReason !== expense.aiAnalysis ? expense.aiDecisionReason : null,
-        expense.policyViolationReason ? `Política: ${expense.policyViolationReason}` : null,
+        expense.policyViolationReason ? `Politica: ${expense.policyViolationReason}` : null,
         expense.manualReviewReason,
       ])
     : []
@@ -147,7 +147,7 @@ export function F04Detalhe() {
     if (!token || !id || !expense) return
 
     if (!title.trim()) {
-      setError('Informe o estabelecimento ou um título para a nota.')
+      setError('Informe o estabelecimento ou um titulo para a nota.')
       return
     }
     if (!category) {
@@ -174,7 +174,7 @@ export function F04Detalhe() {
       })
       setExpense(updated)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao enviar correção para o gestor.')
+      setError(err instanceof Error ? err.message : 'Falha ao enviar correcao para o gestor.')
     } finally {
       setSavingCorrection(false)
     }
@@ -208,7 +208,7 @@ export function F04Detalhe() {
                 <p className="shrink-0 text-[18px] font-semibold text-[#1a1a2e]">{fmt(expense.amount)}</p>
               </div>
               <div className="rounded-[8px] border border-black/[0.07] bg-[#F8F8FC] p-3">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Próxima ação</p>
+                <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Proxima acao</p>
                 <p className="mt-1 text-[12px] text-gray-600">{nextActionText(expense)}</p>
               </div>
               {canRetryOcr && (
@@ -248,20 +248,20 @@ export function F04Detalhe() {
                 <InfoItem label="Categoria" value={categoryLabels[expense.category]} />
                 <InfoItem label="Data" value={fmtDate(expense.expenseDate)} />
                 <InfoItem label="Valor" value={fmt(expense.amount)} />
-                {expense.description && <InfoItem label="Observações" value={expense.description} full />}
+                {expense.description && <InfoItem label="Observacoes" value={expense.description} full />}
               </div>
             </Card>
 
             <Card>
               <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-[13px] font-medium text-[#1a1a2e]">Análise da IA</p>
+                <p className="text-[13px] font-medium text-[#1a1a2e]">Analise da IA</p>
                 <Badge variant={scoreVariant(expense.aiScore)}>{expense.aiScore == null ? 'Sem score' : `${expense.aiScore}/100`}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-3 text-[12px]">
-                <InfoItem label="Decisão" value={aiDecisionLabel(expense.aiDecision)} />
-                <InfoItem label="Política" value={expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Dentro da política' : 'Fora da política'} />
+                <InfoItem label="Decisao" value={aiDecisionLabel(expense.aiDecision)} />
+                <InfoItem label="Politica" value={expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Dentro da politica' : 'Fora da politica'} />
                 <InfoItem label="Fiscal" value={sefazStatusLabel(expense.sefazStatus)} />
-                <InfoItem label="Autoaprovação" value={expense.autoApprovalEligible ? 'Elegível' : 'Não elegível'} />
+                <InfoItem label="Autoaprovacao" value={expense.autoApprovalEligible ? 'Elegivel' : 'Nao elegivel'} />
               </div>
               {(analysisMessages.length > 0 || shouldShowFiscal) && (
                 <div className="mt-3 space-y-1 rounded-[8px] border border-[#AFA9EC]/40 bg-[#F4F2FF] p-3 text-[12px] text-[#3C3489]">
@@ -288,7 +288,7 @@ export function F04Detalhe() {
             </Card>
 
             <Card>
-              <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Histórico da nota</p>
+              <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Historico da nota</p>
               <Timeline items={buildTimeline(expense)} />
             </Card>
           </>
@@ -343,7 +343,7 @@ function CorrectionCard({
 
       {!canCorrectNonFinancialFields ? (
         <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">
-          O valor total não foi lido com segurança. Tente uma nova leitura da nota para evitar valor manual.
+          O valor total nao foi lido com seguranca. Tente uma nova leitura da nota para evitar valor manual.
         </p>
       ) : (
         <p className="rounded-[8px] border border-[#AFA9EC]/40 bg-[#F4F2FF] p-3 text-[12px] text-[#3C3489]">
@@ -352,7 +352,7 @@ function CorrectionCard({
       )}
 
       <label className="block text-[12px] font-medium text-gray-500">
-        Estabelecimento ou título
+        Estabelecimento ou titulo
         <input value={title} onChange={(event) => onTitleChange(event.target.value)} className={fieldClass} />
       </label>
 
@@ -374,7 +374,7 @@ function CorrectionCard({
       </div>
 
       <label className="block text-[12px] font-medium text-gray-500">
-        Observações
+        Observacoes
         <textarea value={description} onChange={(event) => onDescriptionChange(event.target.value)} rows={3} className={`${fieldClass} resize-none`} />
       </label>
 
@@ -384,7 +384,7 @@ function CorrectionCard({
         disabled={savingCorrection || !canCorrectNonFinancialFields}
         onClick={onSubmit}
       >
-        {savingCorrection ? 'Enviando ao gestor...' : 'Enviar correção'}
+        {savingCorrection ? 'Enviando ao gestor...' : 'Enviar correcao'}
       </Button>
     </Card>
   )
