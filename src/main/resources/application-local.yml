@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/reeva
-    username: reeva
-    password: reeva
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/reeva}
+    username: ${DB_USERNAME:reeva}
+    password: ${DB_PASSWORD:reeva}
 
 security:
   jwt:
