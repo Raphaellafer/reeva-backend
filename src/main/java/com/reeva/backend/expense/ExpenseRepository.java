@@ -165,6 +165,10 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
               AND (:status IS NULL OR e.status = :status)
               AND (:projectId IS NULL OR p.id = :projectId)
               AND (:category IS NULL OR e.category = :category)
+              AND (:duplicate IS NULL OR :duplicate = false OR e.duplicateOfExpense IS NOT NULL OR e.aiDecision = com.reeva.backend.expense.AiDecision.DUPLICATE_REJECTED)
+              AND (:fiscalInvalid IS NULL OR :fiscalInvalid = false OR e.sefazStatus = com.reeva.backend.expense.SefazStatus.INVALID OR e.aiDecision = com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)
+              AND (:policyViolation IS NULL OR :policyViolation = false OR e.aiDecision = com.reeva.backend.expense.AiDecision.REJECTED_BY_POLICY OR (e.policyCompliant = false AND (e.aiDecision IS NULL OR e.aiDecision <> com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)))
+              AND (:lowOcr IS NULL OR :lowOcr = false OR e.status = com.reeva.backend.expense.ExpenseStatus.OCR_FAILED OR (e.aiScore IS NOT NULL AND e.aiScore < 70))
               AND e.expenseDate >= :from
               AND e.expenseDate <= :to
             ORDER BY e.createdAt DESC
@@ -178,6 +182,10 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
               AND (:status IS NULL OR e.status = :status)
               AND (:projectId IS NULL OR p.id = :projectId)
               AND (:category IS NULL OR e.category = :category)
+              AND (:duplicate IS NULL OR :duplicate = false OR e.duplicateOfExpense IS NOT NULL OR e.aiDecision = com.reeva.backend.expense.AiDecision.DUPLICATE_REJECTED)
+              AND (:fiscalInvalid IS NULL OR :fiscalInvalid = false OR e.sefazStatus = com.reeva.backend.expense.SefazStatus.INVALID OR e.aiDecision = com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)
+              AND (:policyViolation IS NULL OR :policyViolation = false OR e.aiDecision = com.reeva.backend.expense.AiDecision.REJECTED_BY_POLICY OR (e.policyCompliant = false AND (e.aiDecision IS NULL OR e.aiDecision <> com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)))
+              AND (:lowOcr IS NULL OR :lowOcr = false OR e.status = com.reeva.backend.expense.ExpenseStatus.OCR_FAILED OR (e.aiScore IS NOT NULL AND e.aiScore < 70))
               AND e.expenseDate >= :from
               AND e.expenseDate <= :to
             """
@@ -187,6 +195,10 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("status") ExpenseStatus status,
         @Param("projectId") UUID projectId,
         @Param("category") ExpenseCategory category,
+        @Param("duplicate") Boolean duplicate,
+        @Param("fiscalInvalid") Boolean fiscalInvalid,
+        @Param("policyViolation") Boolean policyViolation,
+        @Param("lowOcr") Boolean lowOcr,
         @Param("from") LocalDate from,
         @Param("to") LocalDate to,
         Pageable pageable
