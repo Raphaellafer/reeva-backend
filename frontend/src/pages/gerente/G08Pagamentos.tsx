@@ -26,15 +26,15 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
     [
       'Periodo de',
       'Periodo ate',
-      'Funcionario',
+      'Funcionário',
       'Email',
       'Pix',
       'Projeto',
       'Nota',
       'Data da despesa',
-      'Origem da aprovacao',
+      'Origem da aprovação',
       'Valor da despesa',
-      'Total do funcionario',
+      'Total do funcionário',
       'Total geral do lote',
     ],
   ]
@@ -42,7 +42,7 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
   batch.employees.forEach((employee) => {
     employee.expenses.forEach((expense) => {
       rows.push([
-        from || 'inicio',
+        from || 'início',
         to || 'hoje',
         employee.name,
         employee.email,
@@ -112,7 +112,7 @@ export function G08Pagamentos() {
             <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="block mt-1 rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]" />
           </label>
           <label className="text-[12px] text-gray-500">
-            Ate
+            Até
             <input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="block mt-1 rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]" />
           </label>
           <Button variant="ghost" size="sm" onClick={() => void load()} disabled={loading}>
@@ -125,7 +125,7 @@ export function G08Pagamentos() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <Card><p className="text-[11px] text-gray-400 uppercase">Total aprovado</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{fmt(batch?.totalAmount ?? 0)}</p></Card>
-        <Card><p className="text-[11px] text-gray-400 uppercase">Funcionarios</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.employeeCount ?? 0}</p></Card>
+        <Card><p className="text-[11px] text-gray-400 uppercase">Funcionários</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.employeeCount ?? 0}</p></Card>
         <Card><p className="text-[11px] text-gray-400 uppercase">Notas</p><p className="text-[22px] font-semibold text-[#1a1a2e]">{batch?.expenseCount ?? 0}</p></Card>
       </div>
 
@@ -134,14 +134,14 @@ export function G08Pagamentos() {
           <table className="w-full text-[13px] min-w-[820px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionario', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
+                {['Funcionário', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
                   <th key={header} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {!loading && expenses.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no periodo.</td></tr>
+                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no período.</td></tr>
               )}
               {expenses.map(({ employee, expense }) => (
                 <tr key={expense.id} className="border-b border-black/[0.04]">
