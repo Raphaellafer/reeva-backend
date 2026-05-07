@@ -396,5 +396,6 @@ export interface CreateEmployeePayload {
   name: string;
   email: string;
   password: string;
+  pixKey: string;
   departmentId?: string;
 }

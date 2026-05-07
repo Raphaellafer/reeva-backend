@@ -108,7 +108,12 @@ public class OcrService {
         - Nunca transforme "1,0000" em 1000.
         - total_amount deve ser conferido contra a soma dos itens quando os itens estiverem legiveis.
         - Se houver itens legiveis, confira se sum(line_items.total_price) bate com total_amount.
-        - Se o total geral e a soma dos itens divergirem, preserve ambos, mas registre a divergencia em extraction_notes.
+        - Em restaurantes, bares, hoteis e servicos, linhas como "comissao", "taxa de servico",
+          "servico", "gorjeta", "10%" ou "couvert" sao encargos validos e devem ser extraidos como line_items
+          quando estiverem visiveis.
+        - Se a soma de produtos divergir do total_amount apenas por taxa de servico/comissao visivel ou por
+          diferenca pequena compativel com taxa de servico, preserve o total_amount como valor correto.
+        - Se o total geral e a soma dos itens divergirem muito, preserve ambos, mas registre a divergencia em extraction_notes.
         - supplier_name: priorize o nome fantasia principal.
         - supplier_cnpj: nunca invente digitos faltantes.
         - issue_date: normalize value em YYYY-MM-DD quando possivel; preserve raw_text original.
@@ -117,6 +122,13 @@ public class OcrService {
         - QR code/chave fiscal: preserve qualquer texto relacionado.
         - Se houver chave de acesso, QR code textual, codigo de consulta, COO, NFC-e ou numero de documento,
           extraia em sefaz_verification_code com raw_text.
+        - Chave de acesso NF-e/NFC-e normalmente possui 44 digitos. Se ela estiver impressa em blocos,
+          junte os blocos em value preservando raw_text original.
+        - Nunca invente conteudo do QR code. Se o QR code existir visualmente mas nao houver texto decodificavel,
+          registre em extraction_notes que o QR code visual nao foi decodificado.
+        - CNPJ de exemplo ou placeholder, como 12.345.678/0001-90, sequencias obvias, fornecedor generico,
+          chave fiscal padronizada ou numeros artificiais devem ser preservados como lidos e registrados em
+          extraction_notes como possivel dado sintetico/placeholder.
         - Para sefaz_verification_code, preserve apenas o que esta visivel. Nao deduza codigo fiscal.
         - Se o codigo fiscal estiver parcial, use extraction_status=PARTIAL ou UNCERTAIN.
         - Se o codigo fiscal estiver ilegivel, use extraction_status=ILLEGIBLE.
@@ -165,7 +177,9 @@ public class OcrService {
         - Nao use politica, fraude ou aprovacao.
         - Nao puna automaticamente campos ausentes quando outros campos foram extraidos com confianca.
         - Se total_amount estiver ausente, incerto ou ilegivel, readable=false.
-        - Se a soma dos itens legiveis divergir do total_amount, readable=false.
+        - Se a soma dos itens legiveis divergir muito do total_amount, readable=false.
+        - Nao marque readable=false quando a diferenca for explicada por comissao, taxa de servico, gorjeta,
+          couvert ou outra taxa legitima visivel na nota.
         - O score deve refletir a confianca tecnica nos campos recuperados e a qualidade da imagem.
         - Se houver valor total validado e fornecedor ou data com boa confianca, o documento pode ser considerado readable.
         - Se nao houver documento de despesa detectado, readable=false.
@@ -553,7 +567,7 @@ public class OcrService {
             );
         } catch (Exception e) {
             log.warn("Failed to parse OCR JSON: extraction={} analysis={}", extractionJson, analysisJson, e);
-            return new OcrResult(false, "Erro ao interpretar resposta da IA", null, null, null,
+            return new OcrResult(false, "Resposta da IA veio incompleta ou fora do formato esperado. Tente reenviar para nova analise OCR.", null, null, null,
                 null, null, null, (short) 0, null, null, null, null, null,
                 null, java.util.List.of(), extractionJson, imageSha256);
         }
@@ -615,6 +629,19 @@ public class OcrService {
         }
 
         BigDecimal difference = totalAmount.subtract(sum).abs();
+        if (difference.compareTo(new BigDecimal("0.05")) <= 0) {
+            return null;
+        }
+
+        BigDecimal serviceFeeRatio = sum.compareTo(BigDecimal.ZERO) > 0
+            ? difference.divide(sum, 4, java.math.RoundingMode.HALF_UP)
+            : BigDecimal.ZERO;
+        boolean plausibleServiceFee = difference.compareTo(new BigDecimal("30.00")) <= 0
+            && serviceFeeRatio.compareTo(new BigDecimal("0.20")) <= 0;
+        if (plausibleServiceFee) {
+            return null;
+        }
+
         if (difference.compareTo(new BigDecimal("0.05")) > 0) {
             return "Valor total da nota diverge da soma dos itens lidos. Total: " + totalAmount
                 + "; soma dos itens: " + sum + ". Funcionario deve tirar uma nova foto.";

@@ -15,6 +15,14 @@ const categories: Array<{ value: ExpenseCategory; label: string }> = [
   { value: 'HARDWARE', label: 'Hardware' },
 ]
 
+function todayLocalDate() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function F02EnviarNF() {
   const navigate = useNavigate()
   const [arquivo, setArquivo] = useState<File | null>(null)
@@ -58,7 +66,7 @@ export function F02EnviarNF() {
         category,
         projectId,
         amount: null,
-        expenseDate: new Date().toISOString().slice(0, 10),
+        expenseDate: todayLocalDate(),
         paymentMethod: 'OTHER',
         description: 'Enviado pelo app para analise da IA',
       }, arquivo)
