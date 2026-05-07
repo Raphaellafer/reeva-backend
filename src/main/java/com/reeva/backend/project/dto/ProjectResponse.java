@@ -13,6 +13,9 @@ public record ProjectResponse(
     String description,
     BigDecimal revenue,
     boolean active,
+    UUID managerId,
+    String managerName,
+    String managerEmail,
     List<MemberItem> members
 ) {
     public record MemberItem(UUID id, String name, String email) {}
@@ -25,6 +28,9 @@ public record ProjectResponse(
             project.getDescription(),
             project.getRevenue(),
             project.isActive(),
+            project.getCreatedBy() != null ? project.getCreatedBy().getId() : null,
+            project.getCreatedBy() != null ? project.getCreatedBy().getName() : null,
+            project.getCreatedBy() != null ? project.getCreatedBy().getEmail() : null,
             members
         );
     }

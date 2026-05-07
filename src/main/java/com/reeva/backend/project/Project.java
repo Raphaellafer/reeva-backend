@@ -69,4 +69,5 @@ public class Project {
     public void setDescription(String description) { this.description = description; }
     public void setRevenue(BigDecimal revenue) { this.revenue = revenue; }
     public void setActive(boolean active) { this.active = active; }
+    public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }
 }

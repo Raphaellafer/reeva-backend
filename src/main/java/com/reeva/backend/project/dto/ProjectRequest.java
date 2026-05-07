@@ -20,5 +20,7 @@ public record ProjectRequest(
 
     BigDecimal revenue,
 
+    UUID managerId,
+
     List<UUID> employeeIds
 ) {}

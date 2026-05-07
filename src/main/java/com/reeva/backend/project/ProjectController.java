@@ -72,7 +72,17 @@ public class ProjectController {
     @GetMapping("/manager/team-members")
     @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
     @Operation(summary = "List active employees managed by current manager")
-    public List<TeamMemberResponse> teamMembers(@AuthenticationPrincipal User currentUser) {
-        return projectService.listTeamMembers(currentUser);
+    public List<TeamMemberResponse> teamMembers(
+        @AuthenticationPrincipal User currentUser,
+        @RequestParam(required = false) UUID managerId
+    ) {
+        return projectService.listTeamMembers(currentUser, managerId);
+    }
+
+    @GetMapping("/manager/project-managers")
+    @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
+    @Operation(summary = "List managers who can be responsible for projects")
+    public List<TeamMemberResponse> projectManagers(@AuthenticationPrincipal User currentUser) {
+        return projectService.listProjectManagers(currentUser);
     }
 }
