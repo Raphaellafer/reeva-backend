@@ -21,7 +21,7 @@ export function G05FuncionariosList() {
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
 
-  const [form, setForm] = useState<CreateEmployeePayload>({ name: '', email: '', password: '' })
+  const [form, setForm] = useState<CreateEmployeePayload>({ name: '', email: '', password: '', pixKey: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -45,7 +45,7 @@ export function G05FuncionariosList() {
       const created = await createEmployee(token, form)
       setEmployees(prev => [...prev, created])
       setShowModal(false)
-      setForm({ name: '', email: '', password: '' })
+      setForm({ name: '', email: '', password: '', pixKey: '' })
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionário')
     } finally {
@@ -148,6 +148,19 @@ export function G05FuncionariosList() {
                   className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
                   placeholder="Mínimo 8 caracteres"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-gray-600 mb-1">Chave Pix</label>
+                <input
+                  type="text"
+                  required
+                  value={form.pixKey}
+                  onChange={e => handleField('pixKey', e.target.value)}
+                  className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
+                  placeholder="CPF, e-mail, telefone ou chave aleatoria"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Obrigatoria para gerar a planilha de pagamento do financeiro.</p>
               </div>
 
               {formError && (

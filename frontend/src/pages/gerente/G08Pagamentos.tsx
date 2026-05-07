@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { getApprovedPayments } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { fmt, fmtDate } from '../../realData'
+import { fmt } from '../../realData'
 import { getToken } from '../../session'
 import type { PaymentBatchResponse } from '../../types'
 
@@ -24,38 +24,20 @@ function csvEscape(value: string | number | null | undefined) {
 function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
   const rows = [
     [
-      'Periodo de',
-      'Periodo ate',
-      'Funcionario',
+      'Nome',
       'Email',
-      'Pix',
-      'Projeto',
-      'Nota',
-      'Data da despesa',
-      'Origem da aprovacao',
-      'Valor da despesa',
-      'Total do funcionario',
-      'Total geral do lote',
+      'Chave Pix',
+      'Valor a pagar',
     ],
   ]
 
   batch.employees.forEach((employee) => {
-    employee.expenses.forEach((expense) => {
-      rows.push([
-        from || 'inicio',
-        to || 'hoje',
-        employee.name,
-        employee.email,
-        employee.pixKey || '',
-        expense.projectName || 'Sem projeto',
-        expense.title,
-        expense.expenseDate,
-        expense.autoApproved ? 'IA' : 'Gestor',
-        Number(expense.amount || 0).toFixed(2),
-        Number(employee.totalAmount || 0).toFixed(2),
-        Number(batch.totalAmount || 0).toFixed(2),
-      ])
-    })
+    rows.push([
+      employee.name,
+      employee.email,
+      employee.pixKey || '',
+      Number(employee.totalAmount || 0).toFixed(2),
+    ])
   })
 
   const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n')
@@ -63,7 +45,7 @@ function downloadCsv(batch: PaymentBatchResponse, from: string, to: string) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `reeva-reembolsos-${from || 'inicio'}-${to || 'hoje'}.csv`
+  link.download = `reeva-pagamentos-${from || 'inicio'}-${to || 'hoje'}.csv`
   link.click()
   URL.revokeObjectURL(url)
 }
@@ -92,8 +74,6 @@ export function G08Pagamentos() {
   useEffect(() => {
     void load()
   }, [])
-
-  const expenses = useMemo(() => batch?.employees.flatMap((employee) => employee.expenses.map((expense) => ({ employee, expense }))) ?? [], [batch])
 
   return (
     <DesktopShell
@@ -131,27 +111,24 @@ export function G08Pagamentos() {
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[820px]">
+          <table className="w-full text-[13px] min-w-[560px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionario', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
+                {['Nome', 'Email', 'Chave Pix', 'Valor a pagar'].map((header) => (
                   <th key={header} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {!loading && expenses.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no periodo.</td></tr>
+              {!loading && (batch?.employees.length ?? 0) === 0 && (
+                <tr><td colSpan={4} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no periodo.</td></tr>
               )}
-              {expenses.map(({ employee, expense }) => (
-                <tr key={expense.id} className="border-b border-black/[0.04]">
+              {(batch?.employees ?? []).map((employee) => (
+                <tr key={employee.userId} className="border-b border-black/[0.04]">
                   <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{employee.name}</td>
-                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.pixKey || employee.email}</td>
-                  <td className="py-3 pr-3 text-gray-700 max-w-[150px] truncate">{expense.projectName || '-'}</td>
-                  <td className="py-3 pr-3 text-gray-700 max-w-[190px] truncate">{expense.title}</td>
-                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{fmtDate(expense.expenseDate)}</td>
-                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{expense.autoApproved ? 'IA' : 'Gestor'}</td>
-                  <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{fmt(expense.amount)}</td>
+                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.email}</td>
+                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.pixKey || <span className="text-[#791F1F]">Sem Pix</span>}</td>
+                  <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{fmt(employee.totalAmount)}</td>
                 </tr>
               ))}
             </tbody>

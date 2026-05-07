@@ -96,16 +96,17 @@ export function F04Detalhe() {
 
   const itens = expense ? getReceiptLineItems(expense) : []
   const analysisMessages = expense
-    ? Array.from(new Set([
+    ? uniqueMessages([
         expense.aiAnalysis,
         expense.aiDecisionReason !== expense.aiAnalysis ? expense.aiDecisionReason : null,
         expense.policyViolationReason ? `Politica: ${expense.policyViolationReason}` : null,
-      ].filter(Boolean) as string[]))
+      ])
     : []
   const shouldShowFiscal = Boolean(
     expense?.sefazValidationMessage
       && expense.sefazStatus !== 'NOT_APPLICABLE'
       && !expense.sefazValidationMessage.toLowerCase().includes('codigo sefaz nao informado')
+      && !analysisMessages.some((message) => containsMessage(message, expense.sefazValidationMessage))
   )
   const canRetryOcr = Boolean(
     expense
@@ -345,4 +346,32 @@ export function F04Detalhe() {
       </div>
     </MobileShell>
   )
+}
+
+function uniqueMessages(messages: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const message of messages) {
+    if (!message) continue
+    const normalized = normalizeMessage(message)
+    if (!normalized) continue
+    if (result.some((existing) => normalizeMessage(existing) === normalized || containsMessage(existing, message))) continue
+    result.push(message)
+  }
+  return result
+}
+
+function containsMessage(container: string | null | undefined, message: string | null | undefined) {
+  const normalizedContainer = normalizeMessage(container)
+  const normalizedMessage = normalizeMessage(message)
+  return Boolean(normalizedContainer && normalizedMessage && normalizedContainer.includes(normalizedMessage))
+}
+
+function normalizeMessage(message: string | null | undefined) {
+  return (message ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(politica|fiscal|sefaz|revisao):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

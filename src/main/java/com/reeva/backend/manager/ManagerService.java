@@ -288,7 +288,7 @@ public class ManagerService {
                     user.getId(),
                     user.getName(),
                     user.getEmail(),
-                    user.getPixKey() != null && !user.getPixKey().isBlank() ? user.getPixKey() : user.getEmail(),
+                    user.getPixKey(),
                     total,
                     rows.stream().map(PaymentBatchResponse.PaymentExpense::from).toList()
                 );
@@ -365,6 +365,7 @@ public class ManagerService {
             UserRole.EMPLOYEE
         );
         employee.setManager(manager);
+        employee.setPixKey(request.pixKey().trim());
 
         if (request.departmentId() != null) {
             Department dept = departmentRepository.findById(request.departmentId())

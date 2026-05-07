@@ -18,6 +18,8 @@ import com.reeva.backend.project.Project;
 import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,8 @@ import java.util.UUID;
 
 @Service
 public class ExpenseService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExpenseService.class);
 
     private final ExpenseRepository expenseRepository;
     private final StorageService storageService;
@@ -127,7 +131,13 @@ public class ExpenseService {
         );
 
         Expense saved = expenseRepository.save(expense);
-        ocrQueuePublisher.publish(saved.getId());
+        try {
+            ocrQueuePublisher.publish(saved.getId());
+        } catch (Exception ex) {
+            log.warn("Could not enqueue OCR job for expense {}; processing synchronously. Cause: {}",
+                saved.getId(), ex.getMessage());
+            ocrService.processExpense(saved.getId());
+        }
         return ExpenseResponse.from(saved);
     }
 
