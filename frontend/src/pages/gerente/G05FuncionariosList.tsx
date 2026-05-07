@@ -1,105 +1,177 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { createEmployee, getTeamEmployees } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
-import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
+import { SideDrawer } from '../../components/ui/SideDrawer'
 import { getStoredToken } from '../../hooks/useAuth'
-import { getTeamEmployees, createEmployee } from '../../api'
-import type { EmployeeListItem, CreateEmployeePayload } from '../../types'
+import { fmt, initials } from '../../realData'
+import type { CreateEmployeePayload, EmployeeListItem } from '../../types'
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)
-
-const initials = (name: string) =>
-  name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+const emptyForm: CreateEmployeePayload = { name: '', email: '', password: '', pixKey: '' }
+const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
+const labelClass = 'block text-[12px] font-medium text-gray-500'
 
 export function G05FuncionariosList() {
   const token = getStoredToken() ?? ''
   const [employees, setEmployees] = useState<EmployeeListItem[]>([])
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showModal, setShowModal] = useState(false)
-
-  const [form, setForm] = useState<CreateEmployeePayload>({ name: '', email: '', password: '', pixKey: '' })
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [form, setForm] = useState<CreateEmployeePayload>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
+  async function load() {
     setLoading(true)
-    getTeamEmployees(token)
-      .then(setEmployees)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [token])
-
-  function handleField(field: keyof CreateEmployeePayload, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }))
+    setError(null)
+    try {
+      setEmployees(await getTeamEmployees(token))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao carregar equipe.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
+  useEffect(() => {
+    void load()
+  }, [token])
+
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return employees
+    return employees.filter((employee) => {
+      const content = `${employee.name} ${employee.email} ${employee.department ?? ''}`.toLowerCase()
+      return content.includes(normalizedQuery)
+    })
+  }, [employees, query])
+
+  const pendingCount = employees.reduce((sum, employee) => sum + employee.pendingCount, 0)
+  const totalReimbursed = employees.reduce((sum, employee) => sum + employee.totalReimbursed, 0)
+
+  function openDrawer() {
+    setDrawerOpen(true)
+    setForm(emptyForm)
     setFormError(null)
+    setMessage(null)
+  }
+
+  function closeDrawer() {
+    if (saving) return
+    setDrawerOpen(false)
+    setForm(emptyForm)
+    setFormError(null)
+    setMessage(null)
+  }
+
+  function handleField(field: keyof CreateEmployeePayload, value: string) {
+    setForm((current) => ({ ...current, [field]: value }))
+  }
+
+  async function handleCreate(event: React.FormEvent) {
+    event.preventDefault()
+    setFormError(null)
+
+    if (form.password.length < 8) {
+      setFormError('A senha temporaria precisa ter pelo menos 8 caracteres.')
+      return
+    }
+    if (!form.pixKey.trim()) {
+      setFormError('Informe a chave Pix do funcionario.')
+      return
+    }
+
     setSaving(true)
     try {
-      const created = await createEmployee(token, form)
-      setEmployees(prev => [...prev, created])
-      setShowModal(false)
-      setForm({ name: '', email: '', password: '', pixKey: '' })
-    } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionário')
+      const created = await createEmployee(token, {
+        ...form,
+        name: form.name.trim(),
+        email: form.email.trim(),
+        pixKey: form.pixKey.trim(),
+      })
+      setEmployees((current) => [...current, created])
+      setForm(emptyForm)
+      setMessage('Funcionario cadastrado com sucesso.')
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionario.')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <DesktopShell title="Equipe" role="GERENTE">
+    <DesktopShell
+      title="Equipe"
+      role="GERENTE"
+      actions={<Button onClick={openDrawer}>Cadastrar funcionario</Button>}
+    >
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Card><Metric label="Funcionarios" value={employees.length} /></Card>
+        <Card><Metric label="Pendencias abertas" value={pendingCount} tone={pendingCount > 0 ? 'amber' : 'normal'} /></Card>
+        <Card><Metric label="Total reembolsado" value={fmt(totalReimbursed)} /></Card>
+      </div>
+
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[14px] font-medium text-[#1a1a2e]">Funcionários da equipe</p>
-          <Button onClick={() => setShowModal(true)}>+ Cadastrar funcionário</Button>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Funcionarios da equipe</p>
+            <p className="mt-0.5 text-[12px] text-gray-400">Acompanhe pendencias, aprovacoes e historico individual.</p>
+          </div>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Buscar por nome, e-mail ou departamento"
+            className="min-w-[280px] rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15"
+          />
         </div>
 
-        {loading && <p className="text-[13px] text-gray-400 py-6 text-center">Carregando...</p>}
-        {error && <p className="text-[13px] text-red-500 py-4">{error}</p>}
+        {loading && <p className="py-6 text-center text-[13px] text-gray-400">Carregando...</p>}
+        {error && <p className="py-4 text-[13px] text-red-500">{error}</p>}
 
-        {!loading && !error && employees.length === 0 && (
-          <p className="text-[13px] text-gray-400 py-6 text-center">Nenhum funcionário encontrado. Cadastre o primeiro.</p>
+        {!loading && !error && filtered.length === 0 && (
+          <p className="py-6 text-center text-[13px] text-gray-400">Nenhum funcionario encontrado.</p>
         )}
 
-        {!loading && employees.length > 0 && (
+        {!loading && filtered.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px] min-w-[560px]">
+            <table className="w-full min-w-[680px] text-[13px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Funcionário', 'Departamento', 'Pendentes', 'Aprovadas', 'Total reembolsado'].map(h => (
-                    <th key={h} className="text-left py-2.5 pr-4 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{h}</th>
+                  {['Funcionario', 'Departamento', 'Pendentes', 'Aprovadas', 'Total reembolsado', ''].map((header) => (
+                    <th key={header} className="py-2.5 pr-4 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {employees.map(emp => (
-                  <tr key={emp.id} className="border-b border-black/[0.04] hover:bg-gray-50">
+                {filtered.map((employee) => (
+                  <tr key={employee.id} className="border-b border-black/[0.04] hover:bg-gray-50">
                     <td className="py-3 pr-4">
-                      <Link to={`/gerente/funcionario/${emp.id}`} className="flex items-center gap-2 hover:text-[#3C3489]">
-                        <div className="w-7 h-7 rounded-full bg-[#1a1a2e] text-white flex items-center justify-center text-[10px] font-medium shrink-0">
-                          {initials(emp.name)}
+                      <Link to={`/gerente/funcionario/${employee.id}`} className="flex items-center gap-2 hover:text-[#3C3489]">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1a2e] text-[10px] font-medium text-white">
+                          {initials(employee.name)}
                         </div>
-                        <div>
-                          <p className="font-medium text-[#1a1a2e]">{emp.name}</p>
-                          <p className="text-[11px] text-gray-400">{emp.email}</p>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[#1a1a2e]">{employee.name}</p>
+                          <p className="truncate text-[11px] text-gray-400">{employee.email}</p>
                         </div>
                       </Link>
                     </td>
-                    <td className="py-3 pr-4 text-gray-500">{emp.department ?? '—'}</td>
+                    <td className="py-3 pr-4 text-gray-500">{employee.department ?? '-'}</td>
                     <td className="py-3 pr-4">
-                      {emp.pendingCount > 0
-                        ? <Badge variant="amber">{emp.pendingCount}</Badge>
+                      {employee.pendingCount > 0
+                        ? <Badge variant="amber">{employee.pendingCount}</Badge>
                         : <span className="text-gray-400">0</span>}
                     </td>
-                    <td className="py-3 pr-4 text-[#27500A] font-medium">{emp.approvedCount}</td>
-                    <td className="py-3 font-medium text-[#1a1a2e]">{fmt(emp.totalReimbursed)}</td>
+                    <td className="py-3 pr-4 font-medium text-[#27500A]">{employee.approvedCount}</td>
+                    <td className="py-3 pr-4 font-medium text-[#1a1a2e]">{fmt(employee.totalReimbursed)}</td>
+                    <td className="py-3 text-right">
+                      <Link to={`/gerente/funcionario/${employee.id}`} className="text-[12px] font-medium text-[#3C3489]">Ver perfil</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -108,81 +180,88 @@ export function G05FuncionariosList() {
         )}
       </Card>
 
-      {/* Modal de cadastro */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-[12px] shadow-xl w-full max-w-md mx-4 p-6">
-            <p className="text-[16px] font-semibold text-[#1a1a2e] mb-5">Cadastrar funcionário</p>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-medium text-gray-600 mb-1">Nome completo</label>
-                <input
-                  type="text"
-                  required
-                  minLength={2}
-                  value={form.name}
-                  onChange={e => handleField('name', e.target.value)}
-                  className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
-                  placeholder="Ex: Maria Silva"
-                />
-              </div>
-              <div>
-                <label className="block text-[12px] font-medium text-gray-600 mb-1">E-mail</label>
-                <input
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={e => handleField('email', e.target.value)}
-                  className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
-                  placeholder="maria@empresa.com"
-                />
-              </div>
-              <div>
-                <label className="block text-[12px] font-medium text-gray-600 mb-1">Senha temporária</label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  value={form.password}
-                  onChange={e => handleField('password', e.target.value)}
-                  className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
-                  placeholder="Mínimo 8 caracteres"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[12px] font-medium text-gray-600 mb-1">Chave Pix</label>
-                <input
-                  type="text"
-                  required
-                  value={form.pixKey}
-                  onChange={e => handleField('pixKey', e.target.value)}
-                  className="w-full border border-gray-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#3C3489]/30"
-                  placeholder="CPF, e-mail, telefone ou chave aleatoria"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">Obrigatoria para gerar a planilha de pagamento do financeiro.</p>
-              </div>
-
-              {formError && (
-                <p className="text-[12px] text-red-500">{formError}</p>
-              )}
-
-              <div className="flex gap-3 justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); setFormError(null) }}
-                  className="px-4 py-2 text-[13px] text-gray-600 hover:text-gray-800"
-                >
-                  Cancelar
-                </button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Cadastrando...' : 'Cadastrar'}
-                </Button>
-              </div>
-            </form>
+      <SideDrawer
+        open={drawerOpen}
+        title="Cadastrar funcionario"
+        onClose={closeDrawer}
+        footer={
+          <div className="space-y-3">
+            {message && <p className="rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{message}</p>}
+            {formError && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{formError}</p>}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={saving} className="justify-center">Cancelar</Button>
+              <Button type="submit" form="employee-drawer-form" disabled={saving} className="justify-center">
+                {saving ? 'Cadastrando...' : 'Cadastrar funcionario'}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form id="employee-drawer-form" onSubmit={(event) => void handleCreate(event)} className="space-y-4">
+          <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3">
+            <p className="text-[13px] font-medium text-[#1a1a2e]">Novo acesso de funcionario</p>
+            <p className="mt-1 text-[12px] text-gray-500">O usuario podera entrar com este e-mail e a senha temporaria informada.</p>
+          </div>
+          <label className={labelClass}>
+            Nome completo
+            <input
+              type="text"
+              required
+              minLength={2}
+              value={form.name}
+              onChange={(event) => handleField('name', event.target.value)}
+              className={fieldClass}
+              placeholder="Ex: Maria Silva"
+            />
+          </label>
+          <label className={labelClass}>
+            E-mail
+            <input
+              type="email"
+              required
+              value={form.email}
+              onChange={(event) => handleField('email', event.target.value)}
+              className={fieldClass}
+              placeholder="maria@empresa.com"
+            />
+          </label>
+          <label className={labelClass}>
+            Senha temporaria
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={form.password}
+              onChange={(event) => handleField('password', event.target.value)}
+              className={fieldClass}
+              placeholder="Minimo 8 caracteres"
+            />
+          </label>
+          <label className={labelClass}>
+            Chave Pix
+            <input
+              type="text"
+              required
+              value={form.pixKey}
+              onChange={(event) => handleField('pixKey', event.target.value)}
+              className={fieldClass}
+              placeholder="CPF, e-mail, telefone ou chave aleatoria"
+            />
+            <span className="mt-1 block text-[11px] font-normal text-gray-400">
+              Obrigatoria para gerar a planilha de pagamento do financeiro.
+            </span>
+          </label>
+        </form>
+      </SideDrawer>
     </DesktopShell>
+  )
+}
+
+function Metric({ label, value, tone = 'normal' }: { label: string; value: React.ReactNode; tone?: 'normal' | 'amber' }) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
+      <p className={`mt-1 text-[22px] font-semibold ${tone === 'amber' ? 'text-[#633806]' : 'text-[#1a1a2e]'}`}>{value}</p>
+    </div>
   )
 }

@@ -22,6 +22,7 @@ import type {
   ProjectResponse,
   TeamMemberResponse
 } from './types';
+import { clearAuth } from './hooks/useAuth';
 
 function resolveApiBaseUrl() {
   if (import.meta.env.VITE_API_BASE_URL) {
@@ -45,6 +46,10 @@ export async function getAttachmentBlob(token: string, attachmentId: string) {
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      handleAuthFailure('/expenses/attachments');
+      throw new Error('Sessão expirada. Entre novamente para continuar.');
+    }
     throw new Error('Falha ao carregar anexo.');
   }
 
@@ -87,12 +92,20 @@ async function diagnoseNetworkFailure(): Promise<string> {
     });
 
     return [
-      `A API em ${API_BASE_URL} parece estar acessivel, mas o navegador bloqueou a requisicao.`,
+      `A API em ${API_BASE_URL} parece estar acessível, mas o navegador bloqueou a requisição.`,
       `Origem atual do frontend: ${FRONTEND_ORIGIN}.`,
-      'Verifique CORS, a URL aberta no navegador e se o frontend esta apontando para a API correta.'
+      'Verifique CORS, a URL aberta no navegador e se o frontend está apontando para a API correta.'
     ].join(' ');
   } catch {
-    return `Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend esta rodando e acessivel a partir de ${FRONTEND_ORIGIN}.`;
+    return `Falha ao conectar na API em ${API_BASE_URL}. Verifique se o backend está rodando e acessível a partir de ${FRONTEND_ORIGIN}.`;
+  }
+}
+
+function handleAuthFailure(path: string) {
+  if (path.startsWith('/auth/')) return;
+  clearAuth();
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
   }
 }
 
@@ -118,6 +131,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      handleAuthFailure(path);
+      throw new Error('Sessão expirada. Entre novamente para continuar.');
+    }
     const error = (await response.json().catch(() => null)) as ApiError | null;
     const details = error?.errors?.length ? `: ${error.errors.join(', ')}` : '';
     throw new Error(`${error?.message ?? 'Falha na requisição'}${details}`);
@@ -291,8 +308,15 @@ export async function updateProject(token: string, projectId: string, payload: P
   });
 }
 
-export async function getTeamMembers(token: string) {
-  return request<TeamMemberResponse[]>('/manager/team-members', { token });
+export async function getTeamMembers(token: string, managerId?: string | null) {
+  const params = new URLSearchParams();
+  if (managerId) params.set('managerId', managerId);
+  const query = params.toString();
+  return request<TeamMemberResponse[]>(`/manager/team-members${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getProjectManagers(token: string) {
+  return request<TeamMemberResponse[]>('/manager/project-managers', { token });
 }
 
 export async function getApprovedPayments(token: string, from?: string, to?: string) {

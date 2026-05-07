@@ -6,6 +6,7 @@ import com.reeva.backend.project.dto.ProjectResponse;
 import com.reeva.backend.project.dto.TeamMemberResponse;
 import com.reeva.backend.user.User;
 import com.reeva.backend.user.UserRepository;
+import com.reeva.backend.user.UserRole;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,8 +46,18 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
-    public List<TeamMemberResponse> listTeamMembers(User manager) {
-        return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(manager.getId())
+    public List<TeamMemberResponse> listProjectManagers(User currentUser) {
+        return userRepository.findByCompanyIdAndActiveTrueOrderByNameAsc(currentUser.getCompany().getId())
+            .stream()
+            .filter(user -> user.getRole() == UserRole.MANAGER || user.getRole() == UserRole.ADMIN)
+            .map(TeamMemberResponse::from)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamMemberResponse> listTeamMembers(User currentUser, UUID managerId) {
+        User responsibleManager = resolveResponsibleManager(currentUser, managerId);
+        return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(responsibleManager.getId())
             .stream()
             .map(TeamMemberResponse::from)
             .toList();
@@ -54,18 +65,21 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse createProject(User manager, ProjectRequest request) {
-        Project project = new Project(manager.getCompany(), request.name(), manager);
+        User responsibleManager = resolveResponsibleManager(manager, request.managerId());
+        Project project = new Project(manager.getCompany(), request.name(), responsibleManager);
         apply(project, request);
         Project saved = projectRepository.save(project);
-        syncMembers(saved, manager, request.employeeIds());
+        syncMembers(saved, manager, responsibleManager, request.employeeIds());
         return toResponse(saved);
     }
 
     @Transactional
     public ProjectResponse updateProject(User manager, UUID projectId, ProjectRequest request) {
         Project project = getManagedProject(manager, projectId);
+        User responsibleManager = resolveResponsibleManager(manager, request.managerId());
+        project.setCreatedBy(responsibleManager);
         apply(project, request);
-        syncMembers(project, manager, request.employeeIds());
+        syncMembers(project, manager, responsibleManager, request.employeeIds());
         return toResponse(projectRepository.save(project));
     }
 
@@ -98,7 +112,22 @@ public class ProjectService {
         project.setRevenue(request.revenue());
     }
 
-    private void syncMembers(Project project, User manager, List<UUID> rawEmployeeIds) {
+    private User resolveResponsibleManager(User currentUser, UUID managerId) {
+        if (managerId == null || managerId.equals(currentUser.getId())) {
+            return currentUser;
+        }
+
+        User responsibleManager = userRepository.findById(managerId)
+            .orElseThrow(() -> BusinessException.notFound("Manager not found"));
+        if (!responsibleManager.isActive()
+            || !responsibleManager.getCompany().getId().equals(currentUser.getCompany().getId())
+            || (responsibleManager.getRole() != UserRole.MANAGER && responsibleManager.getRole() != UserRole.ADMIN)) {
+            throw BusinessException.badRequest("Responsible manager must be an active manager in the same company");
+        }
+        return responsibleManager;
+    }
+
+    private void syncMembers(Project project, User assignedBy, User responsibleManager, List<UUID> rawEmployeeIds) {
         var employeeIds = new LinkedHashSet<>(rawEmployeeIds != null ? rawEmployeeIds : List.<UUID>of());
         for (ProjectMember existing : memberRepository.findByProjectIdOrderByUserNameAsc(project.getId())) {
             if (!employeeIds.contains(existing.getUser().getId())) {
@@ -109,11 +138,11 @@ public class ProjectService {
         for (UUID employeeId : employeeIds) {
             User employee = userRepository.findById(employeeId)
                 .orElseThrow(() -> BusinessException.notFound("Employee not found"));
-            if (employee.getManager() == null || !employee.getManager().getId().equals(manager.getId())) {
-                throw BusinessException.badRequest("Employee is not managed by this manager");
+            if (employee.getManager() == null || !employee.getManager().getId().equals(responsibleManager.getId())) {
+                throw BusinessException.badRequest("Employee is not managed by the responsible manager");
             }
             memberRepository.findByProjectIdAndUserId(project.getId(), employeeId)
-                .orElseGet(() -> memberRepository.save(new ProjectMember(project, employee, manager)));
+                .orElseGet(() -> memberRepository.save(new ProjectMember(project, employee, assignedBy)));
         }
     }
 

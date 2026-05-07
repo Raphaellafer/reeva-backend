@@ -36,7 +36,7 @@ function IconUser() {
 const navItems = [
   { label: 'Home', href: '/funcionario', icon: <IconHome />, exact: true },
   { label: 'Enviar', href: '/funcionario/enviar', icon: <IconPlus /> },
-  { label: 'Historico', href: '/funcionario/historico', icon: <IconList /> },
+  { label: 'Histórico', href: '/funcionario/historico', icon: <IconList /> },
   { label: 'Perfil', href: '/funcionario/perfil', icon: <IconUser /> },
 ]
 

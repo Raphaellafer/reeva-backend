@@ -3,17 +3,27 @@ import { Link } from 'react-router-dom'
 import { getMyExpenses } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { categoryLabels, fmt, fmtDate, isApproved, isPending, isRejected } from '../../realData'
+import {
+  categoryLabels,
+  fmt,
+  fmtDate,
+  isActionRequired,
+  isApproved,
+  isPending,
+  isRejected,
+  nextActionText,
+} from '../../realData'
 import { getToken } from '../../session'
 import type { ExpenseResponse } from '../../types'
 
-type Filtro = 'TODOS' | 'PENDENTE' | 'APROVADO' | 'REJEITADO'
+type Filter = 'TODOS' | 'ACAO' | 'ANDAMENTO' | 'APROVADO' | 'ENCERRADO'
 
-const filtros: { id: Filtro; label: string }[] = [
-  { id: 'TODOS', label: 'Todos' },
-  { id: 'PENDENTE', label: 'Pendentes' },
-  { id: 'APROVADO', label: 'Aprovados' },
-  { id: 'REJEITADO', label: 'Rejeitados' },
+const filters: { id: Filter; label: string }[] = [
+  { id: 'TODOS', label: 'Todas' },
+  { id: 'ACAO', label: 'A corrigir' },
+  { id: 'ANDAMENTO', label: 'Em andamento' },
+  { id: 'APROVADO', label: 'Aprovadas' },
+  { id: 'ENCERRADO', label: 'Encerradas' },
 ]
 
 const statusBorder: Record<string, string> = {
@@ -24,8 +34,10 @@ const statusBorder: Record<string, string> = {
   SUBMITTED: 'border-l-[#AFA9EC]',
   PENDING_REVIEW: 'border-l-[#FAC775]',
   DRAFT: 'border-l-gray-300',
+  OCR_FAILED: 'border-l-[#F09595]',
   NEEDS_REVISION: 'border-l-[#F09595]',
   MANAGER_REJECTED: 'border-l-[#F09595]',
+  FINANCE_REJECTED: 'border-l-[#F09595]',
 }
 
 function groupByMonth(expenses: ExpenseResponse[]) {
@@ -40,12 +52,13 @@ function groupByMonth(expenses: ExpenseResponse[]) {
 
 function monthLabel(key: string) {
   const [year, month] = key.split('-')
-  const months = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
-  return `${months[parseInt(month) - 1]} ${year}`
+  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+  return `${months[Number(month) - 1]} ${year}`
 }
 
 export function F03Historico() {
-  const [filtro, setFiltro] = useState<Filtro>('TODOS')
+  const [filter, setFilter] = useState<Filter>('TODOS')
+  const [query, setQuery] = useState('')
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,58 +73,80 @@ export function F03Historico() {
   }, [])
 
   const filtered = useMemo(() => {
-    if (filtro === 'TODOS') return expenses
-    if (filtro === 'PENDENTE') return expenses.filter(isPending)
-    if (filtro === 'APROVADO') return expenses.filter(isApproved)
-    return expenses.filter(isRejected)
-  }, [expenses, filtro])
+    const normalizedQuery = query.trim().toLowerCase()
+    return expenses.filter((expense) => {
+      if (filter === 'ACAO' && !isActionRequired(expense)) return false
+      if (filter === 'ANDAMENTO' && (isActionRequired(expense) || !isPending(expense))) return false
+      if (filter === 'APROVADO' && !isApproved(expense)) return false
+      if (filter === 'ENCERRADO' && !isRejected(expense)) return false
+      if (!normalizedQuery) return true
+      const content = `${expense.title} ${expense.projectName} ${categoryLabels[expense.category]}`.toLowerCase()
+      return content.includes(normalizedQuery)
+    })
+  }, [expenses, filter, query])
 
-  const grupos = groupByMonth(filtered)
+  const groups = groupByMonth(filtered)
 
   return (
     <MobileShell>
-      <div className="bg-white px-4 pt-4 pb-3 border-b border-black/[0.06]">
-        <p className="text-[15px] font-medium text-[#1a1a2e]">Historico de notas</p>
+      <div className="border-b border-black/[0.06] bg-white px-4 pb-3 pt-4">
+        <p className="text-[15px] font-medium text-[#1a1a2e]">Histórico de notas</p>
+        <p className="mt-0.5 text-[11px] text-gray-400">{expenses.length} nota(s) enviadas</p>
       </div>
 
-      <div className="bg-white px-4 py-2.5 flex gap-2 overflow-x-auto border-b border-black/[0.06]">
-        {filtros.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setFiltro(f.id)}
-            className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              filtro === f.id
-                ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]'
-                : 'text-gray-500 border-gray-200 hover:border-gray-400'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="border-b border-black/[0.06] bg-white px-4 py-3">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar nota, projeto ou categoria"
+          className="mb-3 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-0.5">
+          {filters.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setFilter(item.id)}
+              className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors ${
+                filter === item.id
+                  ? 'border-[#1a1a2e] bg-[#1a1a2e] text-white'
+                  : 'border-gray-200 text-gray-500 hover:border-gray-400'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="px-4 py-4 space-y-5">
-        {loading && <p className="text-center text-[13px] text-gray-400 py-8">Carregando...</p>}
-        {error && <p className="text-[12px] text-[#791F1F] bg-[#FCEBEB] border border-[#F09595] rounded-[8px] p-3">{error}</p>}
-        {!loading && grupos.length === 0 && (
-          <p className="text-center text-[13px] text-gray-400 py-8">Nenhuma nota encontrada.</p>
+      <div className="space-y-5 px-4 py-4">
+        {loading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
+        {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+        {!loading && groups.length === 0 && (
+          <div className="rounded-[10px] border border-dashed border-black/[0.12] bg-white p-5 text-center">
+            <p className="text-[13px] font-medium text-[#1a1a2e]">Nenhuma nota encontrada</p>
+            <p className="mt-1 text-[12px] text-gray-400">Ajuste os filtros ou envie uma nova nota.</p>
+          </div>
         )}
 
-        {grupos.map(([monthKey, notas]) => (
+        {groups.map(([monthKey, notes]) => (
           <div key={monthKey}>
-            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2">{monthLabel(monthKey)}</p>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-gray-400">{monthLabel(monthKey)}</p>
             <div className="space-y-2">
-              {notas.map((expense) => (
+              {notes.map((expense) => (
                 <Link
                   key={expense.id}
                   to={`/funcionario/nota/${expense.id}`}
-                  className={`block bg-white rounded-[10px] border border-black/[0.07] border-l-4 ${statusBorder[expense.status] ?? 'border-l-gray-300'} p-3`}
+                  className={`block rounded-[10px] border border-black/[0.07] border-l-4 bg-white ${statusBorder[expense.status] ?? 'border-l-gray-300'} p-3`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-[#1a1a2e] truncate">{expense.title}</p>
-                      <p className="text-[11px] text-gray-400">{expense.projectName} - {categoryLabels[expense.category]} - {fmtDate(expense.expenseDate)}</p>
-                      {expense.aiAnalysis && <p className="text-[10px] text-[#633806] mt-1">{expense.aiAnalysis}</p>}
+                      <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{expense.title}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {expense.projectName} · {categoryLabels[expense.category]} · {fmtDate(expense.expenseDate)}
+                      </p>
+                      {(isActionRequired(expense) || expense.status === 'PENDING_REVIEW') && (
+                        <p className="mt-1 line-clamp-2 text-[11px] text-gray-500">{nextActionText(expense)}</p>
+                      )}
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="text-[13px] font-medium text-[#1a1a2e]">{fmt(expense.amount)}</p>

@@ -1,4 +1,4 @@
-import type { ExpenseCategory, ExpenseResponse, ExpenseStatus } from './types'
+import type { AiDecision, ExpenseCategory, ExpenseResponse, ExpenseStatus, PaymentMethod, SefazStatus } from './types'
 
 export function fmt(value: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
@@ -10,25 +10,102 @@ export function fmtDate(value: string | null | undefined) {
 }
 
 export const categoryLabels: Record<ExpenseCategory, string> = {
-  FOOD: 'Alimentacao',
+  FOOD: 'Alimentação',
   TRANSPORT: 'Transporte',
   LODGING: 'Hospedagem',
   PURCHASE: 'Compras',
   HARDWARE: 'Hardware',
 }
 
+export const paymentMethodLabels: Record<PaymentMethod | string, string> = {
+  CASH: 'Dinheiro',
+  CREDIT_CARD: 'Cartão de crédito',
+  DEBIT_CARD: 'Cartão de débito',
+  PIX: 'Pix',
+  CORPORATE_CARD: 'Cartão corporativo',
+  MEAL_VOUCHER: 'Vale-refeição',
+  OTHER: 'Outro',
+  UNKNOWN: 'Não identificado',
+}
+
+export const statusLabels: Record<ExpenseStatus | string, string> = {
+  DRAFT: 'Rascunho',
+  SUBMITTED: 'Enviada',
+  AI_APPROVED: 'Aprovada pela IA',
+  PENDING_REVIEW: 'Em revisão',
+  MANAGER_APPROVED: 'Aprovada pelo gestor',
+  MANAGER_REJECTED: 'Rejeitada pelo gestor',
+  FINANCE_APPROVED: 'Liberada para pagamento',
+  FINANCE_REJECTED: 'Rejeitada pelo financeiro',
+  PAID: 'Paga',
+  CANCELLED: 'Cancelada',
+  NEEDS_REVISION: 'Correção solicitada',
+  OCR_FAILED: 'Leitura falhou',
+  APROVADO: 'Aprovado',
+  PENDENTE: 'Pendente',
+  REJEITADO: 'Rejeitado',
+  ANALISE_IA: 'Análise IA',
+}
+
+export const aiDecisionLabels: Record<AiDecision | string, string> = {
+  AUTO_APPROVED: 'Autoaprovada',
+  READY_FOR_MANAGER: 'Enviar para gestor',
+  NEEDS_EMPLOYEE_CORRECTION: 'Precisa de correção',
+  REJECTED_BY_POLICY: 'Reprovada pela política',
+  REJECTED_BY_FISCAL_VALIDATION: 'Reprovada na validação fiscal',
+  PENDING_MANUAL_REVIEW: 'Revisão manual',
+  DUPLICATE_REJECTED: 'Duplicada rejeitada',
+}
+
+export const sefazStatusLabels: Record<SefazStatus | string, string> = {
+  NOT_APPLICABLE: 'Não aplicável',
+  PENDING: 'Pendente',
+  VALID: 'Válida',
+  INVALID: 'Inválida',
+  UNAVAILABLE: 'Indisponível',
+}
+
 export const reviewStatuses: ExpenseStatus[] = ['SUBMITTED', 'PENDING_REVIEW']
+
+export function statusLabel(status: string | null | undefined) {
+  if (!status) return '-'
+  return statusLabels[status] ?? status
+}
+
+export function aiDecisionLabel(decision: string | null | undefined) {
+  if (!decision) return '-'
+  return aiDecisionLabels[decision] ?? decision
+}
+
+export function sefazStatusLabel(status: string | null | undefined) {
+  if (!status) return '-'
+  return sefazStatusLabels[status] ?? status
+}
 
 export function isApproved(expense: ExpenseResponse) {
   return ['AI_APPROVED', 'MANAGER_APPROVED', 'FINANCE_APPROVED', 'PAID'].includes(expense.status)
 }
 
 export function isRejected(expense: ExpenseResponse) {
-  return ['MANAGER_REJECTED', 'FINANCE_REJECTED', 'NEEDS_REVISION', 'CANCELLED'].includes(expense.status)
+  return ['MANAGER_REJECTED', 'FINANCE_REJECTED', 'CANCELLED'].includes(expense.status)
 }
 
 export function isPending(expense: ExpenseResponse) {
-  return ['DRAFT', 'SUBMITTED', 'PENDING_REVIEW'].includes(expense.status)
+  return ['DRAFT', 'SUBMITTED', 'PENDING_REVIEW', 'OCR_FAILED'].includes(expense.status)
+}
+
+export function isActionRequired(expense: ExpenseResponse) {
+  return ['NEEDS_REVISION', 'OCR_FAILED'].includes(expense.status)
+}
+
+export function nextActionText(expense: ExpenseResponse) {
+  if (expense.status === 'NEEDS_REVISION') return 'Revise os campos solicitados e envie novamente ao gestor.'
+  if (expense.status === 'OCR_FAILED') return 'Tente reenviar a leitura da nota ou envie uma foto mais nítida.'
+  if (expense.status === 'SUBMITTED') return 'A IA está analisando a nota. Ela aparecerá na fila do gestor se precisar de revisão.'
+  if (expense.status === 'PENDING_REVIEW') return 'A nota está com o gestor para decisão.'
+  if (isApproved(expense)) return 'Nota aprovada. Acompanhe a liberação para pagamento.'
+  if (isRejected(expense)) return 'Nota encerrada. Veja o motivo no histórico.'
+  return 'Nenhuma ação necessária no momento.'
 }
 
 export function initials(name: string | null | undefined) {

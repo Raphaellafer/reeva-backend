@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getAttachmentBlob } from '../../api'
-import { categoryLabels, fmt, fmtDate, getReceiptLineItems } from '../../realData'
+import { aiDecisionLabel, categoryLabels, fmt, fmtDate, getReceiptLineItems, paymentMethodLabels, sefazStatusLabel } from '../../realData'
 import type { AttachmentItem, ExpenseResponse } from '../../types'
 import { Badge } from '../ui/Badge'
 import { Card } from '../ui/Card'
@@ -103,7 +103,7 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
   const ocr = parseOcrData(expense.ocrData)
   const analysisMessages = uniqueMessages([
     expense.aiAnalysis,
-    expense.policyViolationReason ? `Politica: ${expense.policyViolationReason}` : null,
+    expense.policyViolationReason ? `Política: ${expense.policyViolationReason}` : null,
     expense.manualReviewReason,
   ])
   const noteData = [
@@ -111,13 +111,13 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
     { label: 'Categoria', value: categoryLabels[expense.category] ?? ocrCategoryLabel(ocr?.category) },
     { label: 'Valor', value: expense.amount != null ? fmt(expense.amount) : formatNullableMoney(ocr?.total_amount) },
     { label: 'Data da nota', value: expense.expenseDate ? fmtDate(expense.expenseDate) : fmtDate(ocr?.issue_date) },
-    { label: 'Descricao', value: firstValue(expense.description, ocr?.description) },
+    { label: 'Descrição', value: firstValue(expense.description, ocr?.description) },
     { label: 'Tipo de documento', value: documentTypeLabel(ocr?.document_type) },
     { label: 'Forma de pagamento', value: paymentMethodLabel(ocr?.payment_method) },
     { label: 'CNPJ', value: ocr?.supplier_cnpj },
-    { label: 'Endereco', value: ocr?.supplier_address },
+    { label: 'Endereço', value: ocr?.supplier_address },
     { label: 'Valor de imposto', value: formatNullableMoney(ocr?.tax_amount) },
-    { label: 'Codigo SEFAZ', value: ocr?.sefaz_verification_code },
+    { label: 'Código SEFAZ', value: ocr?.sefaz_verification_code },
   ].filter((item) => hasValue(item.value))
 
   return (
@@ -134,8 +134,8 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px] mb-3">
           <div><p className="text-gray-400">Valor</p><p className="font-medium">{fmt(expense.amount)}</p></div>
           <div><p className="text-gray-400">Score IA</p><p className="font-medium">{expense.aiScore ?? '-'}</p></div>
-          <div><p className="text-gray-400">Politica</p><p className="font-medium">{expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
-          <div><p className="text-gray-400">Fiscal</p><p className="font-medium">{expense.sefazStatus ?? '-'}</p></div>
+          <div><p className="text-gray-400">Política</p><p className="font-medium">{expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
+          <div><p className="text-gray-400">Fiscal</p><p className="font-medium">{sefazStatusLabel(expense.sefazStatus)}</p></div>
         </div>
 
         {analysisMessages.length > 0 && (
@@ -153,15 +153,15 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
       </Card>
 
       <Card>
-        <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Itens captados pelo OCR</p>
+        <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Itens da nota</p>
         {items.length === 0 ? (
-          <p className="text-[12px] text-gray-400">Nenhum item extraido ainda.</p>
+          <p className="text-[12px] text-gray-400">Nenhum item identificado ainda.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-[12px] min-w-[420px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Item', 'Qtd.', 'Unitario', 'Total'].map((header) => (
+                  {['Item', 'Qtd.', 'Unitário', 'Total'].map((header) => (
                     <th key={header} className="text-left py-2 text-[11px] uppercase tracking-wide text-gray-400 font-medium pr-3">{header}</th>
                   ))}
                 </tr>
@@ -184,11 +184,11 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
       <Card>
         <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Dados da nota</p>
         {noteData.length === 0 ? (
-          <p className="text-[12px] text-gray-400 mb-3">A IA ainda nao conseguiu extrair campos legiveis desta nota.</p>
+          <p className="text-[12px] text-gray-400 mb-3">A IA ainda não conseguiu extrair campos legíveis desta nota.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] mb-3">
             {noteData.map((item) => (
-              <div key={item.label} className={item.label === 'Descricao' || item.label === 'Endereco' ? 'md:col-span-2' : undefined}>
+              <div key={item.label} className={item.label === 'Descrição' || item.label === 'Endereço' ? 'md:col-span-2' : undefined}>
                 <p className="text-gray-400">{item.label}</p>
                 <p className="font-medium text-[#1a1a2e] whitespace-pre-wrap break-words">{item.value}</p>
               </div>
@@ -197,18 +197,18 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
         )}
 
         <div className="border-t border-black/[0.06] pt-3">
-          <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Analise da IA</p>
+          <p className="text-[13px] font-medium text-[#1a1a2e] mb-3">Análise da IA</p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-[12px]">
-          <div><p className="text-gray-400">Decisao</p><p className="font-medium">{expense.aiDecision ?? '-'}</p></div>
-          <div><p className="text-gray-400">Elegivel autoaprovacao</p><p className="font-medium">{expense.autoApprovalEligible ? 'Sim' : 'Nao'}</p></div>
+          <div><p className="text-gray-400">Decisão</p><p className="font-medium">{aiDecisionLabel(expense.aiDecision)}</p></div>
+          <div><p className="text-gray-400">Elegível para autoaprovação</p><p className="font-medium">{expense.autoApprovalEligible ? 'Sim' : 'Não'}</p></div>
           <div><p className="text-gray-400">Alerta</p><p className="font-medium">{expense.aiAlertLevel ?? '-'}</p></div>
           <div><p className="text-gray-400">SEFAZ</p><p className="font-medium">{expense.sefazValidationMessage ?? '-'}</p></div>
         </div>
         {expense.aiDecision === 'READY_FOR_MANAGER' && (
           <div className="mt-3 rounded-[8px] border border-[#FAC775] bg-[#FAEEDA] p-3 text-[12px] text-[#633806]">
             <Badge variant="amber" className="mb-2">Motivo da fila</Badge>
-            <p>{expense.manualReviewReason ?? expense.aiDecisionReason ?? 'A regra de autoaprovacao nao foi satisfeita.'}</p>
+            <p>{expense.manualReviewReason ?? expense.aiDecisionReason ?? 'A regra de autoaprovação não foi satisfeita.'}</p>
           </div>
         )}
       </Card>
@@ -276,16 +276,7 @@ function ocrCategoryLabel(category: string | null | undefined) {
 
 function paymentMethodLabel(value: string | null | undefined) {
   if (!value) return null
-  return {
-    CASH: 'Dinheiro',
-    CREDIT_CARD: 'Cartao de credito',
-    DEBIT_CARD: 'Cartao de debito',
-    PIX: 'Pix',
-    CORPORATE_CARD: 'Cartao corporativo',
-    MEAL_VOUCHER: 'Vale-refeicao',
-    UNKNOWN: 'Nao identificado',
-    OTHER: 'Outro',
-  }[value] ?? value
+  return paymentMethodLabels[value] ?? value
 }
 
 function documentTypeLabel(value: string | null | undefined) {
@@ -297,7 +288,7 @@ function documentTypeLabel(value: string | null | undefined) {
     RECIBO: 'Recibo',
     HOTEL: 'Hospedagem',
     APP_RIDE: 'Aplicativo de transporte',
-    PEDAGIO: 'Pedagio',
+    PEDAGIO: 'Pedágio',
     PARKING: 'Estacionamento',
     OTHER: 'Outro',
   }[value] ?? value
