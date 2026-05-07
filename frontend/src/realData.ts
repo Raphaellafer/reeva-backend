@@ -52,6 +52,7 @@ export const aiDecisionLabels: Record<AiDecision | string, string> = {
   READY_FOR_MANAGER: 'Enviar para gestor',
   NEEDS_EMPLOYEE_CORRECTION: 'Precisa de correção',
   REJECTED_BY_POLICY: 'Reprovada pela política',
+  REJECTED_BY_FISCAL_VALIDATION: 'Reprovada na validação fiscal',
   PENDING_MANUAL_REVIEW: 'Revisão manual',
 }
 

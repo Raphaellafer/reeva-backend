@@ -101,6 +101,11 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
   const items = getReceiptLineItems(expense)
   const attachment = expense.attachments[0]
   const ocr = parseOcrData(expense.ocrData)
+  const analysisMessages = uniqueMessages([
+    expense.aiAnalysis,
+    expense.policyViolationReason ? `Política: ${expense.policyViolationReason}` : null,
+    expense.manualReviewReason,
+  ])
   const noteData = [
     { label: 'Estabelecimento', value: firstValue(expense.title, ocr?.supplier_name) },
     { label: 'Categoria', value: categoryLabels[expense.category] ?? ocrCategoryLabel(ocr?.category) },
@@ -129,15 +134,13 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px] mb-3">
           <div><p className="text-gray-400">Valor</p><p className="font-medium">{fmt(expense.amount)}</p></div>
           <div><p className="text-gray-400">Score IA</p><p className="font-medium">{expense.aiScore ?? '-'}</p></div>
-          <div><p className="text-gray-400">Política</p><p className="font-medium">{expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
+          <div><p className="text-gray-400">Política</p><p className="font-medium">{expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
           <div><p className="text-gray-400">Fiscal</p><p className="font-medium">{sefazStatusLabel(expense.sefazStatus)}</p></div>
         </div>
 
-        {(expense.aiAnalysis || expense.policyViolationReason || expense.manualReviewReason) && (
+        {analysisMessages.length > 0 && (
           <div className="p-2.5 rounded-[7px] bg-[#EEEDFE] border border-[#AFA9EC] text-[12px] mb-3 text-[#3C3489] space-y-1">
-            {expense.aiAnalysis && <p>{expense.aiAnalysis}</p>}
-            {expense.policyViolationReason && <p>Política: {expense.policyViolationReason}</p>}
-            {expense.manualReviewReason && <p>{expense.manualReviewReason}</p>}
+            {analysisMessages.map((message) => <p key={message}>{message}</p>)}
           </div>
         )}
 
@@ -289,4 +292,32 @@ function documentTypeLabel(value: string | null | undefined) {
     PARKING: 'Estacionamento',
     OTHER: 'Outro',
   }[value] ?? value
+}
+
+function uniqueMessages(messages: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const message of messages) {
+    if (!message) continue
+    const normalized = normalizeMessage(message)
+    if (!normalized) continue
+    if (result.some((existing) => normalizeMessage(existing) === normalized || containsMessage(existing, message))) continue
+    result.push(message)
+  }
+  return result
+}
+
+function containsMessage(container: string | null | undefined, message: string | null | undefined) {
+  const normalizedContainer = normalizeMessage(container)
+  const normalizedMessage = normalizeMessage(message)
+  return Boolean(normalizedContainer && normalizedMessage && normalizedContainer.includes(normalizedMessage))
+}
+
+function normalizeMessage(message: string | null | undefined) {
+  return (message ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(politica|fiscal|sefaz|revisao):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }

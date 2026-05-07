@@ -131,21 +131,22 @@ export function G08Pagamentos() {
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[820px]">
+          <table className="w-full text-[13px] min-w-[940px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionário', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
+                {['Funcionário', 'Email', 'Pix', 'Projeto', 'Nota', 'Data', 'Origem', 'Valor'].map((header) => (
                   <th key={header} className="text-left py-2.5 pr-3 text-[11px] uppercase tracking-wide text-gray-400 font-medium">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {!loading && expenses.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no período.</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhum reembolso aprovado no período.</td></tr>
               )}
               {expenses.map(({ employee, expense }) => (
                 <tr key={expense.id} className="border-b border-black/[0.04]">
                   <td className="py-3 pr-3 font-medium text-[#1a1a2e] whitespace-nowrap">{employee.name}</td>
+                  <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.email}</td>
                   <td className="py-3 pr-3 text-gray-500 whitespace-nowrap">{employee.pixKey || employee.email}</td>
                   <td className="py-3 pr-3 text-gray-700 max-w-[150px] truncate">{expense.projectName || '-'}</td>
                   <td className="py-3 pr-3 text-gray-700 max-w-[190px] truncate">{expense.title}</td>

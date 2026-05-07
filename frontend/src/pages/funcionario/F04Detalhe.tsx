@@ -99,17 +99,18 @@ export function F04Detalhe() {
 
   const items = expense ? getReceiptLineItems(expense) : []
   const analysisMessages = expense
-    ? Array.from(new Set([
+    ? uniqueMessages([
         expense.aiAnalysis,
         expense.aiDecisionReason !== expense.aiAnalysis ? expense.aiDecisionReason : null,
         expense.policyViolationReason ? `Política: ${expense.policyViolationReason}` : null,
         expense.manualReviewReason,
-      ].filter(Boolean) as string[]))
+      ])
     : []
   const shouldShowFiscal = Boolean(
     expense?.sefazValidationMessage
       && expense.sefazStatus !== 'NOT_APPLICABLE'
       && !expense.sefazValidationMessage.toLowerCase().includes('codigo sefaz nao informado')
+      && !analysisMessages.some((message) => containsMessage(message, expense.sefazValidationMessage))
   )
   const canRetryOcr = Boolean(
     expense
@@ -258,7 +259,7 @@ export function F04Detalhe() {
               </div>
               <div className="grid grid-cols-2 gap-3 text-[12px]">
                 <InfoItem label="Decisão" value={aiDecisionLabel(expense.aiDecision)} />
-                <InfoItem label="Política" value={expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Dentro da política' : 'Fora da política'} />
+                <InfoItem label="Política" value={expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Dentro da política' : 'Fora da política'} />
                 <InfoItem label="Fiscal" value={sefazStatusLabel(expense.sefazStatus)} />
                 <InfoItem label="Autoaprovação" value={expense.autoApprovalEligible ? 'Elegível' : 'Não elegível'} />
               </div>
@@ -394,6 +395,34 @@ function scoreVariant(score: number | null): 'green' | 'amber' | 'red' | 'gray' 
   if (score >= 90) return 'green'
   if (score >= 70) return 'amber'
   return 'red'
+}
+
+function uniqueMessages(messages: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const message of messages) {
+    if (!message) continue
+    const normalized = normalizeMessage(message)
+    if (!normalized) continue
+    if (result.some((existing) => normalizeMessage(existing) === normalized || containsMessage(existing, message))) continue
+    result.push(message)
+  }
+  return result
+}
+
+function containsMessage(container: string | null | undefined, message: string | null | undefined) {
+  const normalizedContainer = normalizeMessage(container)
+  const normalizedMessage = normalizeMessage(message)
+  return Boolean(normalizedContainer && normalizedMessage && normalizedContainer.includes(normalizedMessage))
+}
+
+function normalizeMessage(message: string | null | undefined) {
+  return (message ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(politica|fiscal|sefaz|revisao):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'

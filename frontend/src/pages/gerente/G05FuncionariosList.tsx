@@ -10,7 +10,7 @@ import { getStoredToken } from '../../hooks/useAuth'
 import { fmt, initials } from '../../realData'
 import type { CreateEmployeePayload, EmployeeListItem } from '../../types'
 
-const emptyForm: CreateEmployeePayload = { name: '', email: '', password: '' }
+const emptyForm: CreateEmployeePayload = { name: '', email: '', password: '', pixKey: '' }
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
 const labelClass = 'block text-[12px] font-medium text-gray-500'
 
@@ -81,6 +81,10 @@ export function G05FuncionariosList() {
       setFormError('A senha temporária precisa ter pelo menos 8 caracteres.')
       return
     }
+    if (!form.pixKey.trim()) {
+      setFormError('Informe a chave Pix do funcionário.')
+      return
+    }
 
     setSaving(true)
     try {
@@ -88,6 +92,7 @@ export function G05FuncionariosList() {
         ...form,
         name: form.name.trim(),
         email: form.email.trim(),
+        pixKey: form.pixKey.trim(),
       })
       setEmployees((current) => [...current, created])
       setForm(emptyForm)
@@ -231,6 +236,20 @@ export function G05FuncionariosList() {
               className={fieldClass}
               placeholder="Mínimo 8 caracteres"
             />
+          </label>
+          <label className={labelClass}>
+            Chave Pix
+            <input
+              type="text"
+              required
+              value={form.pixKey}
+              onChange={(event) => handleField('pixKey', event.target.value)}
+              className={fieldClass}
+              placeholder="CPF, e-mail, telefone ou chave aleatória"
+            />
+            <span className="mt-1 block text-[11px] font-normal text-gray-400">
+              Obrigatória para gerar a planilha de pagamento do financeiro.
+            </span>
           </label>
         </form>
       </SideDrawer>

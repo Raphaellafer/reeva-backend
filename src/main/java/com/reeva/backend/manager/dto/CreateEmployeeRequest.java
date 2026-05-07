@@ -20,5 +20,7 @@ public record CreateEmployeeRequest(
     @Size(min = 8, message = "Password must be at least 8 characters")
     String password,
 
+    String pixKey,
+
     UUID departmentId
 ) {}

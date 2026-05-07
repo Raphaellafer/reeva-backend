@@ -29,6 +29,7 @@ export type AiDecision =
   | 'READY_FOR_MANAGER'
   | 'NEEDS_EMPLOYEE_CORRECTION'
   | 'REJECTED_BY_POLICY'
+  | 'REJECTED_BY_FISCAL_VALIDATION'
   | 'PENDING_MANUAL_REVIEW';
 
 export type SefazStatus =
@@ -262,5 +263,6 @@ export interface CreateEmployeePayload {
   name: string;
   email: string;
   password: string;
+  pixKey: string;
   departmentId?: string;
 }

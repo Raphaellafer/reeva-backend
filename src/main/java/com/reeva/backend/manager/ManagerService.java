@@ -365,6 +365,9 @@ public class ManagerService {
             UserRole.EMPLOYEE
         );
         employee.setManager(manager);
+        if (request.pixKey() != null && !request.pixKey().isBlank()) {
+            employee.setPixKey(request.pixKey().trim());
+        }
 
         if (request.departmentId() != null) {
             Department dept = departmentRepository.findById(request.departmentId())
