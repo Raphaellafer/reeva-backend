@@ -379,6 +379,10 @@ export interface CfoExpenseFilters {
   status?: ExpenseStatus | '';
   projectId?: string;
   category?: ExpenseCategory | '';
+  duplicate?: boolean;
+  fiscalInvalid?: boolean;
+  policyViolation?: boolean;
+  lowOcr?: boolean;
   from?: string;
   to?: string;
   page?: number;
@@ -394,6 +398,10 @@ export async function getCfoExpenses(token: string, filters: CfoExpenseFilters =
   if (filters.status) params.set('status', filters.status);
   if (filters.projectId) params.set('projectId', filters.projectId);
   if (filters.category) params.set('category', filters.category);
+  if (filters.duplicate) params.set('duplicate', 'true');
+  if (filters.fiscalInvalid) params.set('fiscalInvalid', 'true');
+  if (filters.policyViolation) params.set('policyViolation', 'true');
+  if (filters.lowOcr) params.set('lowOcr', 'true');
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   return request<PageResponse<CfoExpenseResponse>>(`/cfo/expenses?${params}`, { token });

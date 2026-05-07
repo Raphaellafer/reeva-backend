@@ -90,11 +90,13 @@ public class CfoExecutiveService {
 
     @Transactional(readOnly = true)
     public Page<CfoExpenseResponse> expenses(User currentUser, ExpenseStatus status, UUID projectId,
-                                             ExpenseCategory category, LocalDate from, LocalDate to,
+                                             ExpenseCategory category, Boolean duplicate, Boolean fiscalInvalid,
+                                             Boolean policyViolation, Boolean lowOcr, LocalDate from, LocalDate to,
                                              Pageable pageable) {
         DateRange range = normalize(from, to);
         return expenseRepository.findByCompanyForCfoExpenses(
-            currentUser.getCompany().getId(), status, projectId, category, range.from(), range.to(), pageable
+            currentUser.getCompany().getId(), status, projectId, category, duplicate, fiscalInvalid,
+            policyViolation, lowOcr, range.from(), range.to(), pageable
         ).map(CfoExpenseResponse::from);
     }
 

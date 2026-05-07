@@ -63,11 +63,17 @@ public class CfoController {
         @RequestParam(required = false) ExpenseStatus status,
         @RequestParam(required = false) UUID projectId,
         @RequestParam(required = false) ExpenseCategory category,
+        @RequestParam(required = false) Boolean duplicate,
+        @RequestParam(required = false) Boolean fiscalInvalid,
+        @RequestParam(required = false) Boolean policyViolation,
+        @RequestParam(required = false) Boolean lowOcr,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
         @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
     ) {
-        return executiveService.expenses(currentUser, status, projectId, category, from, to, pageable);
+        return executiveService.expenses(
+            currentUser, status, projectId, category, duplicate, fiscalInvalid, policyViolation, lowOcr, from, to, pageable
+        );
     }
 
     @GetMapping("/compliance")
