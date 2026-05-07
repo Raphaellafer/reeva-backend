@@ -36,13 +36,52 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, readableResult(category, new BigDecimal("40.00")));
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.REJECTED_BY_POLICY);
+        assertThat(decision.decision()).isEqualTo(AiDecision.REJECTED_BY_FISCAL_VALIDATION);
         assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_REJECTED);
         assertThat(decision.alertLevel()).isEqualTo(AiAlertLevel.HIGH);
         assertThat(decision.policyCompliant()).isFalse();
         assertThat(decision.policyViolationReason()).isNull();
         assertThat(decision.summary()).contains("Reembolso recusado automaticamente por falha fiscal critica");
         assertThat(decision.manualReviewReason()).isNull();
+    }
+
+    @Test
+    void invalidFiscalValidationShouldRejectEvenWhenOcrIsUnreadable() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        SefazValidationService sefazValidationService = request ->
+            new SefazValidationResult(SefazStatus.INVALID, "CNPJ do fornecedor invalido.");
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+
+        Expense expense = expense(ExpenseCategory.PURCHASE, new BigDecimal("80.00"));
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.PURCHASE))
+            .thenReturn(Optional.empty());
+
+        OcrResult unreadableWithFiscalData = new OcrResult(
+            false,
+            "Valor total da nota nao foi lido com confianca.",
+            "Fornecedor Teste",
+            "12.345.678/0001-90",
+            null,
+            LocalDate.of(2025, 5, 14),
+            "PURCHASE",
+            "Despesa corporativa",
+            (short) 20,
+            "OCR parcial.",
+            null,
+            null,
+            "352505123456780001906500100000345100034512",
+            "Codigo fiscal extraido.",
+            null,
+            List.of(),
+            "{}",
+            "hash"
+        );
+
+        AiExpenseDecision decision = service.decide(expense, unreadableWithFiscalData);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.REJECTED_BY_FISCAL_VALIDATION);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_REJECTED);
+        assertThat(decision.summary()).contains("falha fiscal critica");
     }
 
     @ParameterizedTest
@@ -83,6 +122,48 @@ class AiExpenseDecisionServiceTest {
         assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
         assertThat(decision.policyCompliant()).isTrue();
         assertThat(decision.summary()).contains("Revisao do gestor recomendada");
+    }
+
+    @Test
+    void unreadableOcrShouldStillFlagSubmittedAmountAbovePolicy() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        SefazValidationService sefazValidationService = request ->
+            new SefazValidationResult(SefazStatus.UNAVAILABLE, "Codigo fiscal nao verificavel.");
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+
+        Expense expense = expense(ExpenseCategory.LODGING, new BigDecimal("6000.00"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.LODGING, new BigDecimal("800.00"));
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.LODGING))
+            .thenReturn(Optional.of(policy));
+
+        OcrResult unreadable = new OcrResult(
+            false,
+            "Valor total da nota nao foi lido com confianca.",
+            null,
+            null,
+            null,
+            null,
+            "LODGING",
+            null,
+            (short) 15,
+            "Foto ruim.",
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(),
+            "{}",
+            "hash"
+        );
+
+        AiExpenseDecision decision = service.decide(expense, unreadable);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.NEEDS_EMPLOYEE_CORRECTION);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.NEEDS_REVISION);
+        assertThat(decision.policyCompliant()).isFalse();
+        assertThat(decision.policyViolationReason()).contains("Valor informado pelo funcionario exige revisao de politica");
+        assertThat(decision.summary()).contains("Valor informado pelo funcionario exige revisao de politica");
     }
 
     private Expense expense(ExpenseCategory category, BigDecimal amount) throws Exception {

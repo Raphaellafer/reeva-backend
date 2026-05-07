@@ -223,7 +223,9 @@ export function F04Detalhe() {
                 <div>
                   <p className="text-[#3C3489]/60">Politica</p>
                   <p className="font-medium text-[#3C3489]">
-                    {expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}
+                    {expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION'
+                      ? 'Bloqueio fiscal'
+                      : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}
                   </p>
                 </div>
               </div>

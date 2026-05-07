@@ -45,6 +45,7 @@ const aiDecisionLabels: Record<string, string> = {
   READY_FOR_MANAGER: 'Revisao do gestor',
   NEEDS_EMPLOYEE_CORRECTION: 'Correcao do funcionario',
   REJECTED_BY_POLICY: 'Fora da politica',
+  REJECTED_BY_FISCAL_VALIDATION: 'Falha fiscal',
   PENDING_MANUAL_REVIEW: 'Revisao manual',
   DUPLICATE_REJECTED: 'Duplicada rejeitada'
 };
@@ -434,7 +435,7 @@ export default function ManagerDashboard({ token, user, onLogout }: Props) {
 
                   <div className="decision-strip">
                     <span>{expense.aiDecision ? aiDecisionLabels[expense.aiDecision] ?? expense.aiDecision : 'Aguardando IA'}</span>
-                    <span>Politica: {expense.policyCompliant == null ? 'pendente' : expense.policyCompliant ? 'ok' : 'violacao'}</span>
+                    <span>Politica: {expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'bloqueio fiscal' : expense.policyCompliant == null ? 'pendente' : expense.policyCompliant ? 'ok' : 'violacao'}</span>
                     <span>SEFAZ: {expense.sefazStatus ? sefazLabels[expense.sefazStatus] ?? expense.sefazStatus : 'pendente'}</span>
                   </div>
 
@@ -551,7 +552,7 @@ export default function ManagerDashboard({ token, user, onLogout }: Props) {
                 </div>
                 <div>
                   <span className="detail-label">Politica</span>
-                  <span>{modal.expense.policyCompliant == null ? 'Pendente' : modal.expense.policyCompliant ? 'Dentro da politica' : 'Fora da politica'}</span>
+                  <span>{modal.expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : modal.expense.policyCompliant == null ? 'Pendente' : modal.expense.policyCompliant ? 'Dentro da politica' : 'Fora da politica'}</span>
                 </div>
                 <div>
                   <span className="detail-label">SEFAZ</span>

@@ -350,7 +350,8 @@ public class CfoExecutiveService {
             return amount.subtract(policy.getMaxAmount());
         }
 
-        if (Boolean.FALSE.equals(expense.getPolicyCompliant())) {
+        if (Boolean.FALSE.equals(expense.getPolicyCompliant())
+            && expense.getAiDecision() != AiDecision.REJECTED_BY_FISCAL_VALIDATION) {
             return amount;
         }
 
@@ -369,12 +370,15 @@ public class CfoExecutiveService {
     }
 
     private boolean hasPolicyViolation(Expense expense) {
-        return Boolean.FALSE.equals(expense.getPolicyCompliant()) || expense.getAiDecision() == AiDecision.REJECTED_BY_POLICY;
+        return (Boolean.FALSE.equals(expense.getPolicyCompliant())
+                && expense.getAiDecision() != AiDecision.REJECTED_BY_FISCAL_VALIDATION)
+            || expense.getAiDecision() == AiDecision.REJECTED_BY_POLICY;
     }
 
     private boolean isPolicyRejected(Expense expense) {
         return expense.getAiDecision() == AiDecision.REJECTED_BY_POLICY
             || (Boolean.FALSE.equals(expense.getPolicyCompliant())
+                && expense.getAiDecision() != AiDecision.REJECTED_BY_FISCAL_VALIDATION
                 && (expense.getStatus() == ExpenseStatus.MANAGER_REJECTED
                     || expense.getStatus() == ExpenseStatus.FINANCE_REJECTED));
     }
