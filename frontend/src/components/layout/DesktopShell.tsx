@@ -11,10 +11,10 @@ const navByRole = (role: UserRole) => {
       {
         items: [
           { label: 'Dashboard', href: '/gerente', exact: true, icon: <IconGrid /> },
-          { label: 'Aprovacoes', href: '/gerente/aprovacoes', icon: <IconCheck /> },
+          { label: 'Aprovações', href: '/gerente/aprovacoes', icon: <IconCheck /> },
           { label: 'Aprovados', href: '/gerente/pagamentos', icon: <IconMoney /> },
           { label: 'Projetos', href: '/gerente/projetos', icon: <IconTrend /> },
-          { label: 'Politicas', href: '/gerente/politicas', icon: <IconSettings /> },
+          { label: 'Políticas', href: '/gerente/politicas', icon: <IconSettings /> },
           { label: 'Alertas IA', href: '/gerente/alertas', icon: <IconAlert /> },
           { label: 'Todas as notas', href: '/gerente/notas', icon: <IconDoc /> },
           { label: 'Equipe', href: '/gerente/funcionarios', icon: <IconUsers /> },
@@ -29,7 +29,7 @@ const navByRole = (role: UserRole) => {
         { label: 'ROI Corporativo', href: '/cfo/roi', icon: <IconTrend /> },
         { label: 'Compliance', href: '/cfo/compliance', icon: <IconShield /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
-        { label: 'Configuracoes', href: '/cfo/configuracoes', icon: <IconSettings /> },
+        { label: 'Configurações', href: '/cfo/configuracoes', icon: <IconSettings /> },
       ],
     },
   ]
@@ -73,7 +73,7 @@ export function DesktopShell({ title, role, children, actions }: DesktopShellPro
       >
         <Sidebar
           sections={navByRole(role)}
-          userLabel={storedUser?.name ?? 'Usuario'}
+          userLabel={storedUser?.name ?? 'Usuário'}
           userRole={roleLabel[role]}
           onLogout={handleLogout}
           onClose={() => setSidebarOpen(false)}
