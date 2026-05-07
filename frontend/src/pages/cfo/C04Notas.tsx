@@ -118,6 +118,8 @@ export function C04Notas() {
                   <td className="py-3">
                     {expense.duplicate ? (
                       <Badge variant="red">Duplicada</Badge>
+                    ) : expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' || expense.sefazStatus === 'INVALID' ? (
+                      <Badge variant="red">Fiscal</Badge>
                     ) : expense.policyCompliant === false ? (
                       <Badge variant="amber">Politica</Badge>
                     ) : (

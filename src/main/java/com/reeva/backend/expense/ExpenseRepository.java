@@ -97,6 +97,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         SELECT COUNT(e) FROM Expense e
         WHERE e.user.manager.id = :managerId
           AND e.policyCompliant = false
+          AND (e.aiDecision IS NULL OR e.aiDecision <> com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)
           AND e.deleted = false
         """)
     long countPolicyViolationsByManagerId(@Param("managerId") UUID managerId);

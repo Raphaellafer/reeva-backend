@@ -134,7 +134,7 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px] mb-3">
           <div><p className="text-gray-400">Valor</p><p className="font-medium">{fmt(expense.amount)}</p></div>
           <div><p className="text-gray-400">Score IA</p><p className="font-medium">{expense.aiScore ?? '-'}</p></div>
-          <div><p className="text-gray-400">Politica</p><p className="font-medium">{expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
+          <div><p className="text-gray-400">Politica</p><p className="font-medium">{expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
           <div><p className="text-gray-400">Fiscal</p><p className="font-medium">{expense.sefazStatus ?? '-'}</p></div>
         </div>
 
