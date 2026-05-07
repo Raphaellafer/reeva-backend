@@ -1,19 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { createProject, getManagedProjects, getTeamMembers, updateProject } from '../../api'
+import { createProject, getManagedProjects, getProjectManagers, getTeamMembers, updateProject } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
-import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Card } from '../../components/ui/Card'
 import { SideDrawer } from '../../components/ui/SideDrawer'
+import { getStoredUser } from '../../hooks/useAuth'
 import { fmt } from '../../realData'
 import { getToken } from '../../session'
 import type { ProjectPayload, ProjectResponse, TeamMemberResponse } from '../../types'
 
-const emptyForm: ProjectPayload = {
-  name: '',
-  code: '',
-  description: '',
-  revenue: null,
-  employeeIds: [],
+function buildEmptyForm(managerId: string | null): ProjectPayload {
+  return {
+    name: '',
+    code: '',
+    description: '',
+    revenue: null,
+    managerId,
+    employeeIds: [],
+  }
 }
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
@@ -21,34 +25,69 @@ const labelClass = 'block text-[12px] font-medium text-gray-500'
 const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
 
 export function G07Projetos() {
+  const currentUser = getStoredUser()
+  const currentManagerId = currentUser?.userId ?? null
   const [projects, setProjects] = useState<ProjectResponse[]>([])
+  const [managers, setManagers] = useState<TeamMemberResponse[]>([])
   const [employees, setEmployees] = useState<TeamMemberResponse[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [employeeQuery, setEmployeeQuery] = useState('')
-  const [form, setForm] = useState<ProjectPayload>(emptyForm)
+  const [form, setForm] = useState<ProjectPayload>(() => buildEmptyForm(currentManagerId))
   const [loading, setLoading] = useState(false)
+  const [teamLoading, setTeamLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  async function load() {
+  async function loadProjects() {
     const token = getToken()
     if (!token) return
-    const [projectRows, employeeRows] = await Promise.all([
-      getManagedProjects(token),
-      getTeamMembers(token),
-    ])
-    setProjects(projectRows)
-    setEmployees(employeeRows)
+    setProjects(await getManagedProjects(token))
+  }
+
+  async function loadTeamForManager(managerId: string | null) {
+    const token = getToken()
+    if (!token) return
+    setTeamLoading(true)
+    try {
+      setEmployees(await getTeamMembers(token, managerId))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao carregar funcionários do gestor.')
+    } finally {
+      setTeamLoading(false)
+    }
   }
 
   useEffect(() => {
-    load().catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar projetos.'))
-  }, [])
+    async function loadInitialData() {
+      const token = getToken()
+      if (!token) return
+      try {
+        const [projectRows, managerRows] = await Promise.all([
+          getManagedProjects(token),
+          getProjectManagers(token),
+        ])
+        const defaultManagerId = currentManagerId ?? managerRows[0]?.id ?? null
+        setProjects(projectRows)
+        setManagers(managerRows)
+        setForm((current) => current.managerId ? current : buildEmptyForm(defaultManagerId))
+        await loadTeamForManager(defaultManagerId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar projetos.')
+      }
+    }
+
+    void loadInitialData()
+  }, [currentManagerId])
 
   const selectedEmployees = useMemo(
     () => employees.filter((employee) => form.employeeIds.includes(employee.id)),
     [employees, form.employeeIds]
+  )
+
+  const selectedManager = useMemo(
+    () => managers.find((manager) => manager.id === form.managerId) ?? null,
+    [form.managerId, managers]
   )
 
   const filteredEmployees = useMemo(() => {
@@ -60,38 +99,56 @@ export function G07Projetos() {
     })
   }, [employeeQuery, employees])
 
+  function defaultManagerId() {
+    return currentManagerId ?? managers[0]?.id ?? null
+  }
+
   function openCreate() {
+    const managerId = defaultManagerId()
     setEditingId(null)
-    setForm(emptyForm)
+    setForm(buildEmptyForm(managerId))
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
     setDrawerOpen(true)
+    void loadTeamForManager(managerId)
   }
 
   function edit(project: ProjectResponse) {
+    const managerId = project.managerId ?? defaultManagerId()
     setEditingId(project.id)
     setForm({
       name: project.name,
       code: project.code ?? '',
       description: project.description ?? '',
       revenue: project.revenue == null ? null : String(project.revenue),
+      managerId,
       employeeIds: project.members.map((member) => member.id),
     })
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
     setDrawerOpen(true)
+    void loadTeamForManager(managerId)
   }
 
   function closeDrawer() {
     if (loading) return
     setDrawerOpen(false)
     setEditingId(null)
-    setForm(emptyForm)
+    setForm(buildEmptyForm(defaultManagerId()))
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
+  }
+
+  function handleManagerChange(managerId: string) {
+    const nextManagerId = managerId || null
+    setForm((current) => ({ ...current, managerId: nextManagerId, employeeIds: [] }))
+    setEmployeeQuery('')
+    setMessage(null)
+    setError(null)
+    void loadTeamForManager(nextManagerId)
   }
 
   function toggleEmployee(employeeId: string) {
@@ -111,8 +168,12 @@ export function G07Projetos() {
       setError('Informe o nome do projeto.')
       return
     }
+    if (!form.managerId) {
+      setError('Selecione o gestor responsável pelo projeto.')
+      return
+    }
     if (form.employeeIds.length === 0) {
-      setError('Selecione pelo menos um funcionario para o projeto.')
+      setError('Selecione pelo menos um funcionário para o projeto.')
       return
     }
 
@@ -126,11 +187,11 @@ export function G07Projetos() {
         setMessage('Projeto atualizado.')
       } else {
         await createProject(token, payload)
-        setForm(emptyForm)
+        setForm(buildEmptyForm(form.managerId))
         setEmployeeQuery('')
         setMessage('Projeto criado.')
       }
-      await load()
+      await loadProjects()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao salvar projeto.')
     } finally {
@@ -148,7 +209,7 @@ export function G07Projetos() {
         <div className="mb-4 flex flex-col gap-1">
           <div>
             <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos cadastrados</p>
-            <p className="text-[12px] text-gray-400">{projects.length} projetos ativos</p>
+            <p className="text-[12px] text-gray-400">{projects.length} projetos ativos · responsável escolhido no cadastro</p>
           </div>
         </div>
 
@@ -157,10 +218,10 @@ export function G07Projetos() {
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-[13px]">
+          <table className="w-full min-w-[880px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Codigo', 'Projeto', 'Faturamento', 'Equipe', ''].map((header) => (
+                {['Código', 'Projeto', 'Gestor responsável', 'Faturamento', 'Equipe', ''].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
@@ -168,7 +229,7 @@ export function G07Projetos() {
             <tbody>
               {projects.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-[13px] text-gray-400">Nenhum projeto cadastrado.</td>
+                  <td colSpan={6} className="py-8 text-center text-[13px] text-gray-400">Nenhum projeto cadastrado.</td>
                 </tr>
               ) : (
                 projects.map((project) => (
@@ -177,6 +238,10 @@ export function G07Projetos() {
                     <td className="py-4 pr-3">
                       <p className="font-medium text-[#1a1a2e]">{project.name}</p>
                       {project.description && <p className="mt-1 line-clamp-1 max-w-[360px] text-[12px] text-gray-400">{project.description}</p>}
+                    </td>
+                    <td className="py-4 pr-3">
+                      <p className="font-medium text-[#1a1a2e]">{project.managerName ?? '-'}</p>
+                      {project.managerEmail && <p className="text-[11px] text-gray-400">{project.managerEmail}</p>}
                     </td>
                     <td className="py-4 pr-3 whitespace-nowrap">{project.revenue == null ? '-' : fmt(project.revenue)}</td>
                     <td className="py-4 pr-3">
@@ -215,7 +280,7 @@ export function G07Projetos() {
             <p className={sectionTitleClass}>Dados do projeto</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
               <label className={labelClass}>
-                Codigo
+                Código
                 <input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} className={fieldClass} />
               </label>
               <label className={labelClass}>
@@ -224,18 +289,32 @@ export function G07Projetos() {
               </label>
             </div>
             <label className={labelClass}>
+              Gestor responsável
+              <select value={form.managerId ?? ''} onChange={(event) => handleManagerChange(event.target.value)} className={fieldClass}>
+                <option value="">Selecione um gestor</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>{manager.name} · {manager.email}</option>
+                ))}
+              </select>
+            </label>
+            <label className={labelClass}>
               Faturamento previsto/real
               <input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className={fieldClass} />
             </label>
             <label className={labelClass}>
-              Descricao
+              Descrição
               <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={4} className={fieldClass} />
             </label>
           </section>
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <p className={sectionTitleClass}>Funcionarios do projeto</p>
+              <div>
+                <p className={sectionTitleClass}>Funcionários do projeto</p>
+                <p className="mt-1 text-[12px] text-gray-400">
+                  {selectedManager ? `Equipe de ${selectedManager.name}` : 'Selecione o gestor responsável para carregar a equipe.'}
+                </p>
+              </div>
               <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">
                 {selectedEmployees.length} selecionados
               </span>
@@ -245,6 +324,7 @@ export function G07Projetos() {
               onChange={(event) => setEmployeeQuery(event.target.value)}
               placeholder="Buscar por nome ou e-mail"
               className={fieldClass}
+              disabled={!form.managerId}
             />
             {selectedEmployees.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -256,8 +336,10 @@ export function G07Projetos() {
               </div>
             )}
             <div className="max-h-[360px] space-y-2 overflow-y-auto rounded-[8px] border border-black/[0.08] bg-white p-2">
-              {filteredEmployees.length === 0 && <p className="p-3 text-[12px] text-gray-400">Nenhum funcionario encontrado.</p>}
-              {filteredEmployees.map((employee) => (
+              {teamLoading && <p className="p-3 text-[12px] text-gray-400">Carregando equipe...</p>}
+              {!teamLoading && !form.managerId && <p className="p-3 text-[12px] text-gray-400">Selecione um gestor para ver funcionários.</p>}
+              {!teamLoading && form.managerId && filteredEmployees.length === 0 && <p className="p-3 text-[12px] text-gray-400">Nenhum funcionário encontrado para este gestor.</p>}
+              {!teamLoading && filteredEmployees.map((employee) => (
                 <label key={employee.id} className="flex cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-gray-50">
                   <input
                     type="checkbox"

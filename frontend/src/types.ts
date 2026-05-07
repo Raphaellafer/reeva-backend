@@ -169,6 +169,9 @@ export interface ProjectResponse {
   description: string | null;
   revenue: number | null;
   active: boolean;
+  managerId: string | null;
+  managerName: string | null;
+  managerEmail: string | null;
   members: TeamMemberResponse[];
 }
 
@@ -177,6 +180,7 @@ export interface ProjectPayload {
   code: string;
   description: string;
   revenue: string | null;
+  managerId: string | null;
   employeeIds: string[];
 }
 
