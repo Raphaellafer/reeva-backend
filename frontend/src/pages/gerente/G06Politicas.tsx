@@ -4,6 +4,7 @@ import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { SideDrawer } from '../../components/ui/SideDrawer'
+import { getStoredUser } from '../../hooks/useAuth'
 import { categoryLabels, fmt } from '../../realData'
 import { getToken } from '../../session'
 import type { ExpenseCategory, PolicyAuditLogResponse, PolicyPayload, PolicyResponse } from '../../types'
@@ -29,10 +30,12 @@ export function G06Politicas() {
   const [auditLogs, setAuditLogs] = useState<PolicyAuditLogResponse[]>([])
   const [visibleAuditCount, setVisibleAuditCount] = useState(5)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [editingPolicy, setEditingPolicy] = useState<PolicyResponse | null>(null)
   const [form, setForm] = useState<PolicyPayload>(emptyForm)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const managerName = getStoredUser()?.name ?? 'Gestor responsável'
 
   async function load() {
     const token = getToken()
@@ -45,7 +48,7 @@ export function G06Politicas() {
       setPolicies(loadedPolicies)
       setAuditLogs(loadedAuditLogs)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar politicas.')
+      setError(err instanceof Error ? err.message : 'Falha ao carregar políticas.')
     }
   }
 
@@ -54,6 +57,7 @@ export function G06Politicas() {
   }, [])
 
   function edit(policy: PolicyResponse) {
+    setEditingPolicy(policy)
     setForm({
       category: policy.category,
       maxAmount: String(policy.maxAmount),
@@ -71,6 +75,7 @@ export function G06Politicas() {
   function closeDrawer() {
     if (loading) return
     setDrawerOpen(false)
+    setEditingPolicy(null)
     setForm(emptyForm)
     setMessage(null)
     setError(null)
@@ -89,20 +94,20 @@ export function G06Politicas() {
         dailyLimit: form.dailyLimit || null,
         monthlyLimit: form.monthlyLimit || null,
       })
-      setMessage('Politica salva.')
+      setMessage('Política salva.')
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao salvar politica.')
+      setError(err instanceof Error ? err.message : 'Falha ao salvar política.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <DesktopShell title="Politicas de reembolso" role="GERENTE">
+    <DesktopShell title="Políticas de reembolso" role="GERENTE">
       <Card>
         <div className="mb-4 flex flex-col gap-1">
-          <p className="text-[14px] font-medium text-[#1a1a2e]">Politicas cadastradas</p>
+          <p className="text-[14px] font-medium text-[#1a1a2e]">Políticas cadastradas</p>
           <p className="text-[12px] text-gray-400">{policies.length} categorias configuradas</p>
         </div>
 
@@ -114,7 +119,7 @@ export function G06Politicas() {
           <table className="w-full min-w-[760px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Categoria', 'Limite', 'Diario', 'Mensal', 'Score auto', 'Comprovante', ''].map((header) => (
+                {['Categoria', 'Limite', 'Diário', 'Mensal', 'Score auto', 'Comprovante', ''].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
@@ -122,7 +127,7 @@ export function G06Politicas() {
             <tbody>
               {policies.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-[13px] text-gray-400">Nenhuma politica cadastrada.</td>
+                  <td colSpan={7} className="py-8 text-center text-[13px] text-gray-400">Nenhuma política cadastrada.</td>
                 </tr>
               ) : (
                 policies.map((policy) => (
@@ -136,7 +141,7 @@ export function G06Politicas() {
                         {policy.autoApprovalMinScore}
                       </span>
                     </td>
-                    <td className="py-4 pr-3">{policy.requiresReceipt ? 'Sim' : 'Nao'}</td>
+                    <td className="py-4 pr-3">{policy.requiresReceipt ? 'Sim' : 'Não'}</td>
                     <td className="py-4 pr-3 text-right">
                       <button onClick={() => edit(policy)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
                     </td>
@@ -151,19 +156,19 @@ export function G06Politicas() {
       <Card className="mt-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[14px] font-medium text-[#1a1a2e]">Log de alteracoes nas politicas</p>
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Log de alterações nas políticas</p>
             <p className="mt-0.5 text-[12px] text-gray-400">Registro de auditoria para controle antifraude.</p>
           </div>
         </div>
 
         {auditLogs.length === 0 ? (
-          <p className="text-[12px] text-gray-400">Nenhuma alteracao registrada ainda.</p>
+          <p className="text-[12px] text-gray-400">Nenhuma alteração registrada ainda.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-[12px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Data', 'Usuario', 'Acao', 'Categoria', 'Resumo'].map((header) => (
+                  {['Data', 'Usuário', 'Ação', 'Categoria', 'Resumo'].map((header) => (
                     <th key={header} className="py-2 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400 pr-3">{header}</th>
                   ))}
                 </tr>
@@ -197,7 +202,7 @@ export function G06Politicas() {
 
       <SideDrawer
         open={drawerOpen}
-        title="Editar politica"
+        title="Editar política"
         onClose={closeDrawer}
         footer={
           <div className="space-y-3">
@@ -206,7 +211,7 @@ export function G06Politicas() {
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="ghost" onClick={closeDrawer} disabled={loading} className="justify-center">Cancelar</Button>
               <Button type="submit" form="policy-drawer-form" disabled={loading} className="justify-center">
-                {loading ? 'Salvando...' : 'Salvar politica'}
+                {loading ? 'Salvando...' : 'Salvar política'}
               </Button>
             </div>
           </div>
@@ -225,6 +230,10 @@ export function G06Politicas() {
                 {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
+            <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Responsável pela alteração</p>
+              <p className="mt-1 text-[13px] font-medium text-[#1a1a2e]">{managerName}</p>
+            </div>
           </section>
 
           <section className="space-y-3">
@@ -235,7 +244,7 @@ export function G06Politicas() {
                 <input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className={fieldClass} />
               </label>
               <label className={labelClass}>
-                Diario
+                Diário
                 <input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className={fieldClass} />
               </label>
               <label className={labelClass}>
@@ -246,9 +255,9 @@ export function G06Politicas() {
           </section>
 
           <section className="space-y-3">
-            <p className={sectionTitleClass}>Autoaprovacao</p>
+            <p className={sectionTitleClass}>Autoaprovação</p>
             <label className={labelClass}>
-              Score minimo
+              Score mínimo
               <input
                 type="number"
                 min={0}
@@ -273,6 +282,15 @@ export function G06Politicas() {
           </section>
 
           <section className="space-y-3">
+            <p className={sectionTitleClass}>Resumo de impacto</p>
+            <div className="rounded-[8px] border border-[#AFA9EC]/40 bg-[#F4F2FF] p-3 text-[12px] text-[#3C3489]">
+              {buildPolicyImpact(editingPolicy, form).map((item) => (
+                <p key={item}>{item}</p>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-3">
             <p className={sectionTitleClass}>Regras para IA</p>
             <label className={labelClass}>
               Regras em texto
@@ -280,7 +298,7 @@ export function G06Politicas() {
                 value={form.description}
                 onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
                 rows={7}
-                placeholder="Ex: nao reembolsar bebidas alcoolicas; refeicoes somente em dias uteis; taxi apenas com justificativa."
+                placeholder="Ex: não reembolsar bebidas alcoólicas; refeições somente em dias úteis; táxi apenas com justificativa."
                 className={fieldClass}
               />
             </label>
@@ -303,9 +321,9 @@ function formatDateTime(value: string) {
 
 function actionLabel(action: string) {
   return {
-    POLICY_CREATED: 'Criacao',
-    POLICY_UPDATED: 'Edicao',
-    POLICY_REACTIVATED: 'Reativacao',
+    POLICY_CREATED: 'Criação',
+    POLICY_UPDATED: 'Edição',
+    POLICY_REACTIVATED: 'Reativação',
   }[action] ?? action
 }
 
@@ -315,13 +333,13 @@ function snapshotSummary(snapshot: Record<string, unknown>) {
   const dailyLimit = moneyValue(snapshot.dailyLimit)
   const monthlyLimit = moneyValue(snapshot.monthlyLimit)
   const score = snapshot.autoApprovalMinScore == null ? '-' : String(snapshot.autoApprovalMinScore)
-  const receipt = snapshot.requiresReceipt === true ? 'sim' : snapshot.requiresReceipt === false ? 'nao' : '-'
-  return `Limite ${maxAmount}; diario ${dailyLimit}; mensal ${monthlyLimit}; score ${score}; comprovante ${receipt}`
+  const receipt = snapshot.requiresReceipt === true ? 'sim' : snapshot.requiresReceipt === false ? 'não' : '-'
+  return `Limite ${maxAmount}; diário ${dailyLimit}; mensal ${monthlyLimit}; score ${score}; comprovante ${receipt}`
 }
 
 function changeSummary(log: PolicyAuditLogResponse) {
   if (log.action === 'POLICY_CREATED') {
-    return `Criou politica: ${snapshotSummary(log.after)}`
+    return `Criou política: ${snapshotSummary(log.after)}`
   }
   if (!log.before || Object.keys(log.before).length === 0) {
     return 'Registro legado sem detalhamento do antes/depois.'
@@ -329,14 +347,14 @@ function changeSummary(log: PolicyAuditLogResponse) {
 
   const changes = [
     diffMoney('limite por nota', log.before.maxAmount, log.after.maxAmount),
-    diffMoney('limite diario', log.before.dailyLimit, log.after.dailyLimit),
+    diffMoney('limite diário', log.before.dailyLimit, log.after.dailyLimit),
     diffMoney('limite mensal', log.before.monthlyLimit, log.after.monthlyLimit),
     diffValue('score auto', log.before.autoApprovalMinScore, log.after.autoApprovalMinScore),
     diffValue('comprovante', receiptLabel(log.before.requiresReceipt), receiptLabel(log.after.requiresReceipt)),
     diffText('regras', log.before.description, log.after.description),
   ].filter(Boolean)
 
-  return changes.length > 0 ? changes.join('; ') : 'Salvou sem mudancas materiais.'
+  return changes.length > 0 ? changes.join('; ') : 'Salvou sem mudanças materiais.'
 }
 
 function diffMoney(label: string, before: unknown, after: unknown) {
@@ -355,11 +373,40 @@ function diffText(label: string, before: unknown, after: unknown) {
 }
 
 function receiptLabel(value: unknown) {
-  return value === true ? 'sim' : value === false ? 'nao' : '-'
+  return value === true ? 'sim' : value === false ? 'não' : '-'
 }
 
 function moneyValue(value: unknown) {
   if (value == null || value === '') return '-'
   const numeric = Number(value)
   return Number.isFinite(numeric) ? fmt(numeric) : String(value)
+}
+
+function buildPolicyImpact(policy: PolicyResponse | null, form: PolicyPayload) {
+  if (!policy) return ['Selecione uma política para ver o impacto da alteração.']
+
+  const changes = [
+    impactMoney('Limite por nota', policy.maxAmount, form.maxAmount),
+    impactMoney('Limite diário', policy.dailyLimit, form.dailyLimit),
+    impactMoney('Limite mensal', policy.monthlyLimit, form.monthlyLimit),
+    impactNumber('Score mínimo', policy.autoApprovalMinScore, form.autoApprovalMinScore),
+    policy.requiresReceipt !== form.requiresReceipt
+      ? `Comprovante: ${policy.requiresReceipt ? 'obrigatório' : 'opcional'} -> ${form.requiresReceipt ? 'obrigatório' : 'opcional'}`
+      : null,
+    String(policy.description ?? '') !== String(form.description ?? '') ? 'Regras para IA serão atualizadas.' : null,
+  ].filter(Boolean) as string[]
+
+  return changes.length > 0 ? changes : ['Nenhuma mudança material em relação à política atual.']
+}
+
+function impactMoney(label: string, before: number | null, after: string | null) {
+  const beforeNumber = before == null ? null : Number(before)
+  const afterNumber = after == null || after === '' ? null : Number(after)
+  if (beforeNumber === afterNumber) return null
+  return `${label}: ${beforeNumber == null ? '-' : fmt(beforeNumber)} -> ${afterNumber == null || Number.isNaN(afterNumber) ? '-' : fmt(afterNumber)}`
+}
+
+function impactNumber(label: string, before: number, after: number) {
+  if (before === after) return null
+  return `${label}: ${before} -> ${after}`
 }
