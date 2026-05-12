@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getMyExpense, retryExpenseOcr, submitEmployeeCorrection } from '../../api'
+import { AttachmentPreview } from '../../components/attachments/AttachmentPreview'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -40,6 +41,7 @@ function buildTimeline(expense: ExpenseResponse): TimelineItem[] {
 export function F04Detalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const token = getToken()
   const [expense, setExpense] = useState<ExpenseResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
@@ -55,7 +57,6 @@ export function F04Detalhe() {
   }
 
   async function loadExpense() {
-    const token = getToken()
     if (!token || !id) return null
     const loaded = await getMyExpense(token, id)
     setExpense(loaded)
@@ -127,7 +128,6 @@ export function F04Detalhe() {
   const canCorrectNonFinancialFields = Boolean(expense?.amount != null && expense.amount > 0)
 
   async function retryOcr() {
-    const token = getToken()
     if (!token || !id) return
     setRetrying(true)
     setError(null)
@@ -143,7 +143,6 @@ export function F04Detalhe() {
   }
 
   async function handleCorrectionSubmit() {
-    const token = getToken()
     if (!token || !id || !expense) return
 
     if (!title.trim()) {
@@ -239,6 +238,15 @@ export function F04Detalhe() {
                 onSubmit={() => void handleCorrectionSubmit()}
               />
             )}
+
+            <Card>
+              <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Foto da nota</p>
+              {expense.attachments[0] ? (
+                <AttachmentPreview attachment={expense.attachments[0]} token={token!} />
+              ) : (
+                <p className="text-[12px] text-gray-400">Sem foto anexada.</p>
+              )}
+            </Card>
 
             <Card>
               <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Dados da nota</p>

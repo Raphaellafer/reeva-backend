@@ -20,6 +20,9 @@ function todayLocalDate() {
 export function F02EnviarNF() {
   const navigate = useNavigate()
   const [file, setFile] = useState<File | null>(null)
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
+  const [photoConfirmed, setPhotoConfirmed] = useState(false)
+  const [photoCheck, setPhotoCheck] = useState<PhotoCheck | null>(null)
   const [projects, setProjects] = useState<ProjectResponse[]>([])
   const [projectId, setProjectId] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
@@ -37,9 +40,42 @@ export function F02EnviarNF() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar projetos.'))
   }, [])
 
+  useEffect(() => {
+    if (!file) {
+      setFilePreviewUrl(null)
+      setPhotoCheck(null)
+      return
+    }
+
+    let active = true
+    const url = URL.createObjectURL(file)
+    setFilePreviewUrl(url)
+    setPhotoCheck({ status: 'checking', title: 'Verificando imagem...', message: 'Aguarde a leitura do arquivo selecionado.' })
+
+    checkPhotoQuality(file, url)
+      .then((result) => {
+        if (active) setPhotoCheck(result)
+      })
+      .catch(() => {
+        if (active) {
+          setPhotoCheck({
+            status: 'warning',
+            title: 'Nao foi possivel validar a nitidez',
+            message: 'Confira se a foto esta legivel antes de confirmar o envio.',
+          })
+        }
+      })
+
+    return () => {
+      active = false
+      URL.revokeObjectURL(url)
+    }
+  }, [file])
+
   function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null
     setFile(selected)
+    setPhotoConfirmed(false)
     setError(null)
   }
 
@@ -80,7 +116,7 @@ export function F02EnviarNF() {
     () => projects.find((project) => project.id === projectId),
     [projectId, projects]
   )
-  const canSubmit = Boolean(file && projectId && category && !submitting)
+  const canSubmit = Boolean(file && photoConfirmed && photoCheck?.status !== 'bad' && projectId && category && !submitting)
 
   return (
     <MobileShell>
@@ -104,11 +140,17 @@ export function F02EnviarNF() {
           </div>
 
           {file && (
-            <div className="mt-3 rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-[#27500A]/70">Arquivo selecionado</p>
-              <p className="mt-1 truncate text-[13px] font-medium text-[#1a1a2e]">{file.name}</p>
-              <p className="text-[11px] text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
-            </div>
+            <PhotoReview
+              file={file}
+              previewUrl={filePreviewUrl}
+              check={photoCheck}
+              confirmed={photoConfirmed}
+              onConfirmChange={setPhotoConfirmed}
+              onClear={() => {
+                setFile(null)
+                setPhotoConfirmed(false)
+              }}
+            />
           )}
         </StepCard>
 
@@ -149,6 +191,7 @@ export function F02EnviarNF() {
         <StepCard step="3" title="Revise e envie">
           <div className="space-y-2 text-[12px]">
             <ReviewRow label="Arquivo" value={file?.name ?? 'Pendente'} pending={!file} />
+            <ReviewRow label="Foto conferida" value={photoConfirmed ? 'Confirmada' : 'Pendente'} pending={!photoConfirmed} />
             <ReviewRow label="Projeto" value={selectedProject?.name ?? 'Pendente'} pending={!selectedProject} />
             <ReviewRow label="Categoria" value={category ? categoryLabels[category] : 'Pendente'} pending={!category} />
           </div>
@@ -180,6 +223,134 @@ export function F02EnviarNF() {
       </div>
     </MobileShell>
   )
+}
+
+type PhotoCheck = {
+  status: 'checking' | 'good' | 'warning' | 'bad'
+  title: string
+  message: string
+}
+
+function PhotoReview({
+  file,
+  previewUrl,
+  check,
+  confirmed,
+  onConfirmChange,
+  onClear,
+}: {
+  file: File
+  previewUrl: string | null
+  check: PhotoCheck | null
+  confirmed: boolean
+  onConfirmChange: (value: boolean) => void
+  onClear: () => void
+}) {
+  const checkClasses = {
+    checking: 'border-[#AFA9EC] bg-[#EEEDFE] text-[#3C3489]',
+    good: 'border-[#97C459] bg-[#EAF3DE] text-[#27500A]',
+    warning: 'border-[#FAC775] bg-[#FAEEDA] text-[#633806]',
+    bad: 'border-[#F09595] bg-[#FCEBEB] text-[#791F1F]',
+  }
+
+  return (
+    <div className="mt-3 space-y-3 rounded-[10px] border border-black/[0.07] bg-white p-3">
+      {previewUrl ? (
+        <img src={previewUrl} alt={file.name} className="max-h-72 w-full rounded-[8px] border border-black/[0.07] bg-[#F8F8FC] object-contain" />
+      ) : (
+        <div className="h-52 animate-pulse rounded-[8px] bg-gray-100" />
+      )}
+
+      <div className="grid grid-cols-[1fr_auto] items-start gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{file.name}</p>
+          <p className="text-[11px] text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-[7px] border border-black/[0.08] px-2.5 py-1.5 text-[11px] font-medium text-gray-500"
+        >
+          Trocar
+        </button>
+      </div>
+
+      {check && (
+        <div className={`rounded-[8px] border p-3 ${checkClasses[check.status]}`}>
+          <p className="text-[12px] font-semibold">{check.title}</p>
+          <p className="mt-1 text-[11px] opacity-80">{check.message}</p>
+        </div>
+      )}
+
+      <label className={`flex items-start gap-2 rounded-[8px] border p-3 text-[12px] ${confirmed ? 'border-[#97C459] bg-[#EAF3DE] text-[#27500A]' : 'border-black/[0.07] bg-[#F8F8FC] text-gray-600'}`}>
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={confirmed}
+          disabled={check?.status === 'checking' || check?.status === 'bad'}
+          onChange={(event) => onConfirmChange(event.target.checked)}
+        />
+        <span>Conferi a imagem e confirmo que os dados principais da nota estao legiveis.</span>
+      </label>
+    </div>
+  )
+}
+
+function checkPhotoQuality(file: File, previewUrl: string): Promise<PhotoCheck> {
+  if (!file.type.startsWith('image/')) {
+    return Promise.resolve({
+      status: 'bad',
+      title: 'Formato nao suportado',
+      message: 'Envie uma imagem JPG, PNG ou WEBP da nota.',
+    })
+  }
+
+  if (file.size < 80 * 1024) {
+    return Promise.resolve({
+      status: 'warning',
+      title: 'Arquivo muito leve',
+      message: 'A foto pode estar comprimida demais. Confira se CNPJ, data e valor estao legiveis.',
+    })
+  }
+
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => {
+      const { naturalWidth: width, naturalHeight: height } = image
+      const shortestSide = Math.min(width, height)
+      const aspectRatio = Math.max(width, height) / Math.max(1, shortestSide)
+
+      if (shortestSide < 700) {
+        resolve({
+          status: 'warning',
+          title: 'Resolucao baixa',
+          message: 'A foto pode dificultar a leitura da IA. Se os textos pequenos estiverem borrados, tire outra foto.',
+        })
+        return
+      }
+
+      if (aspectRatio > 4.5) {
+        resolve({
+          status: 'warning',
+          title: 'Imagem muito estreita',
+          message: 'Confira se a nota inteira aparece e se nao houve corte nas laterais.',
+        })
+        return
+      }
+
+      resolve({
+        status: 'good',
+        title: 'Imagem parece boa',
+        message: 'Resolucao e formato estao adequados. Confirme abaixo se os dados estao legiveis.',
+      })
+    }
+    image.onerror = () => resolve({
+      status: 'bad',
+      title: 'Imagem nao pode ser aberta',
+      message: 'Escolha outra foto da nota para continuar.',
+    })
+    image.src = previewUrl
+  })
 }
 
 function StepCard({ step, title, children }: { step: string; title: string; children: React.ReactNode }) {

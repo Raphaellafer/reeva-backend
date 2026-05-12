@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getMyExpenses } from '../../api'
+import { AttachmentPreview } from '../../components/attachments/AttachmentPreview'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
@@ -57,6 +58,7 @@ function monthLabel(key: string) {
 }
 
 export function F03Historico() {
+  const token = getToken()
   const [filter, setFilter] = useState<Filter>('TODOS')
   const [query, setQuery] = useState('')
   const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
@@ -64,7 +66,6 @@ export function F03Historico() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = getToken()
     if (!token) return
     getMyExpenses(token)
       .then((page) => setExpenses(page.content))
@@ -138,8 +139,13 @@ export function F03Historico() {
                   to={`/funcionario/nota/${expense.id}`}
                   className={`block rounded-[10px] border border-black/[0.07] border-l-4 bg-white ${statusBorder[expense.status] ?? 'border-l-gray-300'} p-3`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                  <div className="flex items-start gap-3">
+                    {expense.attachments[0] && (
+                      <div className="shrink-0">
+                        <AttachmentPreview attachment={expense.attachments[0]} token={token!} compact />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{expense.title}</p>
                       <p className="text-[11px] text-gray-400">
                         {expense.projectName} · {categoryLabels[expense.category]} · {fmtDate(expense.expenseDate)}
