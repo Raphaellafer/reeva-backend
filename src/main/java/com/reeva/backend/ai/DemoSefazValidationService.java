@@ -48,41 +48,45 @@ public class DemoSefazValidationService implements SefazValidationService {
                 "Codigo fiscal parcial ou nao verificavel. Chave de acesso de 44 digitos nao foi encontrada.");
         }
 
-        String structuralError = validateAccessKey(accessKey, supplierCnpj);
-        if (structuralError != null) {
-            return new SefazValidationResult(SefazStatus.INVALID, structuralError);
+        ValidationIssue structuralIssue = validateAccessKey(accessKey, supplierCnpj);
+        if (structuralIssue != null) {
+            return new SefazValidationResult(structuralIssue.status(), structuralIssue.message());
         }
 
         return new SefazValidationResult(SefazStatus.VALID,
             "Chave fiscal passou na validacao estrutural demo. Integracao SEFAZ real ainda e necessaria para confirmacao oficial.");
     }
 
-    private String validateAccessKey(String accessKey, CnpjCandidate supplierCnpj) {
+    private ValidationIssue validateAccessKey(String accessKey, CnpjCandidate supplierCnpj) {
         String ufCode = accessKey.substring(0, 2);
         if (!VALID_UF_CODES.contains(ufCode)) {
-            return "Chave fiscal invalida: codigo de UF inexistente.";
+            return reviewIssue("Chave fiscal nao pode ser confirmada: codigo de UF inexistente ou leitura OCR incorreta.");
         }
 
         int month = Integer.parseInt(accessKey.substring(4, 6));
         if (month < 1 || month > 12) {
-            return "Chave fiscal invalida: mes de emissao inexistente.";
+            return reviewIssue("Chave fiscal nao pode ser confirmada: mes de emissao inexistente ou leitura OCR incorreta.");
         }
 
         String keyCnpj = accessKey.substring(6, 20);
         if (supplierCnpj.checksumValid() && !keyCnpj.equals(supplierCnpj.digits())) {
-            return "Chave fiscal invalida: CNPJ da chave nao confere com o CNPJ do fornecedor.";
+            return reviewIssue("Chave fiscal precisa de revisao: CNPJ da chave nao confere com o CNPJ do fornecedor, possivelmente por erro de OCR.");
         }
 
         String model = accessKey.substring(20, 22);
         if (!VALID_FISCAL_MODELS.contains(model)) {
-            return "Chave fiscal invalida: modelo fiscal diferente de NF-e/NFC-e.";
+            return reviewIssue("Chave fiscal nao pode ser confirmada: modelo fiscal diferente de NF-e/NFC-e ou leitura OCR incorreta.");
         }
 
         if (!hasValidAccessKeyCheckDigit(accessKey)) {
-            return "Chave fiscal invalida: digito verificador nao confere.";
+            return reviewIssue("Chave fiscal precisa de revisao: digito verificador nao confere, possivelmente por erro de OCR.");
         }
 
         return null;
+    }
+
+    private ValidationIssue reviewIssue(String message) {
+        return new ValidationIssue(SefazStatus.UNAVAILABLE, message);
     }
 
     private String extractAccessKey(String verificationCode) {
@@ -168,5 +172,7 @@ public class DemoSefazValidationService implements SefazValidationService {
     }
 
     private record CnpjCandidate(String digits, boolean checksumValid) {}
+
+    private record ValidationIssue(SefazStatus status, String message) {}
 }
 

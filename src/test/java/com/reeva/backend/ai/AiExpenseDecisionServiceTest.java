@@ -24,7 +24,7 @@ class AiExpenseDecisionServiceTest {
 
     @ParameterizedTest
     @EnumSource(ExpenseCategory.class)
-    void invalidFiscalValidationShouldRejectAutomaticallyForEveryCategory(ExpenseCategory category) throws Exception {
+    void invalidFiscalValidationShouldRequireReviewForEveryCategory(ExpenseCategory category) throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
         SefazValidationService sefazValidationService = request ->
             new SefazValidationResult(SefazStatus.INVALID, "CNPJ do fornecedor invalido.");
@@ -36,17 +36,17 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, readableResult(category, new BigDecimal("40.00")));
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.REJECTED_BY_FISCAL_VALIDATION);
-        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_REJECTED);
+        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
         assertThat(decision.alertLevel()).isEqualTo(AiAlertLevel.HIGH);
-        assertThat(decision.policyCompliant()).isFalse();
+        assertThat(decision.policyCompliant()).isTrue();
         assertThat(decision.policyViolationReason()).isNull();
-        assertThat(decision.summary()).contains("Reembolso recusado automaticamente por falha fiscal critica");
-        assertThat(decision.manualReviewReason()).isNull();
+        assertThat(decision.summary()).contains("Revisao fiscal obrigatoria");
+        assertThat(decision.manualReviewReason()).contains("Gestor deve revisar");
     }
 
     @Test
-    void invalidFiscalValidationShouldRejectEvenWhenOcrIsUnreadable() throws Exception {
+    void invalidFiscalValidationShouldRequireReviewEvenWhenOcrIsUnreadable() throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
         SefazValidationService sefazValidationService = request ->
             new SefazValidationResult(SefazStatus.INVALID, "CNPJ do fornecedor invalido.");
@@ -79,9 +79,9 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, unreadableWithFiscalData);
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.REJECTED_BY_FISCAL_VALIDATION);
-        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_REJECTED);
-        assertThat(decision.summary()).contains("falha fiscal critica");
+        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
+        assertThat(decision.summary()).contains("Revisao fiscal obrigatoria");
     }
 
     @ParameterizedTest

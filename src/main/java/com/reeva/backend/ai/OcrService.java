@@ -601,6 +601,12 @@ public class OcrService {
             return "Valor total da nota nao foi lido com confianca. Funcionario deve tirar uma nova foto.";
         }
 
+        // In demo mode, item-level OCR can confuse quantities and unit prices on narrow thermal receipts.
+        // Keep the extracted total as the source of truth instead of blocking the workflow.
+        if (shouldTrustTotalAmountForDemo()) {
+            return null;
+        }
+
         if (lineItems.isEmpty()) {
             return null;
         }
@@ -661,6 +667,10 @@ public class OcrService {
                 + ". Funcionario deve tirar uma nova foto mais nitida e centralizada.";
         }
         return null;
+    }
+
+    private boolean shouldTrustTotalAmountForDemo() {
+        return true;
     }
 
     private boolean hasDiscountEvidence(JsonNode extraction, String rawOcrText) {
@@ -947,22 +957,22 @@ public class OcrService {
         expense.setDuplicateOfExpense(original);
         expense.setAiScore(result.score() == null ? 0 : (short) Math.min(result.score(), 20));
         expense.setAiAlertLevel(AiAlertLevel.HIGH);
-        expense.setAiAnalysis("Nota rejeitada automaticamente por duplicidade: " + evidence + ".");
-        expense.setAiDecision(AiDecision.DUPLICATE_REJECTED);
-        expense.setAiDecisionReason("Duplicidade confirmada contra a despesa " + original.getId() + " por " + evidence + ".");
-        expense.setPolicyCompliant(false);
-        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso rejeitado automaticamente.");
-        expense.setSefazStatus(SefazStatus.INVALID);
-        expense.setSefazValidationMessage("Documento duplicado confirmado na base da empresa.");
+        expense.setAiAnalysis("Possivel duplicidade detectada: " + evidence + ".");
+        expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
+        expense.setAiDecisionReason("Possivel duplicidade contra a despesa " + original.getId() + " por " + evidence + ".");
+        expense.setPolicyCompliant(true);
+        expense.setPolicyViolationReason(null);
+        expense.setSefazStatus(SefazStatus.UNAVAILABLE);
+        expense.setSefazValidationMessage("Possivel duplicidade detectada na base da empresa; gestor deve revisar.");
         expense.setAutoApprovalEligible(false);
-        expense.setManualReviewReason(null);
+        expense.setManualReviewReason("Possivel duplicidade detectada. Gestor deve revisar antes de aprovar.");
         expense.setAiCheckedAt(Instant.now());
 
         ExpenseStatus from = expense.getStatus();
-        expense.transitionTo(ExpenseStatus.MANAGER_REJECTED);
+        expense.transitionTo(ExpenseStatus.PENDING_REVIEW);
         var history = new ExpenseStatusHistory(
-            expense, from, ExpenseStatus.MANAGER_REJECTED, null,
-            "IA: nota rejeitada por duplicidade da despesa " + original.getId() + " (" + evidence + ")"
+            expense, from, ExpenseStatus.PENDING_REVIEW, null,
+            "IA: possivel duplicidade da despesa " + original.getId() + " (" + evidence + ")"
         );
         history.setAiScore(expense.getAiScore());
         expense.getStatusHistory().add(history);

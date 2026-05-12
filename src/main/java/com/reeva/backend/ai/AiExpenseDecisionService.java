@@ -30,9 +30,11 @@ public class AiExpenseDecisionService {
         PolicyCheck policy = checkPolicy(expense, result, category);
 
         if (sefaz.status() == SefazStatus.INVALID) {
-            return decision(AiDecision.REJECTED_BY_FISCAL_VALIDATION, ExpenseStatus.MANAGER_REJECTED,
-                AiAlertLevel.HIGH, score, false, null, sefaz, false,
-                null, "Reembolso recusado automaticamente por falha fiscal critica. " + sefaz.message());
+            return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
+                AiAlertLevel.HIGH, score, true, null, sefaz, false,
+                "Validacao fiscal inconclusiva ou invalida no modo demo. Gestor deve revisar antes de aprovar.",
+                "Revisao fiscal obrigatoria: a validacao automatica marcou um risco e enviou o reembolso para analise do gestor. "
+                    + sefaz.message());
         }
 
         if (!result.readable()) {

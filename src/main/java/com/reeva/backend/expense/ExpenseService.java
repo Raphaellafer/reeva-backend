@@ -146,20 +146,20 @@ public class ExpenseService {
         expense.setDuplicateOfExpense(original);
         expense.setAiScore((short) 0);
         expense.setAiAlertLevel(AiAlertLevel.HIGH);
-        expense.setAiAnalysis("Nota rejeitada automaticamente por duplicidade: " + evidence + ".");
-        expense.setAiDecision(AiDecision.DUPLICATE_REJECTED);
-        expense.setAiDecisionReason("Duplicidade confirmada contra a despesa " + original.getId() + " por " + evidence + ".");
-        expense.setPolicyCompliant(false);
-        expense.setPolicyViolationReason("Nota fiscal duplicada. Reembolso rejeitado automaticamente.");
-        expense.setSefazStatus(SefazStatus.INVALID);
-        expense.setSefazValidationMessage("Documento duplicado confirmado na base da empresa.");
+        expense.setAiAnalysis("Possivel duplicidade detectada: " + evidence + ".");
+        expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
+        expense.setAiDecisionReason("Possivel duplicidade contra a despesa " + original.getId() + " por " + evidence + ".");
+        expense.setPolicyCompliant(true);
+        expense.setPolicyViolationReason(null);
+        expense.setSefazStatus(SefazStatus.UNAVAILABLE);
+        expense.setSefazValidationMessage("Possivel duplicidade detectada na base da empresa; gestor deve revisar.");
         expense.setAutoApprovalEligible(false);
-        expense.setManualReviewReason(null);
-        expense.transitionTo(ExpenseStatus.MANAGER_REJECTED);
+        expense.setManualReviewReason("Possivel duplicidade detectada. Gestor deve revisar antes de aprovar.");
+        expense.transitionTo(ExpenseStatus.PENDING_REVIEW);
         expense.getStatusHistory().add(
             new ExpenseStatusHistory(
-                expense, from, ExpenseStatus.MANAGER_REJECTED, currentUser,
-                "Sistema: nota rejeitada por duplicidade da despesa " + original.getId() + " (" + evidence + ")"
+                expense, from, ExpenseStatus.PENDING_REVIEW, currentUser,
+                "Sistema: possivel duplicidade da despesa " + original.getId() + " (" + evidence + ")"
             )
         );
         return expenseRepository.save(expense);

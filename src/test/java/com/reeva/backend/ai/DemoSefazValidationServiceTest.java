@@ -26,7 +26,7 @@ class DemoSefazValidationServiceTest {
     }
 
     @Test
-    void rejectsAccessKeyWithInvalidCheckDigit() {
+    void sendsAccessKeyWithInvalidCheckDigitToReview() {
         String cnpj = "11.222.333/0001-81";
         String accessKey = buildAccessKey("11222333000181");
         String invalidAccessKey = accessKey.substring(0, 43) + differentDigit(accessKey.charAt(43));
@@ -38,8 +38,23 @@ class DemoSefazValidationServiceTest {
             invalidAccessKey
         ));
 
-        assertThat(result.status()).isEqualTo(SefazStatus.INVALID);
+        assertThat(result.status()).isEqualTo(SefazStatus.UNAVAILABLE);
         assertThat(result.message()).contains("digito verificador");
+    }
+
+    @Test
+    void sendsSupplierCnpjMismatchToReviewInsteadOfRejectingAutomatically() {
+        String accessKey = buildAccessKey("11222333000181");
+
+        SefazValidationResult result = service.validate(new SefazValidationRequest(
+            "61.585.865/3492-00",
+            LocalDate.of(2025, 8, 15),
+            new BigDecimal("60.00"),
+            accessKey
+        ));
+
+        assertThat(result.status()).isEqualTo(SefazStatus.UNAVAILABLE);
+        assertThat(result.message()).contains("CNPJ da chave");
     }
 
     @Test
