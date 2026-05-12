@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getTeamEmployee } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
@@ -8,23 +9,16 @@ import { MetricCard } from '../../components/ui/MetricCard'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { getStoredToken } from '../../hooks/useAuth'
 import { categoryLabels, fmt, fmtDate, initials, isApproved, isPending } from '../../realData'
-import type { EmployeeProfile } from '../../types'
 
 export function G05Funcionario() {
   const { id } = useParams<{ id: string }>()
   const token = getStoredToken() ?? ''
-  const [profile, setProfile] = useState<EmployeeProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!id) return
-    setLoading(true)
-    getTeamEmployee(token, id)
-      .then(setProfile)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar funcionário.'))
-      .finally(() => setLoading(false))
-  }, [token, id])
+  const { data: profile, isLoading, error } = useQuery({
+    queryKey: ['team-employee', id],
+    queryFn: () => getTeamEmployee(token, id!),
+    enabled: !!token && !!id,
+  })
 
   const approvalRate = useMemo(() => {
     if (!profile || profile.recentExpenses.length === 0) return 0
@@ -32,7 +26,7 @@ export function G05Funcionario() {
     return Math.round((approved * 1000) / profile.recentExpenses.length) / 10
   }, [profile])
 
-  if (loading) {
+  if (isLoading) {
     return (
       <DesktopShell title="Perfil do funcionário" role="GERENTE">
         <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>
@@ -43,7 +37,7 @@ export function G05Funcionario() {
   if (error || !profile) {
     return (
       <DesktopShell title="Perfil do funcionário" role="GERENTE">
-        <p className="py-8 text-center text-[13px] text-red-500">{error ?? 'Funcionário não encontrado'}</p>
+        <p className="py-8 text-center text-[13px] text-red-500">{error instanceof Error ? error.message : 'Funcionário não encontrado'}</p>
       </DesktopShell>
     )
   }

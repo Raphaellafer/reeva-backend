@@ -145,33 +145,29 @@ public class ManagerService {
 
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(User manager) {
-        List<ExpenseStatus> pendingStatuses = List.of(
-            ExpenseStatus.SUBMITTED, ExpenseStatus.PENDING_REVIEW
-        );
-        long pending = expenseRepository.countByManagerIdAndStatuses(manager.getId(), pendingStatuses);
-        long approved = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
-            List.of(ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID));
-        long rejected = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
-            List.of(ExpenseStatus.MANAGER_REJECTED));
-        long needsRevision = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
-            List.of(ExpenseStatus.NEEDS_REVISION));
-        BigDecimal approvedTotal = expenseRepository.sumAmountByManagerIdAndStatus(
-            manager.getId(), ExpenseStatus.MANAGER_APPROVED);
+        Object[] stats = expenseRepository.aggregateDashboardByManagerId(manager.getId());
         long teamSize = userRepository.countByManagerId(manager.getId());
-        long autoApproved = expenseRepository.countByManagerIdAndAiDecision(
-            manager.getId(), AiDecision.AUTO_APPROVED);
-        long policyViolations = expenseRepository.countPolicyViolationsByManagerId(manager.getId());
-        long manualReview = expenseRepository.countByManagerIdAndAiDecision(
-            manager.getId(), AiDecision.READY_FOR_MANAGER)
-            + expenseRepository.countByManagerIdAndAiDecision(
-                manager.getId(), AiDecision.PENDING_MANUAL_REVIEW);
+
+        long pending       = toLong(stats[0]);
+        long approved      = toLong(stats[1]);
+        long rejected      = toLong(stats[2]);
+        long needsRevision = toLong(stats[3]);
+        BigDecimal approvedTotal = stats[4] != null ? new BigDecimal(stats[4].toString()) : BigDecimal.ZERO;
+        long autoApproved      = toLong(stats[5]);
+        long policyViolations  = toLong(stats[6]);
+        long manualReview      = toLong(stats[7]);
+
         long totalRouted = autoApproved + manualReview + policyViolations;
         int automationRate = totalRouted == 0 ? 0 : (int) Math.round((autoApproved * 100.0) / totalRouted);
         BigDecimal estimatedSavings = BigDecimal.valueOf(autoApproved).multiply(new BigDecimal("18.00"));
 
         return new DashboardResponse(pending, approved, rejected, needsRevision,
-            approvedTotal != null ? approvedTotal : BigDecimal.ZERO, teamSize,
-            autoApproved, policyViolations, manualReview, estimatedSavings, automationRate);
+            approvedTotal, teamSize, autoApproved, policyViolations, manualReview,
+            estimatedSavings, automationRate);
+    }
+
+    private static long toLong(Object value) {
+        return value != null ? ((Number) value).longValue() : 0L;
     }
 
     // ── Policies ──────────────────────────────────────────────────────
@@ -312,14 +308,25 @@ public class ManagerService {
         List<ExpenseStatus> approvedStatuses = List.of(
             ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID
         );
+
+        List<Object[]> aggregates = expenseRepository.aggregateStatsByManagerId(
+            manager.getId(), pendingStatuses, approvedStatuses
+        );
+
+        Map<UUID, Object[]> statsByUserId = new java.util.HashMap<>();
+        for (Object[] row : aggregates) {
+            statsByUserId.put((UUID) row[0], row);
+        }
+
         return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(manager.getId())
             .stream()
-            .map(emp -> EmployeeListResponse.of(
-                emp,
-                expenseRepository.countByUserIdAndStatuses(emp.getId(), pendingStatuses),
-                expenseRepository.countByUserIdAndStatuses(emp.getId(), approvedStatuses),
-                expenseRepository.sumAmountByUserIdAndStatuses(emp.getId(), approvedStatuses)
-            ))
+            .map(emp -> {
+                Object[] stats = statsByUserId.get(emp.getId());
+                long pending = stats != null ? ((Number) stats[1]).longValue() : 0L;
+                long approved = stats != null ? ((Number) stats[2]).longValue() : 0L;
+                BigDecimal total = stats != null ? new BigDecimal(stats[3].toString()) : BigDecimal.ZERO;
+                return EmployeeListResponse.of(emp, pending, approved, total);
+            })
             .toList();
     }
 

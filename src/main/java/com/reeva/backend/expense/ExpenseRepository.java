@@ -40,13 +40,24 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     // ── Manager queries ──────────────────────────────────────────────
 
-    @Query("""
-        SELECT e FROM Expense e
-        WHERE e.user.manager.id = :managerId
-          AND e.deleted = false
-          AND (:status IS NULL OR e.status = :status)
-        ORDER BY e.createdAt DESC
-        """)
+    @Query(
+        value = """
+            SELECT e FROM Expense e
+            JOIN FETCH e.user u
+            JOIN FETCH e.project p
+            LEFT JOIN FETCH u.department
+            WHERE u.manager.id = :managerId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+            ORDER BY e.createdAt DESC
+            """,
+        countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            WHERE e.user.manager.id = :managerId
+              AND e.deleted = false
+              AND (:status IS NULL OR e.status = :status)
+            """
+    )
     Page<Expense> findByManagerId(
         @Param("managerId") UUID managerId,
         @Param("status") ExpenseStatus status,
@@ -56,13 +67,24 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     @Query("SELECT e FROM Expense e WHERE e.id = :id AND e.user.manager.id = :managerId AND e.deleted = false")
     Optional<Expense> findByIdAndManagerId(@Param("id") UUID id, @Param("managerId") UUID managerId);
 
-    @Query("""
-        SELECT e FROM Expense e
-        WHERE e.user.id = :userId
-          AND e.user.manager.id = :managerId
-          AND e.deleted = false
-        ORDER BY e.createdAt DESC
-        """)
+    @Query(
+        value = """
+            SELECT e FROM Expense e
+            JOIN FETCH e.user u
+            JOIN FETCH e.project p
+            LEFT JOIN FETCH u.department
+            WHERE u.id = :userId
+              AND u.manager.id = :managerId
+              AND e.deleted = false
+            ORDER BY e.createdAt DESC
+            """,
+        countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            WHERE e.user.id = :userId
+              AND e.user.manager.id = :managerId
+              AND e.deleted = false
+            """
+    )
     Page<Expense> findByUserIdAndManagerId(
         @Param("userId") UUID userId,
         @Param("managerId") UUID managerId,
@@ -205,6 +227,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     );
 
     @Query("""
+        SELECT
+            SUM(CASE WHEN e.status IN ('SUBMITTED','PENDING_REVIEW') THEN 1 ELSE 0 END),
+            SUM(CASE WHEN e.status IN ('MANAGER_APPROVED','FINANCE_APPROVED','PAID') THEN 1 ELSE 0 END),
+            SUM(CASE WHEN e.status = 'MANAGER_REJECTED' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN e.status = 'NEEDS_REVISION' THEN 1 ELSE 0 END),
+            COALESCE(SUM(CASE WHEN e.status = 'MANAGER_APPROVED' THEN e.amount ELSE 0 END), 0),
+            SUM(CASE WHEN e.aiDecision = 'AUTO_APPROVED' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN e.policyCompliant = false AND (e.aiDecision IS NULL OR e.aiDecision <> 'REJECTED_BY_FISCAL_VALIDATION') THEN 1 ELSE 0 END),
+            SUM(CASE WHEN e.aiDecision IN ('READY_FOR_MANAGER','PENDING_MANUAL_REVIEW') THEN 1 ELSE 0 END)
+        FROM Expense e
+        WHERE e.user.manager.id = :managerId
+          AND e.deleted = false
+        """)
+    Object[] aggregateDashboardByManagerId(@Param("managerId") UUID managerId);
+
+    @Query("""
         SELECT e FROM Expense e
         WHERE e.company.id = :companyId
           AND e.receiptFingerprint = :fingerprint
@@ -216,5 +254,21 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("companyId") UUID companyId,
         @Param("fingerprint") String fingerprint,
         @Param("currentExpenseId") UUID currentExpenseId
+    );
+
+    @Query("""
+        SELECT e.user.id,
+               SUM(CASE WHEN e.status IN :pendingStatuses THEN 1 ELSE 0 END),
+               SUM(CASE WHEN e.status IN :approvedStatuses THEN 1 ELSE 0 END),
+               COALESCE(SUM(CASE WHEN e.status IN :approvedStatuses THEN e.amount ELSE 0 END), 0)
+        FROM Expense e
+        WHERE e.user.manager.id = :managerId
+          AND e.deleted = false
+        GROUP BY e.user.id
+        """)
+    List<Object[]> aggregateStatsByManagerId(
+        @Param("managerId") UUID managerId,
+        @Param("pendingStatuses") List<ExpenseStatus> pendingStatuses,
+        @Param("approvedStatuses") List<ExpenseStatus> approvedStatuses
     );
 }

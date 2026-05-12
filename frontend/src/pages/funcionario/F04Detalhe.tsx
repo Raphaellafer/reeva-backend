@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getMyExpense, retryExpenseOcr, submitEmployeeCorrection } from '../../api'
 import { AttachmentPreview } from '../../components/attachments/AttachmentPreview'
 import { MobileShell } from '../../components/layout/MobileShell'
@@ -20,12 +21,12 @@ import {
 } from '../../realData'
 import { getToken } from '../../session'
 import type { TimelineItem } from '../../components/ui/Timeline'
-import type { ExpenseCategory, ExpenseResponse } from '../../types'
+import type { ExpenseCategory } from '../../types'
 
 const categories = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
 
-function buildTimeline(expense: ExpenseResponse): TimelineItem[] {
-  return expense.statusHistory.map((item) => ({
+function buildTimeline(expense: NonNullable<ReturnType<typeof useQuery<any>>['data']>): TimelineItem[] {
+  return expense.statusHistory.map((item: any) => ({
     label: item.notes || statusLabel(item.toStatus),
     date: new Date(item.changedAt).toLocaleString('pt-BR'),
     color: item.toStatus === 'NEEDS_REVISION' || item.toStatus.includes('REJECTED')
@@ -42,53 +43,22 @@ export function F04Detalhe() {
   const { id } = useParams()
   const navigate = useNavigate()
   const token = getToken()
-  const [expense, setExpense] = useState<ExpenseResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+
   const [retrying, setRetrying] = useState(false)
   const [savingCorrection, setSavingCorrection] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
   const [expenseDate, setExpenseDate] = useState('')
   const [description, setDescription] = useState('')
 
-  function shouldPoll(current: ExpenseResponse | null) {
-    return current?.status === 'SUBMITTED'
-  }
-
-  async function loadExpense() {
-    if (!token || !id) return null
-    const loaded = await getMyExpense(token, id)
-    setExpense(loaded)
-    return loaded
-  }
-
-  useEffect(() => {
-    let cancelled = false
-    let attempts = 0
-    let timer: number | undefined
-
-    async function loadAndPoll() {
-      try {
-        const loaded = await loadExpense()
-        if (cancelled) return
-        if (loaded && shouldPoll(loaded) && attempts < 12) {
-          attempts += 1
-          timer = window.setTimeout(() => void loadAndPoll(), 2500)
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Falha ao carregar nota.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void loadAndPoll()
-    return () => {
-      cancelled = true
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [id])
+  const { data: expense, isLoading, error } = useQuery({
+    queryKey: ['my-expense', id],
+    queryFn: () => getMyExpense(token!, id!),
+    enabled: !!token && !!id,
+    refetchInterval: (query) => query.state.data?.status === 'SUBMITTED' ? 2500 : false,
+  })
 
   useEffect(() => {
     if (!expense) return
@@ -96,7 +66,7 @@ export function F04Detalhe() {
     setCategory(expense.category)
     setExpenseDate(expense.expenseDate ?? '')
     setDescription(expense.description ?? '')
-  }, [expense])
+  }, [expense?.id])
 
   const items = expense ? getReceiptLineItems(expense) : []
   const analysisMessages = expense
@@ -130,13 +100,12 @@ export function F04Detalhe() {
   async function retryOcr() {
     if (!token || !id) return
     setRetrying(true)
-    setError(null)
+    setActionError(null)
     try {
-      const updated = await retryExpenseOcr(token, id)
-      setExpense(updated)
-      window.setTimeout(() => void loadExpense().catch(() => undefined), 2500)
+      await retryExpenseOcr(token, id)
+      await queryClient.invalidateQueries({ queryKey: ['my-expense', id] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao tentar nova leitura.')
+      setActionError(err instanceof Error ? err.message : 'Falha ao tentar nova leitura.')
     } finally {
       setRetrying(false)
     }
@@ -146,34 +115,35 @@ export function F04Detalhe() {
     if (!token || !id || !expense) return
 
     if (!title.trim()) {
-      setError('Informe o estabelecimento ou um titulo para a nota.')
+      setActionError('Informe o estabelecimento ou um titulo para a nota.')
       return
     }
     if (!category) {
-      setError('Selecione a categoria da despesa.')
+      setActionError('Selecione a categoria da despesa.')
       return
     }
     if (!canCorrectNonFinancialFields) {
-      setError('O valor da nota precisa ser lido pela IA. Tire uma nova foto para tentar a leitura novamente.')
+      setActionError('O valor da nota precisa ser lido pela IA. Tire uma nova foto para tentar a leitura novamente.')
       return
     }
     if (!expenseDate) {
-      setError('Informe a data correta da nota.')
+      setActionError('Informe a data correta da nota.')
       return
     }
 
     setSavingCorrection(true)
-    setError(null)
+    setActionError(null)
     try {
-      const updated = await submitEmployeeCorrection(token, id, {
+      await submitEmployeeCorrection(token, id, {
         title: title.trim(),
         category,
         expenseDate,
         description,
       })
-      setExpense(updated)
+      await queryClient.invalidateQueries({ queryKey: ['my-expense', id] })
+      await queryClient.invalidateQueries({ queryKey: ['my-expenses'] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao enviar correcao para o gestor.')
+      setActionError(err instanceof Error ? err.message : 'Falha ao enviar correcao para o gestor.')
     } finally {
       setSavingCorrection(false)
     }
@@ -193,8 +163,12 @@ export function F04Detalhe() {
       </div>
 
       <div className="space-y-4 px-4 py-4">
-        {loading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
-        {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+        {isLoading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
+        {(error || actionError) && (
+          <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">
+            {actionError ?? (error instanceof Error ? error.message : 'Falha ao carregar nota.')}
+          </p>
+        )}
 
         {expense && (
           <>
@@ -427,7 +401,7 @@ function normalizeMessage(message: string | null | undefined) {
   return (message ?? '')
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/^(politica|fiscal|sefaz|revisao):\s*/i, '')
     .replace(/\s+/g, ' ')
     .trim()

@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getMyExpenses } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -15,7 +16,6 @@ import {
   nextActionText,
 } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseResponse } from '../../types'
 
 const statusBorder: Record<string, string> = {
   AI_APPROVED: 'border-l-[#97C459]',
@@ -31,24 +31,17 @@ const statusBorder: Record<string, string> = {
 }
 
 export function F01Home() {
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const token = getToken()
   const user = getStoredUser()
   const userName = user?.name ?? 'Usuário'
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) {
-      setLoading(false)
-      return
-    }
-    getMyExpenses(token)
-      .then((page) => setExpenses(page.content))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar notas.'))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['my-expenses'],
+    queryFn: () => getMyExpenses(token!),
+    enabled: !!token,
+  })
 
+  const expenses = data?.content ?? []
   const actionRequired = useMemo(() => expenses.filter(isActionRequired), [expenses])
   const pending = useMemo(() => expenses.filter(isPending), [expenses])
   const approved = useMemo(() => expenses.filter(isApproved), [expenses])
@@ -118,11 +111,11 @@ export function F01Home() {
             <Link to="/funcionario/historico" className="text-[11px] font-medium text-[#3C3489]">Ver histórico</Link>
           </div>
 
-          {loading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
-          {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+          {isLoading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
+          {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar notas.'}</p>}
 
           <div className="space-y-2">
-            {!loading && recent.length === 0 && (
+            {!isLoading && recent.length === 0 && (
               <div className="rounded-[10px] border border-dashed border-black/[0.12] bg-white p-5 text-center">
                 <p className="text-[13px] font-medium text-[#1a1a2e]">Nenhuma nota enviada ainda</p>
                 <p className="mt-1 text-[12px] text-gray-400">Quando você enviar uma nota, o status aparecerá aqui.</p>

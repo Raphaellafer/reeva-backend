@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getCfoCompliance } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
@@ -6,25 +7,17 @@ import { Card } from '../../components/ui/Card'
 import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt } from '../../data/mock'
 import { getToken } from '../../session'
-import type { CfoComplianceResponse } from '../../types'
 import { categoryLabels, riskVariantByLevel } from './cfoUtils'
 import { ExecutiveBarList } from './cfoVisuals'
 
 export function C03Compliance() {
-  const [data, setData] = useState<CfoComplianceResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const token = getToken()
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-
-    setLoading(true)
-    getCfoCompliance(token)
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar compliance.'))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['cfo-compliance'],
+    queryFn: () => getCfoCompliance(token!),
+    enabled: !!token,
+  })
 
   const employeeImpact = useMemo(
     () => [...(data?.riskyEmployees ?? [])]
@@ -57,32 +50,19 @@ export function C03Compliance() {
     [data]
   )
 
-  // Compliance por departamento — calculado a partir dos dados de funcionários
   const deptCompliance = useMemo(() => {
     const map = new Map<string, { violations: number; total: number }>()
     for (const emp of data?.riskyEmployees ?? []) {
       const dept = emp.departmentName ?? 'Sem departamento'
       const existing = map.get(dept) ?? { violations: 0, total: 0 }
-      map.set(dept, {
-        violations: existing.violations + emp.policyViolationCount,
-        total: existing.total + emp.expenseCount,
-      })
+      map.set(dept, { violations: existing.violations + emp.policyViolationCount, total: existing.total + emp.expenseCount })
     }
     return Array.from(map.entries())
-      .map(([dept, stats]) => ({
-        label: dept,
-        compliance: stats.total > 0 ? Math.round(((stats.total - stats.violations) / stats.total) * 100) : 100,
-        violations: stats.violations,
-        total: stats.total,
-      }))
+      .map(([dept, stats]) => ({ label: dept, compliance: stats.total > 0 ? Math.round(((stats.total - stats.violations) / stats.total) * 100) : 100, violations: stats.violations, total: stats.total }))
       .sort((a, b) => a.compliance - b.compliance)
   }, [data])
 
-  // Funcionários com mais de uma violação no período
-  const recidivistCount = useMemo(
-    () => (data?.riskyEmployees ?? []).filter((e) => e.policyViolationCount > 1).length,
-    [data]
-  )
+  const recidivistCount = useMemo(() => (data?.riskyEmployees ?? []).filter((e) => e.policyViolationCount > 1).length, [data])
 
   const deptBarItems = useMemo(
     () => deptCompliance.map((d) => ({
@@ -97,23 +77,13 @@ export function C03Compliance() {
 
   return (
     <DesktopShell title="Compliance financeiro" role="CFO">
-      {error && (
-        <Card className="mb-4 border-[#F09595] bg-[#FCEBEB]">
-          <p className="text-[13px] text-[#791F1F]">{error}</p>
-        </Card>
-      )}
+      {error && <Card className="mb-4 border-[#F09595] bg-[#FCEBEB]"><p className="text-[13px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar compliance.'}</p></Card>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Notas analisadas" value={loading ? '...' : data?.processedExpenseCount ?? 0} />
-        <MetricCard label="Compliance geral" value={loading ? '...' : `${data?.complianceRate ?? 0}%`} />
-        <MetricCard label="Duplicadas rejeitadas" value={loading ? '...' : data?.duplicateRejectedCount ?? 0} subtext="bloqueio antifraude" />
-        <MetricCard
-          label="Reincidentes"
-          value={loading ? '...' : recidivistCount}
-          subtext={recidivistCount > 0 ? 'funcionarios c/ 2+ violacoes' : 'sem reincidencias no periodo'}
-          trend={recidivistCount > 0 ? 'down' : undefined}
-          trendValue={recidivistCount > 0 ? 'atencao' : undefined}
-        />
+        <MetricCard label="Notas analisadas" value={isLoading ? '...' : data?.processedExpenseCount ?? 0} />
+        <MetricCard label="Compliance geral" value={isLoading ? '...' : `${data?.complianceRate ?? 0}%`} />
+        <MetricCard label="Duplicadas rejeitadas" value={isLoading ? '...' : data?.duplicateRejectedCount ?? 0} subtext="bloqueio antifraude" />
+        <MetricCard label="Reincidentes" value={isLoading ? '...' : recidivistCount} subtext={recidivistCount > 0 ? 'funcionarios c/ 2+ violacoes' : 'sem reincidencias no periodo'} trend={recidivistCount > 0 ? 'down' : undefined} trendValue={recidivistCount > 0 ? 'atencao' : undefined} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -126,11 +96,7 @@ export function C03Compliance() {
               </div>
               <Badge variant="purple">investigacao CFO</Badge>
             </div>
-            <ExecutiveBarList
-              items={employeeImpact}
-              formatValue={(value) => fmt(value)}
-              emptyText="Sem funcionarios com impacto financeiro no periodo."
-            />
+            <ExecutiveBarList items={employeeImpact} formatValue={(value) => fmt(value)} emptyText="Sem funcionarios com impacto financeiro no periodo." />
           </Card>
 
           <Card>
@@ -150,22 +116,12 @@ export function C03Compliance() {
                       <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#1a1a2e]">{e.employeeName}</td>
                       <td className="py-3 pr-3 text-gray-500">{e.departmentName ?? '-'}</td>
                       <td className="py-3 pr-3">{e.expenseCount}</td>
-                      <td className="py-3 pr-3">
-                        {e.policyViolationCount > 0
-                          ? <span className="font-medium text-[#633806]">{e.policyViolationCount}</span>
-                          : <span className="text-gray-400">0</span>}
-                      </td>
+                      <td className="py-3 pr-3">{e.policyViolationCount > 0 ? <span className="font-medium text-[#633806]">{e.policyViolationCount}</span> : <span className="text-gray-400">0</span>}</td>
                       <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#633806]">{fmt(e.avoidedAmount)}</td>
-                      <td className="py-3">
-                        <Badge variant={riskVariantByLevel(e.riskLevel)}>{e.riskLevel}</Badge>
-                      </td>
+                      <td className="py-3"><Badge variant={riskVariantByLevel(e.riskLevel)}>{e.riskLevel}</Badge></td>
                     </tr>
                   ))}
-                  {!loading && (data?.riskyEmployees.length ?? 0) === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-5 text-[13px] text-gray-400">Sem funcionarios com notas no periodo.</td>
-                    </tr>
-                  )}
+                  {!isLoading && (data?.riskyEmployees.length ?? 0) === 0 && <tr><td colSpan={6} className="py-5 text-[13px] text-gray-400">Sem funcionarios com notas no periodo.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -181,20 +137,12 @@ export function C03Compliance() {
               </div>
               <Badge variant={deptCompliance.length > 0 ? 'blue' : 'gray'}>{deptCompliance.length} depto(s)</Badge>
             </div>
-            <ExecutiveBarList
-              items={deptBarItems}
-              formatValue={(value) => `${value}%`}
-              emptyText="Sem dados de departamento no periodo."
-            />
+            <ExecutiveBarList items={deptBarItems} formatValue={(value) => `${value}%`} emptyText="Sem dados de departamento no periodo." />
           </Card>
 
           <Card>
             <p className="mb-3 text-[14px] font-medium text-[#1a1a2e]">Categorias sensiveis</p>
-            <ExecutiveBarList
-              items={categoryImpact}
-              formatValue={(value) => fmt(value)}
-              emptyText="Sem categorias no periodo."
-            />
+            <ExecutiveBarList items={categoryImpact} formatValue={(value) => fmt(value)} emptyText="Sem categorias no periodo." />
           </Card>
 
           <Card>
@@ -209,9 +157,7 @@ export function C03Compliance() {
                   <Badge variant={riskVariantByLevel(p.riskLevel)}>{p.riskLevel}</Badge>
                 </div>
               ))}
-              {!loading && (data?.riskyProjects.length ?? 0) === 0 && (
-                <p className="text-[13px] text-gray-400">Sem projetos com risco calculado.</p>
-              )}
+              {!isLoading && (data?.riskyProjects.length ?? 0) === 0 && <p className="text-[13px] text-gray-400">Sem projetos com risco calculado.</p>}
             </div>
           </Card>
         </div>

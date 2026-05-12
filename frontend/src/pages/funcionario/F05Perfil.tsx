@@ -1,25 +1,27 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getMyExpenses } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Button } from '../../components/ui/Button'
 import { clearAuth, getStoredUser } from '../../hooks/useAuth'
 import { fmt, initials, isActionRequired, isApproved, isPending } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseResponse } from '../../types'
 
 export function F05Perfil() {
   const navigate = useNavigate()
+  const token = getToken()
   const user = getStoredUser()
   const userName = user?.name ?? 'Funcionário'
   const userEmail = user?.email ?? ''
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    getMyExpenses(token).then((page) => setExpenses(page.content)).catch(() => undefined)
-  }, [])
+  const { data } = useQuery({
+    queryKey: ['my-expenses'],
+    queryFn: () => getMyExpenses(token!),
+    enabled: !!token,
+  })
+
+  const expenses = data?.content ?? []
 
   function handleLogout() {
     clearAuth()
