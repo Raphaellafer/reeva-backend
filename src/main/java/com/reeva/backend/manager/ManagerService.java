@@ -145,17 +145,27 @@ public class ManagerService {
 
     @Transactional(readOnly = true)
     public DashboardResponse getDashboard(User manager) {
-        Object[] stats = expenseRepository.aggregateDashboardByManagerId(manager.getId());
         long teamSize = userRepository.countByManagerId(manager.getId());
 
-        long pending       = toLong(stats[0]);
-        long approved      = toLong(stats[1]);
-        long rejected      = toLong(stats[2]);
-        long needsRevision = toLong(stats[3]);
-        BigDecimal approvedTotal = stats[4] != null ? new BigDecimal(stats[4].toString()) : BigDecimal.ZERO;
-        long autoApproved      = toLong(stats[5]);
-        long policyViolations  = toLong(stats[6]);
-        long manualReview      = toLong(stats[7]);
+        long pending = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
+            List.of(ExpenseStatus.SUBMITTED, ExpenseStatus.PENDING_REVIEW));
+        long approved = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
+            List.of(ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID));
+        long rejected = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
+            List.of(ExpenseStatus.MANAGER_REJECTED));
+        long needsRevision = expenseRepository.countByManagerIdAndStatuses(manager.getId(),
+            List.of(ExpenseStatus.NEEDS_REVISION));
+        BigDecimal approvedTotal = expenseRepository.sumAmountByManagerIdAndStatus(
+            manager.getId(), ExpenseStatus.MANAGER_APPROVED);
+        if (approvedTotal == null) {
+            approvedTotal = BigDecimal.ZERO;
+        }
+        long autoApproved = expenseRepository.countByManagerIdAndAiDecision(
+            manager.getId(), AiDecision.AUTO_APPROVED);
+        long policyViolations = expenseRepository.countPolicyViolationsByManagerId(manager.getId());
+        long manualReview = expenseRepository.countByManagerIdAndAiDecision(
+            manager.getId(), AiDecision.READY_FOR_MANAGER)
+            + expenseRepository.countByManagerIdAndAiDecision(manager.getId(), AiDecision.PENDING_MANUAL_REVIEW);
 
         long totalRouted = autoApproved + manualReview + policyViolations;
         int automationRate = totalRouted == 0 ? 0 : (int) Math.round((autoApproved * 100.0) / totalRouted);
@@ -164,10 +174,6 @@ public class ManagerService {
         return new DashboardResponse(pending, approved, rejected, needsRevision,
             approvedTotal, teamSize, autoApproved, policyViolations, manualReview,
             estimatedSavings, automationRate);
-    }
-
-    private static long toLong(Object value) {
-        return value != null ? ((Number) value).longValue() : 0L;
     }
 
     // ── Policies ──────────────────────────────────────────────────────

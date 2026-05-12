@@ -227,22 +227,6 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     );
 
     @Query("""
-        SELECT
-            SUM(CASE WHEN e.status IN ('SUBMITTED','PENDING_REVIEW') THEN 1 ELSE 0 END),
-            SUM(CASE WHEN e.status IN ('MANAGER_APPROVED','FINANCE_APPROVED','PAID') THEN 1 ELSE 0 END),
-            SUM(CASE WHEN e.status = 'MANAGER_REJECTED' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN e.status = 'NEEDS_REVISION' THEN 1 ELSE 0 END),
-            COALESCE(SUM(CASE WHEN e.status = 'MANAGER_APPROVED' THEN e.amount ELSE 0 END), 0),
-            SUM(CASE WHEN e.aiDecision = 'AUTO_APPROVED' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN e.policyCompliant = false AND (e.aiDecision IS NULL OR e.aiDecision <> 'REJECTED_BY_FISCAL_VALIDATION') THEN 1 ELSE 0 END),
-            SUM(CASE WHEN e.aiDecision IN ('READY_FOR_MANAGER','PENDING_MANUAL_REVIEW') THEN 1 ELSE 0 END)
-        FROM Expense e
-        WHERE e.user.manager.id = :managerId
-          AND e.deleted = false
-        """)
-    Object[] aggregateDashboardByManagerId(@Param("managerId") UUID managerId);
-
-    @Query("""
         SELECT e FROM Expense e
         WHERE e.company.id = :companyId
           AND e.receiptFingerprint = :fingerprint
