@@ -3,17 +3,14 @@ package com.reeva.backend.ai;
 import com.reeva.backend.expense.SefazStatus;
 import org.springframework.stereotype.Service;
 
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Set;
 
 @Service
 public class DemoSefazValidationService implements SefazValidationService {
 
     private static final Pattern ACCESS_KEY_PATTERN = Pattern.compile("\\d{44}");
-    private static final Set<String> SYNTHETIC_CNPJS = Set.of(
-        "12345678000190"
-    );
     private static final Set<String> VALID_UF_CODES = Set.of(
         "11", "12", "13", "14", "15", "16", "17",
         "21", "22", "23", "24", "25", "26", "27",
@@ -25,27 +22,21 @@ public class DemoSefazValidationService implements SefazValidationService {
     @Override
     public SefazValidationResult validate(SefazValidationRequest request) {
         String accessKey = extractAccessKey(request.verificationCode());
-        String supplierCnpj = extractValidCnpj(request.supplierCnpj());
+        CnpjCandidate supplierCnpj = extractBestCnpj(request.supplierCnpj());
         if (supplierCnpj == null && accessKey != null) {
-            supplierCnpj = extractValidCnpj(accessKey.substring(6, 20));
+            supplierCnpj = new CnpjCandidate(accessKey.substring(6, 20), isValidCnpj(accessKey.substring(6, 20)));
         }
 
         if (supplierCnpj == null) {
-            String rawDigits = onlyDigits(request.supplierCnpj());
-            if (SYNTHETIC_CNPJS.contains(rawDigits)) {
-                return new SefazValidationResult(SefazStatus.INVALID,
-                    "CNPJ do fornecedor invalido. Documento exige revisao fiscal.");
-            }
             return new SefazValidationResult(SefazStatus.UNAVAILABLE,
                 "CNPJ do fornecedor nao pode ser confirmado pela validacao estrutural demo. Documento exige revisao fiscal.");
         }
 
-        if (SYNTHETIC_CNPJS.contains(supplierCnpj)) {
-            return new SefazValidationResult(SefazStatus.INVALID,
-                "CNPJ do fornecedor invalido. Documento exige revisao fiscal.");
-        }
-
         if (request.verificationCode() == null || request.verificationCode().isBlank()) {
+            if (!supplierCnpj.checksumValid()) {
+                return new SefazValidationResult(SefazStatus.UNAVAILABLE,
+                    "CNPJ do fornecedor precisa de revisao fiscal. Validacao demo nao consultou a SEFAZ real.");
+            }
             return new SefazValidationResult(SefazStatus.NOT_APPLICABLE, "Codigo SEFAZ nao informado no MVP.");
         }
         if (request.verificationCode().toUpperCase().contains("INVALID")) {
@@ -66,7 +57,7 @@ public class DemoSefazValidationService implements SefazValidationService {
             "Chave fiscal passou na validacao estrutural demo. Integracao SEFAZ real ainda e necessaria para confirmacao oficial.");
     }
 
-    private String validateAccessKey(String accessKey, String supplierCnpj) {
+    private String validateAccessKey(String accessKey, CnpjCandidate supplierCnpj) {
         String ufCode = accessKey.substring(0, 2);
         if (!VALID_UF_CODES.contains(ufCode)) {
             return "Chave fiscal invalida: codigo de UF inexistente.";
@@ -78,7 +69,7 @@ public class DemoSefazValidationService implements SefazValidationService {
         }
 
         String keyCnpj = accessKey.substring(6, 20);
-        if (!keyCnpj.equals(supplierCnpj)) {
+        if (supplierCnpj.checksumValid() && !keyCnpj.equals(supplierCnpj.digits())) {
             return "Chave fiscal invalida: CNPJ da chave nao confere com o CNPJ do fornecedor.";
         }
 
@@ -103,21 +94,26 @@ public class DemoSefazValidationService implements SefazValidationService {
         return matcher.find() ? matcher.group() : null;
     }
 
-    private String extractValidCnpj(String value) {
+    private CnpjCandidate extractBestCnpj(String value) {
         String digits = onlyDigits(value);
         if (digits == null) {
             return null;
         }
         if (digits.length() == 14) {
-            return isValidCnpj(digits) ? digits : null;
+            return isRepeatedDigits(digits) ? null : new CnpjCandidate(digits, isValidCnpj(digits));
         }
         if (digits.length() > 14) {
+            String firstPlausible = null;
             for (int i = 0; i <= digits.length() - 14; i++) {
                 String candidate = digits.substring(i, i + 14);
                 if (isValidCnpj(candidate)) {
-                    return candidate;
+                    return new CnpjCandidate(candidate, true);
+                }
+                if (firstPlausible == null && !isRepeatedDigits(candidate)) {
+                    firstPlausible = candidate;
                 }
             }
+            return firstPlausible == null ? null : new CnpjCandidate(firstPlausible, false);
         }
         return null;
     }
@@ -139,7 +135,7 @@ public class DemoSefazValidationService implements SefazValidationService {
     }
 
     private boolean isValidCnpj(String cnpj) {
-        if (cnpj == null || cnpj.length() != 14 || cnpj.chars().distinct().count() == 1) {
+        if (cnpj == null || cnpj.length() != 14 || isRepeatedDigits(cnpj)) {
             return false;
         }
 
@@ -166,5 +162,11 @@ public class DemoSefazValidationService implements SefazValidationService {
         String digits = value.replaceAll("\\D", "");
         return digits.isBlank() ? null : digits;
     }
+
+    private boolean isRepeatedDigits(String value) {
+        return value != null && value.chars().distinct().count() == 1;
+    }
+
+    private record CnpjCandidate(String digits, boolean checksumValid) {}
 }
 

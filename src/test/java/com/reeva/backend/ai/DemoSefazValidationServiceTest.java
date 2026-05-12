@@ -13,16 +13,16 @@ class DemoSefazValidationServiceTest {
     private final DemoSefazValidationService service = new DemoSefazValidationService();
 
     @Test
-    void rejectsSyntheticPlaceholderCnpjEvenWhenReceiptLooksComplete() {
+    void unverifiedCnpjShouldRequireReviewInsteadOfRejectingAutomatically() {
         SefazValidationResult result = service.validate(new SefazValidationRequest(
             "12.345.678/0001-90",
             LocalDate.of(2025, 8, 15),
             new BigDecimal("60.00"),
-            "4325 0812 3456 7800 0190 6500 1000 1234 5610 0001 2345"
+            null
         ));
 
-        assertThat(result.status()).isEqualTo(SefazStatus.INVALID);
-        assertThat(result.message()).contains("CNPJ do fornecedor invalido");
+        assertThat(result.status()).isEqualTo(SefazStatus.UNAVAILABLE);
+        assertThat(result.message()).contains("revisao fiscal");
     }
 
     @Test
@@ -68,6 +68,21 @@ class DemoSefazValidationServiceTest {
         ));
 
         assertThat(result.status()).isEqualTo(SefazStatus.VALID);
+    }
+
+    @Test
+    void accessKeyCanPassEvenWhenSupplierCnpjChecksumIsUnverified() {
+        String accessKey = buildAccessKey("11222333000181");
+
+        SefazValidationResult result = service.validate(new SefazValidationRequest(
+            "12.345.678/0001-90",
+            LocalDate.of(2025, 8, 15),
+            new BigDecimal("60.00"),
+            accessKey
+        ));
+
+        assertThat(result.status()).isEqualTo(SefazStatus.VALID);
+        assertThat(result.message()).contains("validacao estrutural demo");
     }
 
     @Test
