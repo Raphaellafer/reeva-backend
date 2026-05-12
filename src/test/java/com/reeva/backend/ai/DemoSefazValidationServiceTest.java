@@ -43,6 +43,47 @@ class DemoSefazValidationServiceTest {
     }
 
     @Test
+    void extractsValidCnpjFromNoisyOcrText() {
+        String accessKey = buildAccessKey("11222333000181");
+
+        SefazValidationResult result = service.validate(new SefazValidationRequest(
+            "CNPJ 11.222.333/0001-81 IE 123456789 telefone 5555-0101",
+            LocalDate.of(2025, 8, 15),
+            new BigDecimal("60.00"),
+            accessKey
+        ));
+
+        assertThat(result.status()).isEqualTo(SefazStatus.VALID);
+    }
+
+    @Test
+    void usesCnpjEmbeddedInAccessKeyWhenSupplierCnpjOcrIsNoisy() {
+        String accessKey = buildAccessKey("11222333000181");
+
+        SefazValidationResult result = service.validate(new SefazValidationRequest(
+            "CNPJ parcialmente lido 11.222.333/0001",
+            LocalDate.of(2025, 8, 15),
+            new BigDecimal("60.00"),
+            accessKey
+        ));
+
+        assertThat(result.status()).isEqualTo(SefazStatus.VALID);
+    }
+
+    @Test
+    void inconclusiveCnpjOcrShouldRequireReviewInsteadOfInvalidatingDocument() {
+        SefazValidationResult result = service.validate(new SefazValidationRequest(
+            "CNPJ parcialmente lido 11.222.333/0001",
+            LocalDate.of(2025, 8, 15),
+            new BigDecimal("60.00"),
+            null
+        ));
+
+        assertThat(result.status()).isEqualTo(SefazStatus.UNAVAILABLE);
+        assertThat(result.message()).contains("nao pode ser confirmado");
+    }
+
+    @Test
     void acceptsStructurallyValidAccessKeyInDemoMode() {
         String accessKey = buildAccessKey("11222333000181");
 
