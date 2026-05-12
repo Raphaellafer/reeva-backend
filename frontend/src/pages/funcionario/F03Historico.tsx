@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getMyExpenses } from '../../api'
 import { AttachmentPreview } from '../../components/attachments/AttachmentPreview'
 import { MobileShell } from '../../components/layout/MobileShell'
@@ -61,17 +62,14 @@ export function F03Historico() {
   const token = getToken()
   const [filter, setFilter] = useState<Filter>('TODOS')
   const [query, setQuery] = useState('')
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!token) return
-    getMyExpenses(token)
-      .then((page) => setExpenses(page.content))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar notas.'))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['my-expenses'],
+    queryFn: () => getMyExpenses(token!),
+    enabled: !!token,
+  })
+
+  const expenses = data?.content ?? []
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -120,9 +118,9 @@ export function F03Historico() {
       </div>
 
       <div className="space-y-5 px-4 py-4">
-        {loading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
-        {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
-        {!loading && groups.length === 0 && (
+        {isLoading && <p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p>}
+        {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar notas.'}</p>}
+        {!isLoading && groups.length === 0 && (
           <div className="rounded-[10px] border border-dashed border-black/[0.12] bg-white p-5 text-center">
             <p className="text-[13px] font-medium text-[#1a1a2e]">Nenhuma nota encontrada</p>
             <p className="mt-1 text-[12px] text-gray-400">Ajuste os filtros ou envie uma nova nota.</p>

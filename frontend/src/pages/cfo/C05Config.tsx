@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getCfoCompliance, getCfoOverview, getCfoPolicies } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge, type BadgeVariant } from '../../components/ui/Badge'
@@ -23,67 +24,47 @@ interface GovernanceRow {
 }
 
 function buildSignal(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'recommendation'>) {
-  if (row.riskScore >= 70 || row.avoidableLosses > 0) {
-    return { label: 'Revisar agora', variant: 'red' as const }
-  }
-  if (row.riskScore >= 35 || row.policyViolationCount > 0) {
-    return { label: 'Monitorar', variant: 'amber' as const }
-  }
-  if (row.expenseCount === 0) {
-    return { label: 'Sem amostra', variant: 'gray' as const }
-  }
+  if (row.riskScore >= 70 || row.avoidableLosses > 0) return { label: 'Revisar agora', variant: 'red' as const }
+  if (row.riskScore >= 35 || row.policyViolationCount > 0) return { label: 'Monitorar', variant: 'amber' as const }
+  if (row.expenseCount === 0) return { label: 'Sem amostra', variant: 'gray' as const }
   return { label: 'Controlada', variant: 'green' as const }
 }
 
 function buildRecommendation(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'recommendation'>) {
-  if (row.avoidableLosses > 0) {
-    return 'Revisar limite e exigir justificativa para excecoes desta categoria.'
-  }
-  if (row.policyViolationCount > 0) {
-    return 'Ajustar comunicacao da politica e manter revisao manual ate estabilizar.'
-  }
-  if (row.policy.autoApprovalMinScore >= 90) {
-    return 'Score conservador: avaliar automacao se o historico continuar limpo.'
-  }
-  if (!row.policy.requiresReceipt) {
-    return 'Confirmar se recibo opcional ainda faz sentido para auditoria.'
-  }
+  if (row.avoidableLosses > 0) return 'Revisar limite e exigir justificativa para excecoes desta categoria.'
+  if (row.policyViolationCount > 0) return 'Ajustar comunicacao da politica e manter revisao manual ate estabilizar.'
+  if (row.policy.autoApprovalMinScore >= 90) return 'Score conservador: avaliar automacao se o historico continuar limpo.'
+  if (!row.policy.requiresReceipt) return 'Confirmar se recibo opcional ainda faz sentido para auditoria.'
   return 'Manter regra atual e acompanhar no fechamento mensal.'
 }
 
 export function C05Config() {
-  const [policies, setPolicies] = useState<PolicyResponse[]>([])
-  const [overview, setOverview] = useState<CfoOverviewResponse | null>(null)
-  const [compliance, setCompliance] = useState<CfoComplianceResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const token = getToken()
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
+  const { data: policies = [], isLoading: policiesLoading } = useQuery({
+    queryKey: ['cfo-policies'],
+    queryFn: () => getCfoPolicies(token!),
+    enabled: !!token,
+  })
 
-    setLoading(true)
-    Promise.all([getCfoPolicies(token), getCfoOverview(token), getCfoCompliance(token)])
-      .then(([policyItems, overviewData, complianceData]) => {
-        setPolicies(policyItems)
-        setOverview(overviewData)
-        setCompliance(complianceData)
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar governanca CFO.'))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['cfo-overview'],
+    queryFn: () => getCfoOverview(token!),
+    enabled: !!token,
+  })
+
+  const { data: compliance, isLoading: complianceLoading, error } = useQuery({
+    queryKey: ['cfo-compliance'],
+    queryFn: () => getCfoCompliance(token!),
+    enabled: !!token,
+  })
+
+  const isLoading = policiesLoading || overviewLoading || complianceLoading
 
   const rows = useMemo<GovernanceRow[]>(() => policies.map((policy) => {
     const spend = overview?.categorySpend.find((item) => item.category === policy.category)
     const risk = compliance?.riskyCategories.find((item) => item.category === policy.category)
-    const base = {
-      policy,
-      spent: spend?.amount ?? 0,
-      avoidableLosses: spend?.avoidableLosses ?? risk?.avoidedAmount ?? 0,
-      expenseCount: spend?.expenseCount ?? risk?.expenseCount ?? 0,
-      policyViolationCount: risk?.policyViolationCount ?? 0,
-      riskScore: risk?.riskScore ?? 0,
-    }
+    const base = { policy, spent: spend?.amount ?? 0, avoidableLosses: spend?.avoidableLosses ?? risk?.avoidedAmount ?? 0, expenseCount: spend?.expenseCount ?? risk?.expenseCount ?? 0, policyViolationCount: risk?.policyViolationCount ?? 0, riskScore: risk?.riskScore ?? 0 }
     const signal = buildSignal(base)
     return { ...base, signal: signal.label, signalVariant: signal.variant, recommendation: buildRecommendation(base) }
   }), [policies, overview, compliance])
@@ -107,43 +88,20 @@ export function C05Config() {
   return (
     <DesktopShell title="Governanca de politicas" role="CFO">
       <div className="space-y-4">
-        {error && (
-          <Card className="border-[#F09595] bg-[#FCEBEB]">
-            <p className="text-[13px] text-[#791F1F]">{error}</p>
-          </Card>
-        )}
+        {error && <Card className="border-[#F09595] bg-[#FCEBEB]"><p className="text-[13px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar governanca CFO.'}</p></Card>}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Politicas ativas" value={loading ? '...' : policies.length} subtext="categorias monitoradas" />
-          <MetricCard label="Gasto monitorado" value={loading ? '...' : fmt(totals.spent)} subtext="periodo CFO" />
-          <MetricCard label="Valor evitavel" value={loading ? '...' : fmt(totals.avoidable)} subtext={`${totals.reviewed} regra(s) em atencao`} />
-          <MetricCard
-            label="Efetividade"
-            value={loading ? '...' : totals.efetividade != null ? `${totals.efetividade}%` : 'N/A'}
-            subtext={totals.withSample > 0 ? `${totals.controlled} de ${totals.withSample} regras controladas` : 'sem dados de gasto'}
-            trend={totals.efetividade != null ? (totals.efetividade >= 70 ? 'up' : 'down') : undefined}
-            trendValue={totals.efetividade != null ? (totals.efetividade >= 70 ? 'saudavel' : 'atencao') : undefined}
-          />
+          <MetricCard label="Politicas ativas" value={isLoading ? '...' : policies.length} subtext="categorias monitoradas" />
+          <MetricCard label="Gasto monitorado" value={isLoading ? '...' : fmt(totals.spent)} subtext="periodo CFO" />
+          <MetricCard label="Valor evitavel" value={isLoading ? '...' : fmt(totals.avoidable)} subtext={`${totals.reviewed} regra(s) em atencao`} />
+          <MetricCard label="Efetividade" value={isLoading ? '...' : totals.efetividade != null ? `${totals.efetividade}%` : 'N/A'} subtext={totals.withSample > 0 ? `${totals.controlled} de ${totals.withSample} regras controladas` : 'sem dados de gasto'} trend={totals.efetividade != null ? (totals.efetividade >= 70 ? 'up' : 'down') : undefined} trendValue={totals.efetividade != null ? (totals.efetividade >= 70 ? 'saudavel' : 'atencao') : undefined} />
         </div>
 
-        {/* Distribuição de sinais — linha compacta substituindo o infobox */}
         <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-black/[0.07] bg-white px-4 py-3">
           <p className="text-[12px] font-medium text-gray-500">Distribuicao de sinais:</p>
-          <span className="flex items-center gap-1.5 text-[12px]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#F09595]" />
-            <span className="font-medium text-[#791F1F]">{signalCounts.red}</span>
-            <span className="text-gray-400">Revisar agora</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-[12px]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#FAC775]" />
-            <span className="font-medium text-[#633806]">{signalCounts.amber}</span>
-            <span className="text-gray-400">Monitorar</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-[12px]">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#97C459]" />
-            <span className="font-medium text-[#27500A]">{signalCounts.green}</span>
-            <span className="text-gray-400">Controlada</span>
-          </span>
+          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#F09595]" /><span className="font-medium text-[#791F1F]">{signalCounts.red}</span><span className="text-gray-400">Revisar agora</span></span>
+          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#FAC775]" /><span className="font-medium text-[#633806]">{signalCounts.amber}</span><span className="text-gray-400">Monitorar</span></span>
+          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#97C459]" /><span className="font-medium text-[#27500A]">{signalCounts.green}</span><span className="text-gray-400">Controlada</span></span>
         </div>
 
         <Card>
@@ -152,7 +110,7 @@ export function C05Config() {
               <p className="text-[14px] font-medium text-[#1a1a2e]">Politicas ativas de reembolso</p>
               <p className="mt-1 text-[12px] text-gray-400">Contrato atual mais leitura de desempenho para decisao executiva.</p>
             </div>
-            <Badge variant={loading ? 'gray' : 'purple'}>{loading ? 'Carregando' : `${policies.length} politica(s)`}</Badge>
+            <Badge variant={isLoading ? 'gray' : 'purple'}>{isLoading ? 'Carregando' : `${policies.length} politica(s)`}</Badge>
           </div>
 
           <div className="overflow-x-auto">
@@ -177,11 +135,7 @@ export function C05Config() {
                     <td className="max-w-[260px] py-3 pr-3 text-[12px] leading-snug text-gray-500">{row.recommendation}</td>
                   </tr>
                 ))}
-                {!loading && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-5 text-[13px] text-gray-400">Nenhuma politica ativa encontrada.</td>
-                  </tr>
-                )}
+                {!isLoading && rows.length === 0 && <tr><td colSpan={8} className="py-5 text-[13px] text-gray-400">Nenhuma politica ativa encontrada.</td></tr>}
               </tbody>
             </table>
           </div>

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { approveExpense, getTeamExpenses, rejectExpense, requestRevision } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { ExpenseDetailPanel } from '../../components/manager/ExpenseDetailPanel'
@@ -27,75 +28,77 @@ function reviewReason(expense: ExpenseResponse) {
 }
 
 export function G02Aprovacoes() {
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
+  const token = getToken()
+  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<ExpenseResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [actionMode, setActionMode] = useState<ManagerAction | null>(null)
   const [actionNotes, setActionNotes] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
 
-  async function load() {
-    const token = getToken()
-    if (!token) return
-    setLoading(true)
-    setError(null)
-    try {
-      const page = await getTeamExpenses(token, undefined, 0, 50)
-      const rows = page.content.filter((expense) => reviewStatuses.includes(expense.status))
-      setExpenses(rows)
-      setSelected((current) => rows.find((item) => item.id === current?.id) ?? rows[0] ?? null)
+  const { data: page, isLoading, error } = useQuery({
+    queryKey: ['team-expenses', 'queue'],
+    queryFn: () => getTeamExpenses(token!, undefined, 0, 50),
+    enabled: !!token,
+    select: (data) => ({
+      ...data,
+      content: data.content.filter((e) => reviewStatuses.includes(e.status)),
+    }),
+  })
+
+  const expenses = page?.content ?? []
+
+  const approveMutation = useMutation({
+    mutationFn: (expenseId: string) => approveExpense(token!, expenseId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
       setActionMode(null)
       setActionNotes('')
       setActionError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar aprovações.')
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+  })
 
-  useEffect(() => {
-    void load()
-  }, [])
+  const rejectMutation = useMutation({
+    mutationFn: ({ expenseId, notes }: { expenseId: string; notes: string }) =>
+      rejectExpense(token!, expenseId, notes),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+      setActionMode(null)
+      setActionNotes('')
+      setActionError(null)
+    },
+    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+  })
 
-  async function approveSelected(expenseId: string) {
-    const token = getToken()
-    if (!token) return
-    setLoading(true)
-    setError(null)
-    try {
-      await approveExpense(token, expenseId)
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ação não concluída.')
-      setLoading(false)
-    }
-  }
+  const revisionMutation = useMutation({
+    mutationFn: ({ expenseId, notes }: { expenseId: string; notes: string }) =>
+      requestRevision(token!, expenseId, notes),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+      setActionMode(null)
+      setActionNotes('')
+      setActionError(null)
+    },
+    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+  })
 
-  async function submitDecision() {
-    const token = getToken()
-    if (!token || !selected || !actionMode) return
+  const isMutating = approveMutation.isPending || rejectMutation.isPending || revisionMutation.isPending
+
+  function submitDecision() {
+    if (!selected || !actionMode) return
     const notes = actionNotes.trim()
     if (notes.length < 8) {
       setActionError('Informe um motivo claro para o funcionário entender o retorno.')
       return
     }
-
-    setLoading(true)
     setActionError(null)
-    setError(null)
-    try {
-      if (actionMode === 'reject') await rejectExpense(token, selected.id, notes)
-      if (actionMode === 'revision') await requestRevision(token, selected.id, notes)
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ação não concluída.')
-      setLoading(false)
-    }
+    if (actionMode === 'reject') rejectMutation.mutate({ expenseId: selected.id, notes })
+    if (actionMode === 'revision') revisionMutation.mutate({ expenseId: selected.id, notes })
   }
 
-  const token = getToken()
   const highRiskCount = useMemo(
     () => expenses.filter((expense) => risk(expense).variant === 'red').length,
     [expenses]
@@ -103,7 +106,11 @@ export function G02Aprovacoes() {
 
   return (
     <DesktopShell title="Fila de aprovações" role="GERENTE">
-      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+      {(error || actionError) && (
+        <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">
+          {actionError ?? (error instanceof Error ? error.message : 'Falha ao carregar aprovações.')}
+        </p>
+      )}
 
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
         <QueueSummary label="Na fila" value={expenses.length} />
@@ -130,10 +137,10 @@ export function G02Aprovacoes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loading && expenses.length === 0 && (
+                  {isLoading && expenses.length === 0 && (
                     <tr><td colSpan={8} className="py-8 text-center text-gray-400">Carregando...</td></tr>
                   )}
-                  {!loading && expenses.length === 0 && (
+                  {!isLoading && expenses.length === 0 && (
                     <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhuma aprovação pendente.</td></tr>
                   )}
                   {expenses.map((expense) => {
@@ -196,8 +203,8 @@ export function G02Aprovacoes() {
                         variant="primary"
                         size="sm"
                         className="flex-1 justify-center"
-                        disabled={loading}
-                        onClick={() => void approveSelected(selected.id)}
+                        disabled={isMutating}
+                        onClick={() => approveMutation.mutate(selected.id)}
                       >
                         Aprovar
                       </Button>
@@ -205,7 +212,7 @@ export function G02Aprovacoes() {
                         variant="ghost"
                         size="sm"
                         className="flex-1 justify-center"
-                        disabled={loading}
+                        disabled={isMutating}
                         onClick={() => {
                           setActionMode('revision')
                           setActionNotes('')
@@ -218,7 +225,7 @@ export function G02Aprovacoes() {
                         variant="ghost"
                         size="sm"
                         className="flex-1 justify-center border-[#F09595] text-[#791F1F]"
-                        disabled={loading}
+                        disabled={isMutating}
                         onClick={() => {
                           setActionMode('reject')
                           setActionNotes('')
@@ -243,9 +250,9 @@ export function G02Aprovacoes() {
                         </label>
                         {actionError && <p className="mt-2 text-[12px] text-[#791F1F]">{actionError}</p>}
                         <div className="mt-3 flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" disabled={loading} onClick={() => setActionMode(null)}>Cancelar</Button>
-                          <Button size="sm" disabled={loading} onClick={() => void submitDecision()}>
-                            {loading ? 'Enviando...' : actionMode === 'revision' ? 'Enviar correção' : 'Confirmar rejeição'}
+                          <Button variant="ghost" size="sm" disabled={isMutating} onClick={() => setActionMode(null)}>Cancelar</Button>
+                          <Button size="sm" disabled={isMutating} onClick={submitDecision}>
+                            {isMutating ? 'Enviando...' : actionMode === 'revision' ? 'Enviar correção' : 'Confirmar rejeição'}
                           </Button>
                         </div>
                       </div>

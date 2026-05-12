@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createEmployee, getTeamEmployees } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
@@ -8,7 +9,7 @@ import { Card } from '../../components/ui/Card'
 import { SideDrawer } from '../../components/ui/SideDrawer'
 import { getStoredToken } from '../../hooks/useAuth'
 import { fmt, initials } from '../../realData'
-import type { CreateEmployeePayload, EmployeeListItem } from '../../types'
+import type { CreateEmployeePayload } from '../../types'
 
 const emptyForm: CreateEmployeePayload = { name: '', email: '', password: '', pixKey: '' }
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
@@ -16,31 +17,28 @@ const labelClass = 'block text-[12px] font-medium text-gray-500'
 
 export function G05FuncionariosList() {
   const token = getStoredToken() ?? ''
-  const [employees, setEmployees] = useState<EmployeeListItem[]>([])
+  const queryClient = useQueryClient()
   const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [form, setForm] = useState<CreateEmployeePayload>(emptyForm)
   const [formError, setFormError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
 
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
-      setEmployees(await getTeamEmployees(token))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar equipe.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { data: employees = [], isLoading, error } = useQuery({
+    queryKey: ['team-employees'],
+    queryFn: () => getTeamEmployees(token),
+    enabled: !!token,
+  })
 
-  useEffect(() => {
-    void load()
-  }, [token])
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateEmployeePayload) => createEmployee(token, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['team-employees'] })
+      setForm(emptyForm)
+      setMessage('Funcionario cadastrado com sucesso.')
+    },
+    onError: (err) => setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionario.'),
+  })
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -62,7 +60,7 @@ export function G05FuncionariosList() {
   }
 
   function closeDrawer() {
-    if (saving) return
+    if (createMutation.isPending) return
     setDrawerOpen(false)
     setForm(emptyForm)
     setFormError(null)
@@ -86,22 +84,12 @@ export function G05FuncionariosList() {
       return
     }
 
-    setSaving(true)
-    try {
-      const created = await createEmployee(token, {
-        ...form,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        pixKey: form.pixKey.trim(),
-      })
-      setEmployees((current) => [...current, created])
-      setForm(emptyForm)
-      setMessage('Funcionario cadastrado com sucesso.')
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Erro ao cadastrar funcionario.')
-    } finally {
-      setSaving(false)
-    }
+    createMutation.mutate({
+      ...form,
+      name: form.name.trim(),
+      email: form.email.trim(),
+      pixKey: form.pixKey.trim(),
+    })
   }
 
   return (
@@ -130,14 +118,14 @@ export function G05FuncionariosList() {
           />
         </div>
 
-        {loading && <p className="py-6 text-center text-[13px] text-gray-400">Carregando...</p>}
-        {error && <p className="py-4 text-[13px] text-red-500">{error}</p>}
+        {isLoading && <p className="py-6 text-center text-[13px] text-gray-400">Carregando...</p>}
+        {error && <p className="py-4 text-[13px] text-red-500">{error instanceof Error ? error.message : 'Falha ao carregar equipe.'}</p>}
 
-        {!loading && !error && filtered.length === 0 && (
+        {!isLoading && !error && filtered.length === 0 && (
           <p className="py-6 text-center text-[13px] text-gray-400">Nenhum funcionario encontrado.</p>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {!isLoading && filtered.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-[13px]">
               <thead>
@@ -189,9 +177,9 @@ export function G05FuncionariosList() {
             {message && <p className="rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{message}</p>}
             {formError && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{formError}</p>}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={saving} className="justify-center">Cancelar</Button>
-              <Button type="submit" form="employee-drawer-form" disabled={saving} className="justify-center">
-                {saving ? 'Cadastrando...' : 'Cadastrar funcionario'}
+              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={createMutation.isPending} className="justify-center">Cancelar</Button>
+              <Button type="submit" form="employee-drawer-form" disabled={createMutation.isPending} className="justify-center">
+                {createMutation.isPending ? 'Cadastrando...' : 'Cadastrar funcionario'}
               </Button>
             </div>
           </div>
@@ -204,52 +192,20 @@ export function G05FuncionariosList() {
           </div>
           <label className={labelClass}>
             Nome completo
-            <input
-              type="text"
-              required
-              minLength={2}
-              value={form.name}
-              onChange={(event) => handleField('name', event.target.value)}
-              className={fieldClass}
-              placeholder="Ex: Maria Silva"
-            />
+            <input type="text" required minLength={2} value={form.name} onChange={(event) => handleField('name', event.target.value)} className={fieldClass} placeholder="Ex: Maria Silva" />
           </label>
           <label className={labelClass}>
             E-mail
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(event) => handleField('email', event.target.value)}
-              className={fieldClass}
-              placeholder="maria@empresa.com"
-            />
+            <input type="email" required value={form.email} onChange={(event) => handleField('email', event.target.value)} className={fieldClass} placeholder="maria@empresa.com" />
           </label>
           <label className={labelClass}>
             Senha temporaria
-            <input
-              type="password"
-              required
-              minLength={8}
-              value={form.password}
-              onChange={(event) => handleField('password', event.target.value)}
-              className={fieldClass}
-              placeholder="Minimo 8 caracteres"
-            />
+            <input type="password" required minLength={8} value={form.password} onChange={(event) => handleField('password', event.target.value)} className={fieldClass} placeholder="Minimo 8 caracteres" />
           </label>
           <label className={labelClass}>
             Chave Pix
-            <input
-              type="text"
-              required
-              value={form.pixKey}
-              onChange={(event) => handleField('pixKey', event.target.value)}
-              className={fieldClass}
-              placeholder="CPF, e-mail, telefone ou chave aleatoria"
-            />
-            <span className="mt-1 block text-[11px] font-normal text-gray-400">
-              Obrigatoria para gerar a planilha de pagamento do financeiro.
-            </span>
+            <input type="text" required value={form.pixKey} onChange={(event) => handleField('pixKey', event.target.value)} className={fieldClass} placeholder="CPF, e-mail, telefone ou chave aleatoria" />
+            <span className="mt-1 block text-[11px] font-normal text-gray-400">Obrigatoria para gerar a planilha de pagamento do financeiro.</span>
           </label>
         </form>
       </SideDrawer>

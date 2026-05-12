@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getPolicies, getPolicyAuditLogs, savePolicy } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
@@ -26,35 +27,38 @@ const labelClass = 'block text-[12px] font-medium text-gray-500'
 const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
 
 export function G06Politicas() {
-  const [policies, setPolicies] = useState<PolicyResponse[]>([])
-  const [auditLogs, setAuditLogs] = useState<PolicyAuditLogResponse[]>([])
+  const token = getToken()
+  const queryClient = useQueryClient()
   const [visibleAuditCount, setVisibleAuditCount] = useState(5)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingPolicy, setEditingPolicy] = useState<PolicyResponse | null>(null)
   const [form, setForm] = useState<PolicyPayload>(emptyForm)
-  const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [drawerError, setDrawerError] = useState<string | null>(null)
   const managerName = getStoredUser()?.name ?? 'Gestor responsável'
 
-  async function load() {
-    const token = getToken()
-    if (!token) return
-    try {
-      const [loadedPolicies, loadedAuditLogs] = await Promise.all([
-        getPolicies(token),
-        getPolicyAuditLogs(token),
-      ])
-      setPolicies(loadedPolicies)
-      setAuditLogs(loadedAuditLogs)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar políticas.')
-    }
-  }
+  const { data: policies = [], error: policiesError } = useQuery({
+    queryKey: ['policies'],
+    queryFn: () => getPolicies(token!),
+    enabled: !!token,
+  })
 
-  useEffect(() => {
-    void load()
-  }, [])
+  const { data: auditLogs = [] } = useQuery({
+    queryKey: ['policy-audit-logs'],
+    queryFn: () => getPolicyAuditLogs(token!),
+    enabled: !!token,
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: PolicyPayload) => savePolicy(token!, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['policies'] })
+      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      setMessage('Política salva.')
+      setDrawerError(null)
+    },
+    onError: (err) => setDrawerError(err instanceof Error ? err.message : 'Falha ao salvar política.'),
+  })
 
   function edit(policy: PolicyResponse) {
     setEditingPolicy(policy)
@@ -68,39 +72,28 @@ export function G06Politicas() {
       description: policy.description ?? '',
     })
     setMessage(null)
-    setError(null)
+    setDrawerError(null)
     setDrawerOpen(true)
   }
 
   function closeDrawer() {
-    if (loading) return
+    if (saveMutation.isPending) return
     setDrawerOpen(false)
     setEditingPolicy(null)
     setForm(emptyForm)
     setMessage(null)
-    setError(null)
+    setDrawerError(null)
   }
 
-  async function submit(event: React.FormEvent) {
+  function submit(event: React.FormEvent) {
     event.preventDefault()
-    const token = getToken()
-    if (!token) return
-    setLoading(true)
     setMessage(null)
-    setError(null)
-    try {
-      await savePolicy(token, {
-        ...form,
-        dailyLimit: form.dailyLimit || null,
-        monthlyLimit: form.monthlyLimit || null,
-      })
-      setMessage('Política salva.')
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao salvar política.')
-    } finally {
-      setLoading(false)
-    }
+    setDrawerError(null)
+    saveMutation.mutate({
+      ...form,
+      dailyLimit: form.dailyLimit || null,
+      monthlyLimit: form.monthlyLimit || null,
+    })
   }
 
   return (
@@ -111,8 +104,8 @@ export function G06Politicas() {
           <p className="text-[12px] text-gray-400">{policies.length} categorias configuradas</p>
         </div>
 
-        {error && !drawerOpen && (
-          <p className="mb-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>
+        {policiesError && !drawerOpen && (
+          <p className="mb-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{policiesError instanceof Error ? policiesError.message : 'Falha ao carregar políticas.'}</p>
         )}
 
         <div className="overflow-x-auto">
@@ -126,9 +119,7 @@ export function G06Politicas() {
             </thead>
             <tbody>
               {policies.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-[13px] text-gray-400">Nenhuma política cadastrada.</td>
-                </tr>
+                <tr><td colSpan={7} className="py-8 text-center text-[13px] text-gray-400">Nenhuma política cadastrada.</td></tr>
               ) : (
                 policies.map((policy) => (
                   <tr key={policy.id} className="border-b border-black/[0.04] hover:bg-gray-50">
@@ -137,9 +128,7 @@ export function G06Politicas() {
                     <td className="py-4 pr-3 whitespace-nowrap">{policy.dailyLimit == null ? '-' : fmt(policy.dailyLimit)}</td>
                     <td className="py-4 pr-3 whitespace-nowrap">{policy.monthlyLimit == null ? '-' : fmt(policy.monthlyLimit)}</td>
                     <td className="py-4 pr-3">
-                      <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">
-                        {policy.autoApprovalMinScore}
-                      </span>
+                      <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">{policy.autoApprovalMinScore}</span>
                     </td>
                     <td className="py-4 pr-3">{policy.requiresReceipt ? 'Sim' : 'Não'}</td>
                     <td className="py-4 pr-3 text-right">
@@ -187,11 +176,7 @@ export function G06Politicas() {
             </table>
             {auditLogs.length > visibleAuditCount && (
               <div className="flex justify-center pt-3">
-                <button
-                  type="button"
-                  onClick={() => setVisibleAuditCount((current) => current + 10)}
-                  className="rounded-[8px] border border-black/[0.08] px-3 py-1.5 text-[12px] font-medium text-[#3C3489] hover:bg-[#F4F2FF]"
-                >
+                <button type="button" onClick={() => setVisibleAuditCount((current) => current + 10)} className="rounded-[8px] border border-black/[0.08] px-3 py-1.5 text-[12px] font-medium text-[#3C3489] hover:bg-[#F4F2FF]">
                   Ver mais {Math.min(10, auditLogs.length - visibleAuditCount)} registros
                 </button>
               </div>
@@ -207,26 +192,22 @@ export function G06Politicas() {
         footer={
           <div className="space-y-3">
             {message && <p className="rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{message}</p>}
-            {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+            {drawerError && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{drawerError}</p>}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={loading} className="justify-center">Cancelar</Button>
-              <Button type="submit" form="policy-drawer-form" disabled={loading} className="justify-center">
-                {loading ? 'Salvando...' : 'Salvar política'}
+              <Button type="button" variant="ghost" onClick={closeDrawer} disabled={saveMutation.isPending} className="justify-center">Cancelar</Button>
+              <Button type="submit" form="policy-drawer-form" disabled={saveMutation.isPending} className="justify-center">
+                {saveMutation.isPending ? 'Salvando...' : 'Salvar política'}
               </Button>
             </div>
           </div>
         }
       >
-        <form id="policy-drawer-form" onSubmit={(event) => void submit(event)} className="space-y-6">
+        <form id="policy-drawer-form" onSubmit={submit} className="space-y-6">
           <section className="space-y-3">
             <p className={sectionTitleClass}>Categoria</p>
             <label className={labelClass}>
               Categoria
-              <select
-                value={form.category}
-                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as ExpenseCategory }))}
-                className={fieldClass}
-              >
+              <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as ExpenseCategory }))} className={fieldClass}>
                 {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
@@ -239,18 +220,9 @@ export function G06Politicas() {
           <section className="space-y-3">
             <p className={sectionTitleClass}>Limites</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <label className={labelClass}>
-                Por nota
-                <input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className={fieldClass} />
-              </label>
-              <label className={labelClass}>
-                Diário
-                <input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className={fieldClass} />
-              </label>
-              <label className={labelClass}>
-                Mensal
-                <input value={form.monthlyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, monthlyLimit: event.target.value }))} className={fieldClass} />
-              </label>
+              <label className={labelClass}>Por nota<input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className={fieldClass} /></label>
+              <label className={labelClass}>Diário<input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className={fieldClass} /></label>
+              <label className={labelClass}>Mensal<input value={form.monthlyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, monthlyLimit: event.target.value }))} className={fieldClass} /></label>
             </div>
           </section>
 
@@ -258,35 +230,18 @@ export function G06Politicas() {
             <p className={sectionTitleClass}>Autoaprovação</p>
             <label className={labelClass}>
               Score mínimo
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={form.autoApprovalMinScore}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  autoApprovalMinScore: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
-                }))}
-                className={fieldClass}
-              />
+              <input type="number" min={0} max={100} value={form.autoApprovalMinScore} onChange={(event) => setForm((current) => ({ ...current, autoApprovalMinScore: Math.max(0, Math.min(100, Number(event.target.value) || 0)) }))} className={fieldClass} />
             </label>
             <label className="flex items-center justify-between gap-3 rounded-[8px] border border-black/[0.08] px-3 py-2 text-[13px] font-medium text-[#1a1a2e]">
               <span>Exigir comprovante</span>
-              <input
-                type="checkbox"
-                checked={form.requiresReceipt}
-                onChange={(event) => setForm((current) => ({ ...current, requiresReceipt: event.target.checked }))}
-                className="h-4 w-4"
-              />
+              <input type="checkbox" checked={form.requiresReceipt} onChange={(event) => setForm((current) => ({ ...current, requiresReceipt: event.target.checked }))} className="h-4 w-4" />
             </label>
           </section>
 
           <section className="space-y-3">
             <p className={sectionTitleClass}>Resumo de impacto</p>
             <div className="rounded-[8px] border border-[#AFA9EC]/40 bg-[#F4F2FF] p-3 text-[12px] text-[#3C3489]">
-              {buildPolicyImpact(editingPolicy, form).map((item) => (
-                <p key={item}>{item}</p>
-              ))}
+              {buildPolicyImpact(editingPolicy, form).map((item) => <p key={item}>{item}</p>)}
             </div>
           </section>
 
@@ -294,13 +249,7 @@ export function G06Politicas() {
             <p className={sectionTitleClass}>Regras para IA</p>
             <label className={labelClass}>
               Regras em texto
-              <textarea
-                value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                rows={7}
-                placeholder="Ex: não reembolsar bebidas alcoólicas; refeições somente em dias úteis; táxi apenas com justificativa."
-                className={fieldClass}
-              />
+              <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={7} placeholder="Ex: não reembolsar bebidas alcoólicas; refeições somente em dias úteis; táxi apenas com justificativa." className={fieldClass} />
             </label>
           </section>
         </form>
@@ -310,21 +259,11 @@ export function G06Politicas() {
 }
 
 function formatDateTime(value: string) {
-  return new Date(value).toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 function actionLabel(action: string) {
-  return {
-    POLICY_CREATED: 'Criação',
-    POLICY_UPDATED: 'Edição',
-    POLICY_REACTIVATED: 'Reativação',
-  }[action] ?? action
+  return { POLICY_CREATED: 'Criação', POLICY_UPDATED: 'Edição', POLICY_REACTIVATED: 'Reativação' }[action] ?? action
 }
 
 function snapshotSummary(snapshot: Record<string, unknown>) {
@@ -338,13 +277,8 @@ function snapshotSummary(snapshot: Record<string, unknown>) {
 }
 
 function changeSummary(log: PolicyAuditLogResponse) {
-  if (log.action === 'POLICY_CREATED') {
-    return `Criou política: ${snapshotSummary(log.after)}`
-  }
-  if (!log.before || Object.keys(log.before).length === 0) {
-    return 'Registro legado sem detalhamento do antes/depois.'
-  }
-
+  if (log.action === 'POLICY_CREATED') return `Criou política: ${snapshotSummary(log.after)}`
+  if (!log.before || Object.keys(log.before).length === 0) return 'Registro legado sem detalhamento do antes/depois.'
   const changes = [
     diffMoney('limite por nota', log.before.maxAmount, log.after.maxAmount),
     diffMoney('limite diário', log.before.dailyLimit, log.after.dailyLimit),
@@ -353,7 +287,6 @@ function changeSummary(log: PolicyAuditLogResponse) {
     diffValue('comprovante', receiptLabel(log.before.requiresReceipt), receiptLabel(log.after.requiresReceipt)),
     diffText('regras', log.before.description, log.after.description),
   ].filter(Boolean)
-
   return changes.length > 0 ? changes.join('; ') : 'Salvou sem mudanças materiais.'
 }
 
@@ -384,18 +317,14 @@ function moneyValue(value: unknown) {
 
 function buildPolicyImpact(policy: PolicyResponse | null, form: PolicyPayload) {
   if (!policy) return ['Selecione uma política para ver o impacto da alteração.']
-
   const changes = [
     impactMoney('Limite por nota', policy.maxAmount, form.maxAmount),
     impactMoney('Limite diário', policy.dailyLimit, form.dailyLimit),
     impactMoney('Limite mensal', policy.monthlyLimit, form.monthlyLimit),
     impactNumber('Score mínimo', policy.autoApprovalMinScore, form.autoApprovalMinScore),
-    policy.requiresReceipt !== form.requiresReceipt
-      ? `Comprovante: ${policy.requiresReceipt ? 'obrigatório' : 'opcional'} -> ${form.requiresReceipt ? 'obrigatório' : 'opcional'}`
-      : null,
+    policy.requiresReceipt !== form.requiresReceipt ? `Comprovante: ${policy.requiresReceipt ? 'obrigatório' : 'opcional'} -> ${form.requiresReceipt ? 'obrigatório' : 'opcional'}` : null,
     String(policy.description ?? '') !== String(form.description ?? '') ? 'Regras para IA serão atualizadas.' : null,
   ].filter(Boolean) as string[]
-
   return changes.length > 0 ? changes : ['Nenhuma mudança material em relação à política atual.']
 }
 

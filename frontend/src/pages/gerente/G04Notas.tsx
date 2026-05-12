@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getTeamExpenses } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
@@ -6,7 +7,7 @@ import { Card } from '../../components/ui/Card'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { categoryLabels, fmt, fmtDate, initials, reviewStatuses, statusLabel } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseCategory, ExpenseResponse, ExpenseStatus } from '../../types'
+import type { ExpenseCategory, ExpenseStatus } from '../../types'
 
 type StatusFilter = 'TODOS' | 'FILA' | 'APROVADAS' | 'REJEITADAS' | ExpenseStatus
 type CategoryFilter = 'TODOS' | ExpenseCategory
@@ -23,19 +24,18 @@ const statusFilters: { id: StatusFilter; label: string }[] = [
 const categoryFilters = ['TODOS', 'FOOD', 'TRANSPORT', 'LODGING', 'PURCHASE', 'HARDWARE'] as CategoryFilter[]
 
 export function G04Notas() {
+  const token = getToken()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('TODOS')
   const [query, setQuery] = useState('')
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    getTeamExpenses(token, undefined, 0, 100)
-      .then((page) => setExpenses(page.content))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar notas.'))
-  }, [])
+  const { data: page, error } = useQuery({
+    queryKey: ['team-expenses', 'all'],
+    queryFn: () => getTeamExpenses(token!, undefined, 0, 100),
+    enabled: !!token,
+  })
+
+  const expenses = page?.content ?? []
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -86,7 +86,7 @@ export function G04Notas() {
         </div>
       </div>
 
-      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar notas.'}</p>}
 
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

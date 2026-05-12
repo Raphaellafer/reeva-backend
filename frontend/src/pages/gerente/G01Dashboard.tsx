@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getManagerDashboard, getTeamExpenses } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { ExpenseDetailPanel } from '../../components/manager/ExpenseDetailPanel'
@@ -9,28 +10,26 @@ import { MetricCard } from '../../components/ui/MetricCard'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { categoryLabels, fmt, fmtDate, isActionRequired, reviewStatuses } from '../../realData'
 import { getToken } from '../../session'
-import type { DashboardResponse, ExpenseResponse } from '../../types'
+import type { ExpenseResponse } from '../../types'
 
 export function G01Dashboard() {
-  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
-  const [selected, setSelected] = useState<ExpenseResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const token = getToken()
+  const [selected, setSelected] = useState<ExpenseResponse | null>(null)
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    Promise.all([
-      getManagerDashboard(token),
-      getTeamExpenses(token, undefined, 0, 8),
-    ])
-      .then(([dashboardData, expensesPage]) => {
-        setDashboard(dashboardData)
-        setExpenses(expensesPage.content)
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar dashboard.'))
-  }, [])
+  const { data: dashboard, error: dashboardError } = useQuery({
+    queryKey: ['manager-dashboard'],
+    queryFn: () => getManagerDashboard(token!),
+    enabled: !!token,
+  })
+
+  const { data: expensesPage, error: expensesError } = useQuery({
+    queryKey: ['team-expenses', 'recent'],
+    queryFn: () => getTeamExpenses(token!, undefined, 0, 8),
+    enabled: !!token,
+  })
+
+  const expenses = expensesPage?.content ?? []
+  const error = dashboardError ?? expensesError
 
   const queue = useMemo(
     () => expenses.filter((expense) => reviewStatuses.includes(expense.status)),
@@ -43,7 +42,7 @@ export function G01Dashboard() {
 
   return (
     <DesktopShell title="Dashboard da equipe" role="GERENTE">
-      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar dashboard.'}</p>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="Pendentes" value={dashboard?.pendingCount ?? 0} subtext="na fila do gestor" />

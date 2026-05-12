@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getTeamExpenses } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
@@ -25,19 +26,15 @@ const alertConfig: Record<AlertLevel, { variant: 'red' | 'amber' | 'blue'; label
 }
 
 export function G03Alertas() {
-  const [expenses, setExpenses] = useState<ExpenseResponse[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const token = getToken()
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) return
-    getTeamExpenses(token, undefined, 0, 100)
-      .then((page) => setExpenses(page.content))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar alertas.'))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: page, isLoading, error } = useQuery({
+    queryKey: ['team-expenses', 'all'],
+    queryFn: () => getTeamExpenses(token!, undefined, 0, 100),
+    enabled: !!token,
+  })
 
+  const expenses = page?.content ?? []
   const alerts = useMemo(() => buildAlerts(expenses), [expenses])
   const criticalCount = alerts.filter((alert) => alert.level === 'CRITICO').length
   const mediumCount = alerts.filter((alert) => alert.level === 'MEDIO').length
@@ -45,12 +42,12 @@ export function G03Alertas() {
 
   return (
     <DesktopShell title="Alertas da IA" role="GERENTE">
-      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error}</p>}
+      {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar alertas.'}</p>}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_300px]">
         <div className="space-y-3">
-          {loading && <Card><p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p></Card>}
-          {!loading && alerts.length === 0 && (
+          {isLoading && <Card><p className="py-8 text-center text-[13px] text-gray-400">Carregando...</p></Card>}
+          {!isLoading && alerts.length === 0 && (
             <Card className="py-10 text-center">
               <p className="text-[15px] font-medium text-[#1a1a2e]">Nenhum alerta aberto</p>
               <p className="mx-auto mt-1 max-w-[420px] text-[13px] text-gray-400">
