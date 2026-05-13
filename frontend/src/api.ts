@@ -5,12 +5,14 @@ import type {
   CfoExpenseResponse,
   CfoOverviewResponse,
   CreateEmployeePayload,
+  CreateManagerPayload,
   DashboardResponse,
   EmployeeListItem,
   EmployeeProfile,
   ExpenseCategory,
   ExpenseStatus,
   ExpenseResponse,
+  ManagerListItem,
   PageResponse,
   PaymentBatchResponse,
   PolicyPayload,
@@ -387,6 +389,44 @@ export interface CfoExpenseFilters {
   to?: string;
   page?: number;
   size?: number;
+}
+
+// ── Manager: Policy upload ────────────────────────────────────────
+
+export async function uploadManagerPolicyFile(token: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<PolicyResponse[]>('/manager/policies/upload', {
+    method: 'POST',
+    body: formData,
+    token
+  });
+}
+
+// ── CFO: Managers ────────────────────────────────────────────────
+
+export async function getCfoManagers(token: string) {
+  return request<ManagerListItem[]>('/cfo/managers', { token });
+}
+
+export async function createCfoManager(token: string, payload: CreateManagerPayload) {
+  return request<ManagerListItem>('/cfo/managers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+// ── CFO: Policy upload ────────────────────────────────────────────
+
+export async function uploadPolicyFile(token: string, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request<PolicyResponse[]>('/cfo/policies/upload', {
+    method: 'POST',
+    body: formData,
+    token
+  });
 }
 
 export async function getCfoExpenses(token: string, filters: CfoExpenseFilters = {}) {

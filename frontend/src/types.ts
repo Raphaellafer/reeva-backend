@@ -410,3 +410,28 @@ export interface CreateEmployeePayload {
   phoneNumber: string;
   departmentId?: string;
 }
+
+// ── CFO: Manager management ──────────────────────────────────────
+
+export interface ManagerListItem {
+  id: string;
+  name: string;
+  email: string;
+  cpf: string | null;
+  phoneCountryCode: string | null;
+  phoneNumber: string | null;
+  department: string | null;
+  teamSize: number;
+  createdAt: string;
+}
+
+export interface CreateManagerPayload {
+  name: string;
+  email: string;
+  password: string;
+  pixKey: string;
+  cpf: string;
+  phoneCountryCode: string;
+  phoneNumber: string;
+  departmentId?: string;
+}

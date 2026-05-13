@@ -5,6 +5,8 @@ import com.reeva.backend.expense.ExpenseStatus;
 import com.reeva.backend.finance.dto.CfoComplianceResponse;
 import com.reeva.backend.finance.dto.CfoExpenseResponse;
 import com.reeva.backend.finance.dto.CfoOverviewResponse;
+import com.reeva.backend.finance.dto.CreateManagerRequest;
+import com.reeva.backend.finance.dto.ManagerListResponse;
 import com.reeva.backend.finance.dto.ProjectFinancialEntryRequest;
 import com.reeva.backend.finance.dto.ProjectFinancialEntryResponse;
 import com.reeva.backend.finance.dto.ProjectPerformanceResponse;
@@ -18,9 +20,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -34,10 +38,17 @@ public class CfoController {
 
     private final CfoProjectMetricsService metricsService;
     private final CfoExecutiveService executiveService;
+    private final CfoManagerService managerService;
+    private final PolicyUploadService policyUploadService;
 
-    public CfoController(CfoProjectMetricsService metricsService, CfoExecutiveService executiveService) {
+    public CfoController(CfoProjectMetricsService metricsService,
+                         CfoExecutiveService executiveService,
+                         CfoManagerService managerService,
+                         PolicyUploadService policyUploadService) {
         this.metricsService = metricsService;
         this.executiveService = executiveService;
+        this.managerService = managerService;
+        this.policyUploadService = policyUploadService;
     }
 
     @GetMapping("/overview")
@@ -54,6 +65,17 @@ public class CfoController {
     @Operation(summary = "List active reimbursement policies for CFO")
     public List<PolicyResponse> listPolicies(@AuthenticationPrincipal User currentUser) {
         return executiveService.policies(currentUser);
+    }
+
+    @PostMapping(value = "/policies/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "Upload a reimbursement policy document and auto-fill policies via AI")
+    public List<PolicyResponse> uploadPolicyFile(
+        @AuthenticationPrincipal User currentUser,
+        @RequestParam("file") MultipartFile file
+    ) {
+        return policyUploadService.processUpload(currentUser, file);
     }
 
     @GetMapping("/expenses")
@@ -85,6 +107,28 @@ public class CfoController {
     ) {
         return executiveService.compliance(currentUser, from, to);
     }
+
+    // ── Manager management ───────────────────────────────────────────
+
+    @GetMapping("/managers")
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "List all managers in the company")
+    public List<ManagerListResponse> listManagers(@AuthenticationPrincipal User currentUser) {
+        return managerService.listManagers(currentUser);
+    }
+
+    @PostMapping("/managers")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "Register a new manager in the company")
+    public ManagerListResponse createManager(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody CreateManagerRequest request
+    ) {
+        return managerService.createManager(currentUser, request);
+    }
+
+    // ── Projects ─────────────────────────────────────────────────────
 
     @GetMapping("/projects/performance")
     @Operation(summary = "List project financial performance")
