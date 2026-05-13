@@ -48,6 +48,15 @@ public class User implements UserDetails {
     @Column(name = "pix_key", length = 255)
     private String pixKey;
 
+    @Column(name = "cpf", length = 11)
+    private String cpf;
+
+    @Column(name = "phone_country_code", length = 5)
+    private String phoneCountryCode;
+
+    @Column(name = "phone_number", length = 30)
+    private String phoneNumber;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
@@ -105,6 +114,9 @@ public class User implements UserDetails {
     public UserRole getRole() { return role; }
     public User getManager() { return manager; }
     public String getPixKey() { return pixKey; }
+    public String getCpf() { return cpf; }
+    public String getPhoneCountryCode() { return phoneCountryCode; }
+    public String getPhoneNumber() { return phoneNumber; }
     public boolean isActive() { return active; }
     public Instant getLastLoginAt() { return lastLoginAt; }
     public Instant getCreatedAt() { return createdAt; }
@@ -118,5 +130,8 @@ public class User implements UserDetails {
     public void setDepartment(Department department) { this.department = department; }
     public void setManager(User manager) { this.manager = manager; }
     public void setPixKey(String pixKey) { this.pixKey = pixKey; }
+    public void setCpf(String cpf) { this.cpf = cpf; }
+    public void setPhoneCountryCode(String phoneCountryCode) { this.phoneCountryCode = phoneCountryCode; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
 }

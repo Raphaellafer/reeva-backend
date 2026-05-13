@@ -113,6 +113,8 @@ export function G05Funcionario() {
             <p className="mb-3 text-[14px] font-medium text-[#1a1a2e]">Informações</p>
             <div className="space-y-2 text-[13px]">
               <InfoRow label="E-mail" value={profile.email} />
+              <InfoRow label="CPF" value={formatCpf(profile.cpf)} />
+              <InfoRow label="Telefone" value={formatPhone(profile.phoneCountryCode, profile.phoneNumber)} />
               <InfoRow label="Departamento" value={profile.department ?? 'Não informado'} />
               <InfoRow label="Membro desde" value={fmtDate(profile.createdAt)} />
             </div>
@@ -142,4 +144,28 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="min-w-0 truncate text-right font-medium text-[#1a1a2e]">{value}</span>
     </div>
   )
+}
+
+function formatCpf(value: string | null) {
+  if (!value) return 'Nao informado'
+  const digits = value.replace(/\D/g, '')
+  if (digits.length !== 11) return value
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+}
+
+function formatPhone(countryCode: string | null, phoneNumber: string | null) {
+  if (!phoneNumber) return 'Nao informado'
+  const dialCode = ({
+    BR: '+55',
+    AR: '+54',
+    CL: '+56',
+    CO: '+57',
+    MX: '+52',
+    PT: '+351',
+    ES: '+34',
+    US: '+1',
+    FR: '+33',
+    GB: '+44',
+  } as Record<string, string>)[countryCode ?? ''] ?? countryCode ?? ''
+  return dialCode ? `${dialCode} ${phoneNumber}` : phoneNumber
 }

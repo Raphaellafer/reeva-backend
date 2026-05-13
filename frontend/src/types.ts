@@ -386,6 +386,9 @@ export interface EmployeeListItem {
   id: string;
   name: string;
   email: string;
+  cpf: string | null;
+  phoneCountryCode: string | null;
+  phoneNumber: string | null;
   department: string | null;
   pendingCount: number;
   approvedCount: number;
@@ -402,5 +405,8 @@ export interface CreateEmployeePayload {
   email: string;
   password: string;
   pixKey: string;
+  cpf: string;
+  phoneCountryCode: string;
+  phoneNumber: string;
   departmentId?: string;
 }
