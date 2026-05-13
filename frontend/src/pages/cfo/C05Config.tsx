@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { getCfoCompliance, getCfoOverview, getCfoPolicies } from '../../api'
+import React, { useMemo, useRef, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getCfoCompliance, getCfoOverview, getCfoPolicies, uploadPolicyFile } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge, type BadgeVariant } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
@@ -40,6 +40,34 @@ function buildRecommendation(row: Omit<GovernanceRow, 'signal' | 'signalVariant'
 
 export function C05Config() {
   const token = getToken()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadPolicyFile(token!, file),
+    onSuccess: (savedPolicies) => {
+      void queryClient.invalidateQueries({ queryKey: ['cfo-policies'] })
+      setUploadMessage(`${savedPolicies.length} política(s) importada(s) com sucesso a partir do documento.`)
+      setUploadError(null)
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
+    onError: (err) => {
+      setUploadError(err instanceof Error ? err.message : 'Falha ao processar o arquivo de política.')
+      setUploadMessage(null)
+    },
+  })
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+    setSelectedFile(file)
+    setUploadMessage(null)
+    setUploadError(null)
+    if (file) uploadMutation.mutate(file)
+  }
 
   const { data: policies = [], isLoading: policiesLoading } = useQuery({
     queryKey: ['cfo-policies'],
@@ -89,6 +117,36 @@ export function C05Config() {
     <DesktopShell title="Governanca de politicas" role="CFO">
       <div className="space-y-4">
         {error && <Card className="border-[#F09595] bg-[#FCEBEB]"><p className="text-[13px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar governanca CFO.'}</p></Card>}
+
+        {/* ── Importar política de reembolso ── */}
+        <Card>
+          <div className="mb-4">
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Importar politica de reembolso</p>
+            <p className="mt-0.5 text-[12px] text-gray-400">Envie um documento (.txt ou .pdf) com as regras da empresa. A IA extraira automaticamente os limites por categoria e salvara as politicas.</p>
+          </div>
+
+          <div>
+            <label className="block text-[12px] font-medium text-gray-500 mb-1">Arquivo de politica</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.pdf,text/plain,application/pdf"
+              onChange={handleFileChange}
+              disabled={uploadMutation.isPending}
+              className="w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#1a1a2e] file:px-3 file:py-1 file:text-[12px] file:font-medium file:text-white outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15 disabled:opacity-50"
+            />
+            <p className="mt-1 text-[11px] text-gray-400">
+              {uploadMutation.isPending ? 'Processando com IA...' : 'Formatos aceitos: .txt e .pdf — maximo 5 MB. O envio comeca automaticamente ao selecionar o arquivo.'}
+            </p>
+          </div>
+
+          {uploadMessage && (
+            <p className="mt-3 rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{uploadMessage}</p>
+          )}
+          {uploadError && (
+            <p className="mt-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{uploadError}</p>
+          )}
+        </Card>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <MetricCard label="Politicas ativas" value={isLoading ? '...' : policies.length} subtext="categorias monitoradas" />

@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPolicies, getPolicyAuditLogs, savePolicy } from '../../api'
+import { getPolicies, getPolicyAuditLogs, savePolicy, uploadManagerPolicyFile } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -29,6 +29,10 @@ const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide tex
 export function G06Politicas() {
   const token = getToken()
   const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [visibleAuditCount, setVisibleAuditCount] = useState(5)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingPolicy, setEditingPolicy] = useState<PolicyResponse | null>(null)
@@ -36,6 +40,30 @@ export function G06Politicas() {
   const [message, setMessage] = useState<string | null>(null)
   const [drawerError, setDrawerError] = useState<string | null>(null)
   const managerName = getStoredUser()?.name ?? 'Gestor responsável'
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadManagerPolicyFile(token!, file),
+    onSuccess: (savedPolicies) => {
+      void queryClient.invalidateQueries({ queryKey: ['policies'] })
+      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      setUploadMessage(`${savedPolicies.length} política(s) importada(s) com sucesso a partir do documento.`)
+      setUploadError(null)
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
+    onError: (err) => {
+      setUploadError(err instanceof Error ? err.message : 'Falha ao processar o arquivo de política.')
+      setUploadMessage(null)
+    },
+  })
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+    setSelectedFile(file)
+    setUploadMessage(null)
+    setUploadError(null)
+    if (file) uploadMutation.mutate(file)
+  }
 
   const { data: policies = [], error: policiesError } = useQuery({
     queryKey: ['policies'],
@@ -98,6 +126,29 @@ export function G06Politicas() {
 
   return (
     <DesktopShell title="Políticas de reembolso" role="GERENTE">
+      <Card className="mb-5">
+        <div className="mb-4">
+          <p className="text-[14px] font-medium text-[#1a1a2e]">Importar política de reembolso</p>
+          <p className="mt-0.5 text-[12px] text-gray-400">Envie um documento (.txt ou .pdf) com as regras da empresa. A IA extrairá automaticamente os limites por categoria e salvará as políticas.</p>
+        </div>
+        <div>
+          <label className={labelClass}>Arquivo de política</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,text/plain,application/pdf"
+            onChange={handleFileChange}
+            disabled={uploadMutation.isPending}
+            className="mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#1a1a2e] file:px-3 file:py-1 file:text-[12px] file:font-medium file:text-white outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15 disabled:opacity-50"
+          />
+          <p className="mt-1 text-[11px] text-gray-400">
+            {uploadMutation.isPending ? 'Processando com IA...' : 'Formatos aceitos: .txt e .pdf — máximo 5 MB. O envio começa automaticamente ao selecionar o arquivo.'}
+          </p>
+        </div>
+        {uploadMessage && <p className="mt-3 rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{uploadMessage}</p>}
+        {uploadError && <p className="mt-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{uploadError}</p>}
+      </Card>
+
       <Card>
         <div className="mb-4 flex flex-col gap-1">
           <p className="text-[14px] font-medium text-[#1a1a2e]">Políticas cadastradas</p>

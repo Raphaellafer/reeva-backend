@@ -1,6 +1,7 @@
 package com.reeva.backend.manager;
 
 import com.reeva.backend.expense.dto.ExpenseResponse;
+import com.reeva.backend.finance.PolicyUploadService;
 import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.EmployeeListResponse;
@@ -19,9 +20,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -34,9 +37,11 @@ import java.util.UUID;
 public class ManagerController {
 
     private final ManagerService managerService;
+    private final PolicyUploadService policyUploadService;
 
-    public ManagerController(ManagerService managerService) {
+    public ManagerController(ManagerService managerService, PolicyUploadService policyUploadService) {
         this.managerService = managerService;
+        this.policyUploadService = policyUploadService;
     }
 
     @GetMapping("/dashboard")
@@ -55,6 +60,16 @@ public class ManagerController {
     @Operation(summary = "List company expense policy audit logs")
     public List<PolicyAuditLogResponse> listPolicyAuditLogs(@AuthenticationPrincipal User currentUser) {
         return managerService.listPolicyAuditLogs(currentUser);
+    }
+
+    @PostMapping(value = "/policies/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = "Upload a reimbursement policy document and auto-fill policies via AI")
+    public List<PolicyResponse> uploadPolicyFile(
+        @AuthenticationPrincipal User currentUser,
+        @RequestParam("file") MultipartFile file
+    ) {
+        return policyUploadService.processUpload(currentUser, file);
     }
 
     @PutMapping("/policies")

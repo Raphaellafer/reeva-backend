@@ -29,6 +29,7 @@ const navByRole = (role: UserRole) => {
         { label: 'ROI Corporativo', href: '/cfo/roi', icon: <IconTrend /> },
         { label: 'Compliance', href: '/cfo/compliance', icon: <IconShield /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
+        { label: 'Gestores', href: '/cfo/gestores', icon: <IconUsers /> },
         { label: 'Configurações', href: '/cfo/configuracoes', icon: <IconSettings /> },
       ],
     },

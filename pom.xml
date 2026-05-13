@@ -105,6 +105,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- ── PDF text extraction ──────────────────────────── -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.2</version>
+        </dependency>
+
         <!-- ── Messaging ────────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
