@@ -18,6 +18,7 @@ import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
 import com.reeva.backend.user.User;
+import com.reeva.backend.user.CpfUtils;
 import com.reeva.backend.user.UserRepository;
 import com.reeva.backend.user.UserRole;
 import com.reeva.backend.user.UserService;
@@ -369,6 +370,17 @@ public class ManagerService {
         if (userService.existsByEmail(request.email())) {
             throw BusinessException.conflict("Email already in use");
         }
+        String normalizedCpf = CpfUtils.normalize(request.cpf());
+        if (!CpfUtils.isValid(normalizedCpf)) {
+            throw BusinessException.badRequest("CPF invalido");
+        }
+        if (userRepository.existsByCpf(normalizedCpf)) {
+            throw BusinessException.conflict("Ja existe um funcionario com este CPF");
+        }
+        String normalizedPhone = request.phoneNumber().replaceAll("\\D", "");
+        if (normalizedPhone.length() < 6) {
+            throw BusinessException.badRequest("Numero de telefone invalido");
+        }
 
         User employee = new User(
             manager.getCompany(),
@@ -379,6 +391,9 @@ public class ManagerService {
         );
         employee.setManager(manager);
         employee.setPixKey(request.pixKey().trim());
+        employee.setCpf(normalizedCpf);
+        employee.setPhoneCountryCode(request.phoneCountryCode().trim().toUpperCase());
+        employee.setPhoneNumber(normalizedPhone);
 
         if (request.departmentId() != null) {
             Department dept = departmentRepository.findById(request.departmentId())
