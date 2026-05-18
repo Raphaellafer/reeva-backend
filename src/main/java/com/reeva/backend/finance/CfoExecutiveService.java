@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 public class CfoExecutiveService {
 
     private static final BigDecimal MANUAL_REVIEW_SAVINGS = new BigDecimal("18.00");
-    private static final short LOW_OCR_SCORE = 70;
+    private static final short LOW_OCR_SCORE = 85;
     private static final List<ExpenseStatus> REIMBURSED_STATUSES = List.of(
         ExpenseStatus.MANAGER_APPROVED,
         ExpenseStatus.FINANCE_APPROVED,
@@ -50,7 +50,7 @@ public class CfoExecutiveService {
         DateRange range = normalize(from, to);
         UUID companyId = currentUser.getCompany().getId();
         List<Expense> expenses = expenseRepository.findByCompanyForCfoMetrics(companyId, range.from(), range.to());
-        Map<ExpenseCategory, ExpensePolicy> policies = policiesByCategory(companyId);
+        Map<String, ExpensePolicy> policies = policiesByCategory(companyId);
 
         BigDecimal totalReimbursed = sum(expenses.stream()
             .filter(expense -> REIMBURSED_STATUSES.contains(expense.getStatus()))
@@ -90,7 +90,7 @@ public class CfoExecutiveService {
 
     @Transactional(readOnly = true)
     public Page<CfoExpenseResponse> expenses(User currentUser, ExpenseStatus status, UUID projectId,
-                                             ExpenseCategory category, Boolean duplicate, Boolean fiscalInvalid,
+                                             String category, Boolean duplicate, Boolean fiscalInvalid,
                                              Boolean policyViolation, Boolean lowOcr, LocalDate from, LocalDate to,
                                              Pageable pageable) {
         DateRange range = normalize(from, to);
@@ -105,7 +105,7 @@ public class CfoExecutiveService {
         DateRange range = normalize(from, to);
         UUID companyId = currentUser.getCompany().getId();
         List<Expense> expenses = expenseRepository.findByCompanyForCfoMetrics(companyId, range.from(), range.to());
-        Map<ExpenseCategory, ExpensePolicy> policies = policiesByCategory(companyId);
+        Map<String, ExpensePolicy> policies = policiesByCategory(companyId);
 
         BigDecimal totalAvoided = expenses.stream()
             .map(expense -> avoidableLoss(expense, policies))
@@ -125,7 +125,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoOverviewResponse.ProjectRiskItem> projectRiskRanking(
-        List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         return expenses.stream()
             .collect(Collectors.groupingBy(expense -> new ProjectKey(
                 expense.getProject().getId(), expense.getProject().getName(), expense.getProject().getCode()
@@ -154,7 +154,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoOverviewResponse.CategorySpendItem> categorySpend(
-        List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         return expenses.stream()
             .collect(Collectors.groupingBy(Expense::getCategory))
             .entrySet()
@@ -182,7 +182,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoOverviewResponse.MonthlyReimbursementTrendItem> monthlyTrend(
-        DateRange range, List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        DateRange range, List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         YearMonth first = YearMonth.from(range.from());
         YearMonth last = YearMonth.from(range.to());
         return java.util.stream.Stream.iterate(first, month -> !month.isAfter(last), month -> month.plusMonths(1))
@@ -202,7 +202,7 @@ public class CfoExecutiveService {
             .toList();
     }
 
-    private List<CfoRecommendationResponse> recommendations(List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+    private List<CfoRecommendationResponse> recommendations(List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         List<CfoRecommendationResponse> items = new ArrayList<>();
         projectRiskRanking(expenses, policies).stream().findFirst().ifPresent(project -> {
             if (project.avoidableLosses().compareTo(BigDecimal.ZERO) > 0) {
@@ -265,7 +265,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoComplianceResponse.RiskyEmployeeItem> riskyEmployees(
-        List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         return expenses.stream()
             .collect(Collectors.groupingBy(expense -> new EmployeeKey(
                 expense.getUser().getId(),
@@ -292,7 +292,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoComplianceResponse.RiskyProjectItem> riskyProjects(
-        List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         return expenses.stream()
             .collect(Collectors.groupingBy(expense -> new ProjectKey(
                 expense.getProject().getId(), expense.getProject().getName(), expense.getProject().getCode()
@@ -315,7 +315,7 @@ public class CfoExecutiveService {
     }
 
     private List<CfoComplianceResponse.RiskyCategoryItem> riskyCategories(
-        List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+        List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         return expenses.stream()
             .collect(Collectors.groupingBy(Expense::getCategory))
             .entrySet()
@@ -333,15 +333,15 @@ public class CfoExecutiveService {
             .toList();
     }
 
-    private Map<ExpenseCategory, ExpensePolicy> policiesByCategory(UUID companyId) {
-        Map<ExpenseCategory, ExpensePolicy> policies = new EnumMap<>(ExpenseCategory.class);
+    private Map<String, ExpensePolicy> policiesByCategory(UUID companyId) {
+        Map<String, ExpensePolicy> policies = new java.util.HashMap<>();
         for (ExpensePolicy policy : policyRepository.findByCompanyIdAndActiveTrueOrderByCategoryAsc(companyId)) {
             policies.put(policy.getCategory(), policy);
         }
         return policies;
     }
 
-    private BigDecimal avoidableLoss(Expense expense, Map<ExpenseCategory, ExpensePolicy> policies) {
+    private BigDecimal avoidableLoss(Expense expense, Map<String, ExpensePolicy> policies) {
         BigDecimal amount = CfoMetricCalculator.money(expense.getAmount());
         if (isDuplicateRejected(expense) || isPolicyRejected(expense)) {
             return amount;

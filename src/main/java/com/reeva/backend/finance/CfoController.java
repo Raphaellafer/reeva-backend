@@ -1,6 +1,5 @@
 package com.reeva.backend.finance;
 
-import com.reeva.backend.expense.ExpenseCategory;
 import com.reeva.backend.expense.ExpenseStatus;
 import com.reeva.backend.finance.dto.CfoComplianceResponse;
 import com.reeva.backend.finance.dto.CfoExpenseResponse;
@@ -84,7 +83,7 @@ public class CfoController {
         @AuthenticationPrincipal User currentUser,
         @RequestParam(required = false) ExpenseStatus status,
         @RequestParam(required = false) UUID projectId,
-        @RequestParam(required = false) ExpenseCategory category,
+        @RequestParam(required = false) String category,
         @RequestParam(required = false) Boolean duplicate,
         @RequestParam(required = false) Boolean fiscalInvalid,
         @RequestParam(required = false) Boolean policyViolation,

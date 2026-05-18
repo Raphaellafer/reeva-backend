@@ -1,0 +1,2 @@
+ALTER TABLE expenses ADD COLUMN IF NOT EXISTS compliance_score SMALLINT;
+

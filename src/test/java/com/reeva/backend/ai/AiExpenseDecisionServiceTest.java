@@ -29,7 +29,7 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(category, new BigDecimal("40.00"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category.name()))
             .thenReturn(Optional.empty());
 
         AiExpenseDecision decision = service.decide(expense, readableResult(category, new BigDecimal("40.00")));
@@ -51,7 +51,7 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.PURCHASE, new BigDecimal("80.00"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.PURCHASE))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.PURCHASE.name()))
             .thenReturn(Optional.empty());
 
         OcrResult unreadableWithFiscalData = new OcrResult(
@@ -90,8 +90,8 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(category, new BigDecimal("250.00"));
-        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), category, new BigDecimal("100.00"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category))
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), category.name(), new BigDecimal("100.00"));
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category.name()))
             .thenReturn(Optional.of(policy));
 
         AiExpenseDecision decision = service.decide(expense, readableResult(category, new BigDecimal("250.00")));
@@ -108,7 +108,7 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("40.00"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT.name()))
             .thenReturn(Optional.empty());
 
         AiExpenseDecision decision = service.decide(expense, readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("40.00")));
@@ -125,8 +125,8 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.LODGING, new BigDecimal("6000.00"));
-        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.LODGING, new BigDecimal("800.00"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.LODGING))
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.LODGING.name(), new BigDecimal("800.00"));
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.LODGING.name()))
             .thenReturn(Optional.of(policy));
 
         OcrResult unreadable = new OcrResult(
@@ -165,10 +165,10 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
-        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.TRANSPORT, new BigDecimal("300.00"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.TRANSPORT.name(), new BigDecimal("300.00"));
         policy.setAutoApprovalMinScore((short) 85);
         policy.setDescription("Nao reembolsar notas de mais de 30 dias atras.");
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT.name()))
             .thenReturn(Optional.of(policy));
 
         AiExpenseDecision decision = service.decide(
@@ -189,7 +189,7 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT.name()))
             .thenReturn(Optional.empty());
 
         OcrResult result = readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"), LocalDate.now());
@@ -227,9 +227,9 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.FOOD, new BigDecimal("120.00"));
-        ExpensePolicy foodPolicy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.FOOD, new BigDecimal("150.00"));
+        ExpensePolicy foodPolicy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.FOOD.name(), new BigDecimal("150.00"));
         foodPolicy.setAutoApprovalMinScore((short) 90);
-        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.FOOD))
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.FOOD.name()))
             .thenReturn(Optional.of(foodPolicy));
 
         OcrResult result = readableResult(ExpenseCategory.FOOD, new BigDecimal("120.00"), LocalDate.now().minusDays(60));
@@ -262,6 +262,28 @@ class AiExpenseDecisionServiceTest {
         assertThat(decision.policyViolationReason()).isNull();
     }
 
+    @Test
+    void lowReadingScoreShouldBlockAutoApprovalEvenWhenCompliancePasses() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
+
+        Expense expense = expense(ExpenseCategory.FOOD, new BigDecimal("40.00"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.FOOD.name(), new BigDecimal("150.00"));
+        policy.setAutoApprovalMinScore((short) 90);
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.FOOD.name()))
+            .thenReturn(Optional.of(policy));
+
+        OcrResult result = readableResult(ExpenseCategory.FOOD, new BigDecimal("40.00"), LocalDate.now(), (short) 84);
+
+        AiExpenseDecision decision = service.decide(expense, result);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.READY_FOR_MANAGER);
+        assertThat(decision.score()).isEqualTo((short) 84);
+        assertThat(decision.complianceScore()).isEqualTo((short) 60);
+        assertThat(decision.manualReviewReason()).contains("leitura OCR 84 abaixo do minimo fixo 85");
+        assertThat(decision.autoApprovalEligible()).isFalse();
+    }
+
     private Expense expense(ExpenseCategory category, BigDecimal amount) throws Exception {
         Company company = new Company("Reeva", "11.222.333/0001-81", "demo@reeva.com.br", "PRO");
         setField(company, "id", UUID.randomUUID());
@@ -269,7 +291,7 @@ class AiExpenseDecisionServiceTest {
         setField(employee, "id", UUID.randomUUID());
         Project project = new Project(company, "Projeto Demo", employee);
         setField(project, "id", UUID.randomUUID());
-        return new Expense(company, employee, project, "Nota", category,
+        return new Expense(company, employee, project, "Nota", category.name(),
             amount, LocalDate.of(2025, 5, 14), PaymentMethod.OTHER);
     }
 
@@ -278,6 +300,10 @@ class AiExpenseDecisionServiceTest {
     }
 
     private OcrResult readableResult(ExpenseCategory category, BigDecimal amount, LocalDate issueDate) {
+        return readableResult(category, amount, issueDate, (short) 95);
+    }
+
+    private OcrResult readableResult(ExpenseCategory category, BigDecimal amount, LocalDate issueDate, short score) {
         return new OcrResult(
             true,
             null,
@@ -287,7 +313,7 @@ class AiExpenseDecisionServiceTest {
             issueDate,
             category.name(),
             "Despesa corporativa",
-            (short) 95,
+            score,
             "Documento claro.",
             null,
             null,

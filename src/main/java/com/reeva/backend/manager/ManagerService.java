@@ -214,11 +214,15 @@ public class ManagerService {
 
     @Transactional
     public PolicyResponse savePolicy(User manager, PolicyUpdateRequest request) {
-        var existing = policyRepository.findByCompanyIdAndCategory(manager.getCompany().getId(), request.category());
+        String category = CategoryUtils.normalize(request.category());
+        if (category == null) {
+            throw BusinessException.badRequest("Categoria invalida");
+        }
+        var existing = policyRepository.findByCompanyIdAndCategory(manager.getCompany().getId(), category);
         boolean created = existing.isEmpty();
         boolean reactivated = existing.map(policy -> !policy.isActive()).orElse(false);
         ExpensePolicy policy = existing
-            .orElseGet(() -> new ExpensePolicy(manager.getCompany(), request.category(), request.maxAmount()));
+            .orElseGet(() -> new ExpensePolicy(manager.getCompany(), category, request.maxAmount()));
         Map<String, Object> before = created ? Map.of() : policySnapshot(policy);
 
         policy.setMaxAmount(request.maxAmount());
@@ -234,7 +238,7 @@ public class ManagerService {
         ExpensePolicy saved = policyRepository.save(policy);
         String action = created ? "POLICY_CREATED" : reactivated ? "POLICY_REACTIVATED" : "POLICY_UPDATED";
         Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("category", saved.getCategory().name());
+        metadata.put("category", saved.getCategory());
         metadata.put("changedByName", manager.getName());
         metadata.put("changedByEmail", manager.getEmail());
         metadata.put("before", before);
@@ -255,7 +259,7 @@ public class ManagerService {
 
     private Map<String, Object> policySnapshot(ExpensePolicy policy) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("category", policy.getCategory().name());
+        snapshot.put("category", policy.getCategory());
         snapshot.put("maxAmount", policy.getMaxAmount());
         snapshot.put("dailyLimit", policy.getDailyLimit());
         snapshot.put("monthlyLimit", policy.getMonthlyLimit());

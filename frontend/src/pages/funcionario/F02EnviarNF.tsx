@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createExpense, getMyProjects, submitExpense } from '../../api'
+import { createExpense, getMyProjects, getPolicies, submitExpense } from '../../api'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Button } from '../../components/ui/Button'
-import { categoryLabels } from '../../realData'
+import { categoryLabel, categoryLabels } from '../../realData'
 import { getToken } from '../../session'
 import type { ExpenseCategory, ProjectResponse } from '../../types'
 
-const categories = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
+const defaultCategoryOptions = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
 
 function todayLocalDate() {
   const now = new Date()
@@ -24,6 +24,7 @@ export function F02EnviarNF() {
   const [photoConfirmed, setPhotoConfirmed] = useState(false)
   const [photoCheck, setPhotoCheck] = useState<PhotoCheck | null>(null)
   const [projects, setProjects] = useState<ProjectResponse[]>([])
+  const [categoryOptions, setCategoryOptions] = useState(defaultCategoryOptions)
   const [projectId, setProjectId] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
   const [submitting, setSubmitting] = useState(false)
@@ -38,6 +39,13 @@ export function F02EnviarNF() {
         if (items.length === 1) setProjectId(items[0].id)
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Falha ao carregar projetos.'))
+    getPolicies(token)
+      .then((policies) => {
+        const merged = new Map<string, string>(defaultCategoryOptions)
+        policies.forEach((policy) => merged.set(policy.category, categoryLabel(policy.category)))
+        setCategoryOptions(Array.from(merged.entries()))
+      })
+      .catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -180,7 +188,7 @@ export function F02EnviarNF() {
                 className="mt-1 w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15"
               >
                 <option value="">Selecione</option>
-                {categories.map(([value, label]) => (
+                {categoryOptions.map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>
@@ -193,7 +201,7 @@ export function F02EnviarNF() {
             <ReviewRow label="Arquivo" value={file?.name ?? 'Pendente'} pending={!file} />
             <ReviewRow label="Foto conferida" value={photoConfirmed ? 'Confirmada' : 'Pendente'} pending={!photoConfirmed} />
             <ReviewRow label="Projeto" value={selectedProject?.name ?? 'Pendente'} pending={!selectedProject} />
-            <ReviewRow label="Categoria" value={category ? categoryLabels[category] : 'Pendente'} pending={!category} />
+            <ReviewRow label="Categoria" value={category ? categoryLabel(category) : 'Pendente'} pending={!category} />
           </div>
           <p className="mt-3 rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3 text-[12px] text-gray-500">
             O valor e os itens serão lidos automaticamente. Se algum campo obrigatório ficar inseguro, você poderá corrigir antes da decisão final.

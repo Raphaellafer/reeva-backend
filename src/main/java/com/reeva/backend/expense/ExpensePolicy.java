@@ -19,9 +19,8 @@ public class ExpensePolicy {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "expense_category")
-    private ExpenseCategory category;
+    @Column(nullable = false, length = 80)
+    private String category;
 
     @Column(name = "max_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal maxAmount;
@@ -52,7 +51,7 @@ public class ExpensePolicy {
 
     protected ExpensePolicy() {}
 
-    public ExpensePolicy(Company company, ExpenseCategory category, BigDecimal maxAmount) {
+    public ExpensePolicy(Company company, String category, BigDecimal maxAmount) {
         this.company = company;
         this.category = category;
         this.maxAmount = maxAmount;
@@ -60,7 +59,7 @@ public class ExpensePolicy {
 
     public UUID getId() { return id; }
     public Company getCompany() { return company; }
-    public ExpenseCategory getCategory() { return category; }
+    public String getCategory() { return category; }
     public BigDecimal getMaxAmount() { return maxAmount; }
     public BigDecimal getDailyLimit() { return dailyLimit; }
     public BigDecimal getMonthlyLimit() { return monthlyLimit; }

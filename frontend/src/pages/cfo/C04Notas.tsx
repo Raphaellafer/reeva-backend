@@ -51,7 +51,7 @@ function signalFilters(signal: InvestigationSignal) {
 }
 
 function isLowOcr(expense: CfoExpenseResponse) {
-  return expense.status === 'OCR_FAILED' || (expense.aiScore != null && expense.aiScore < 70)
+  return expense.status === 'OCR_FAILED' || (expense.aiScore != null && expense.aiScore < 85)
 }
 
 function riskBadge(expense: CfoExpenseResponse) {
@@ -66,7 +66,7 @@ function riskReason(expense: CfoExpenseResponse) {
   if (expense.duplicate) return expense.duplicateOfExpenseId ? `Duplicada de ${expense.duplicateOfExpenseId.slice(0, 8)}` : 'Possivel duplicidade'
   if (expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' || expense.sefazStatus === 'INVALID') return 'Validacao fiscal invalida'
   if (expense.policyCompliant === false || expense.aiDecision === 'REJECTED_BY_POLICY') return expense.policyViolationReason ?? 'Fora da politica'
-  if (isLowOcr(expense)) return `Score IA ${expense.aiScore ?? 'N/A'}`
+  if (isLowOcr(expense)) return `Leitura OCR ${expense.aiScore ?? 'N/A'}`
   return expense.manualReviewReason ?? '-'
 }
 
@@ -94,8 +94,8 @@ export function C04Notas() {
   function clearFilters() { setCategory(''); setStatus(''); setSignal(''); setFrom(''); setTo(''); setPage(0) }
 
   function exportCSV() {
-    const headers = ['Funcionario', 'Depto', 'Gestor', 'Projeto', 'Estabelecimento', 'Categoria', 'Data', 'Valor', 'Status', 'Risco', 'Motivo']
-    const rows = (data?.content ?? []).map((e) => [e.employeeName, e.departmentName ?? '', e.managerName ?? '', e.projectName, e.supplierName ?? e.title, categoryLabels[e.category] ?? e.category, formatDate(e.expenseDate), (e.amount ?? 0).toFixed(2), statusLabels[e.status] ?? e.status, e.duplicate ? 'Duplicada' : e.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Fiscal' : e.policyCompliant === false ? 'Politica' : isLowOcr(e) ? 'OCR baixo' : 'Ok', riskReason(e)])
+    const headers = ['Funcionario', 'Depto', 'Gestor', 'Projeto', 'Estabelecimento', 'Categoria', 'Data', 'Valor', 'Leitura OCR', 'Conformidade', 'Status', 'Risco', 'Motivo']
+    const rows = (data?.content ?? []).map((e) => [e.employeeName, e.departmentName ?? '', e.managerName ?? '', e.projectName, e.supplierName ?? e.title, categoryLabels[e.category] ?? e.category, formatDate(e.expenseDate), (e.amount ?? 0).toFixed(2), e.aiScore ?? '', e.complianceScore ?? '', statusLabels[e.status] ?? e.status, e.duplicate ? 'Duplicada' : e.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Fiscal' : e.policyCompliant === false ? 'Politica' : isLowOcr(e) ? 'OCR baixo' : 'Ok', riskReason(e)])
     const csv = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -150,7 +150,7 @@ export function C04Notas() {
           <table className="w-full min-w-[1080px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionario', 'Depto', 'Gestor', 'Projeto', 'Estabelecimento', 'Categoria', 'Data', 'Valor', 'IA', 'Status', 'Risco', 'Motivo'].map((header) => (
+                {['Funcionario', 'Depto', 'Gestor', 'Projeto', 'Estabelecimento', 'Categoria', 'Data', 'Valor', 'Leitura', 'Conform.', 'Status', 'Risco', 'Motivo'].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
@@ -167,12 +167,13 @@ export function C04Notas() {
                   <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{formatDate(expense.expenseDate)}</td>
                   <td className="whitespace-nowrap py-3 pr-3 font-medium">{fmt(expense.amount ?? 0)}</td>
                   <td className="py-3 pr-3 text-gray-600">{expense.aiScore ?? '-'}</td>
+                  <td className="py-3 pr-3 text-gray-600">{expense.complianceScore ?? '-'}</td>
                   <td className="py-3 pr-3"><StatusBadge status={expense.status} /></td>
                   <td className="py-3 pr-3">{riskBadge(expense)}</td>
                   <td className="max-w-[220px] truncate py-3 pr-3 text-[12px] text-gray-500">{riskReason(expense)}</td>
                 </tr>
               ))}
-              {!isLoading && (data?.content.length ?? 0) === 0 && <tr><td colSpan={12} className="py-5 text-[13px] text-gray-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>}
+              {!isLoading && (data?.content.length ?? 0) === 0 && <tr><td colSpan={13} className="py-5 text-[13px] text-gray-400">Nenhuma nota encontrada com os filtros atuais.</td></tr>}
             </tbody>
           </table>
         </div>

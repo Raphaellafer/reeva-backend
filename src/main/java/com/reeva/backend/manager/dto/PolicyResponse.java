@@ -1,6 +1,5 @@
 package com.reeva.backend.manager.dto;
 
-import com.reeva.backend.expense.ExpenseCategory;
 import com.reeva.backend.expense.ExpensePolicy;
 
 import java.math.BigDecimal;
@@ -8,7 +7,7 @@ import java.util.UUID;
 
 public record PolicyResponse(
     UUID id,
-    ExpenseCategory category,
+    String category,
     BigDecimal maxAmount,
     BigDecimal dailyLimit,
     BigDecimal monthlyLimit,

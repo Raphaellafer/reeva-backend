@@ -21,7 +21,7 @@ const statusFilters: { id: StatusFilter; label: string }[] = [
   { id: 'OCR_FAILED', label: 'Leitura falhou' },
 ]
 
-const categoryFilters = ['TODOS', 'FOOD', 'TRANSPORT', 'LODGING', 'PURCHASE', 'HARDWARE'] as CategoryFilter[]
+const defaultCategoryFilters = ['TODOS', 'FOOD', 'TRANSPORT', 'LODGING', 'PURCHASE', 'HARDWARE'] as CategoryFilter[]
 
 export function G04Notas() {
   const token = getToken()
@@ -36,6 +36,11 @@ export function G04Notas() {
   })
 
   const expenses = page?.content ?? []
+  const categoryFilters = useMemo(() => {
+    const items = new Set<CategoryFilter>(defaultCategoryFilters)
+    expenses.forEach((expense) => items.add(expense.category))
+    return Array.from(items)
+  }, [expenses])
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -46,7 +51,7 @@ export function G04Notas() {
       if (!['TODOS', 'FILA', 'APROVADAS', 'REJEITADAS'].includes(statusFilter) && expense.status !== statusFilter) return false
       if (categoryFilter !== 'TODOS' && expense.category !== categoryFilter) return false
       if (!normalizedQuery) return true
-      const content = `${expense.userName} ${expense.projectName} ${expense.title} ${categoryLabels[expense.category]} ${statusLabel(expense.status)}`.toLowerCase()
+      const content = `${expense.userName} ${expense.projectName} ${expense.title} ${categoryLabels[expense.category] ?? expense.category} ${statusLabel(expense.status)}`.toLowerCase()
       return content.includes(normalizedQuery)
     })
   }, [expenses, statusFilter, categoryFilter, query])
@@ -79,7 +84,7 @@ export function G04Notas() {
           >
             {categoryFilters.map((category) => (
               <option key={category} value={category}>
-                {category === 'TODOS' ? 'Todas as categorias' : categoryLabels[category]}
+                {category === 'TODOS' ? 'Todas as categorias' : categoryLabels[category] ?? category}
               </option>
             ))}
           </select>
@@ -97,14 +102,14 @@ export function G04Notas() {
           <table className="w-full min-w-[780px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionário', 'Projeto', 'Nota', 'Categoria', 'Data', 'Valor', 'Score', 'Status'].map((header) => (
+                {['Funcionário', 'Projeto', 'Nota', 'Categoria', 'Data', 'Valor', 'Leitura', 'Conform.', 'Status'].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhuma nota encontrada com esses filtros.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-gray-400">Nenhuma nota encontrada com esses filtros.</td></tr>
               )}
               {filtered.map((expense) => (
                 <tr key={expense.id} className="border-b border-black/[0.04] hover:bg-gray-50">
@@ -116,10 +121,11 @@ export function G04Notas() {
                   </td>
                   <td className="max-w-[150px] truncate py-3 pr-3 text-gray-700">{expense.projectName}</td>
                   <td className="max-w-[200px] truncate py-3 pr-3 text-gray-700">{expense.title}</td>
-                  <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category]}</td>
+                  <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category] ?? expense.category}</td>
                   <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{fmtDate(expense.expenseDate)}</td>
                   <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#1a1a2e]">{fmt(expense.amount)}</td>
                   <td className="py-3 pr-3 text-gray-500">{expense.aiScore ?? '-'}</td>
+                  <td className="py-3 pr-3 text-gray-500">{expense.complianceScore ?? '-'}</td>
                   <td className="py-3 pr-3"><StatusBadge status={expense.status} /></td>
                 </tr>
               ))}

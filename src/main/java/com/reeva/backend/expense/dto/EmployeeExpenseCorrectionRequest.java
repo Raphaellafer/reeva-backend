@@ -1,6 +1,5 @@
 package com.reeva.backend.expense.dto;
 
-import com.reeva.backend.expense.ExpenseCategory;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
@@ -14,8 +13,9 @@ public record EmployeeExpenseCorrectionRequest(
     @Size(max = 255)
     String title,
 
-    @NotNull(message = "Categoria e obrigatoria")
-    ExpenseCategory category,
+    @NotBlank(message = "Categoria e obrigatoria")
+    @Size(max = 80)
+    String category,
 
     @NotNull(message = "Data da despesa e obrigatoria")
     @PastOrPresent(message = "Data da despesa nao pode estar no futuro")

@@ -1,7 +1,5 @@
 package com.reeva.backend.finance.dto;
 
-import com.reeva.backend.expense.ExpenseCategory;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -46,7 +44,7 @@ public record CfoComplianceResponse(
     ) {}
 
     public record RiskyCategoryItem(
-        ExpenseCategory category,
+        String category,
         long expenseCount,
         BigDecimal totalAmount,
         long policyViolationCount,

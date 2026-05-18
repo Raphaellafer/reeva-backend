@@ -33,7 +33,7 @@ function buildSignal(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'reco
 function buildRecommendation(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'recommendation'>) {
   if (row.avoidableLosses > 0) return 'Revisar limite e exigir justificativa para excecoes desta categoria.'
   if (row.policyViolationCount > 0) return 'Ajustar comunicacao da politica e manter revisao manual ate estabilizar.'
-  if (row.policy.autoApprovalMinScore >= 90) return 'Score conservador: avaliar automacao se o historico continuar limpo.'
+  if (row.policy.autoApprovalMinScore >= 90) return 'Conformidade conservadora: avaliar automacao se o historico continuar limpo.'
   if (!row.policy.requiresReceipt) return 'Confirmar se recibo opcional ainda faz sentido para auditoria.'
   return 'Manter regra atual e acompanhar no fechamento mensal.'
 }

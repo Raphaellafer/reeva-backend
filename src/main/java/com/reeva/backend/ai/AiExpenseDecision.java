@@ -10,6 +10,7 @@ public record AiExpenseDecision(
     ExpenseStatus status,
     AiAlertLevel alertLevel,
     short score,
+    short complianceScore,
     boolean policyCompliant,
     String policyViolationReason,
     SefazStatus sefazStatus,

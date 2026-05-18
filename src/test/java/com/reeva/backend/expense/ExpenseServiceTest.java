@@ -54,7 +54,7 @@ class ExpenseServiceTest {
         Project project = new Project(company, "Projeto Demo", employee);
         setField(project, "id", UUID.randomUUID());
 
-        Expense expense = new Expense(company, employee, project, "arquivo-nota", ExpenseCategory.FOOD,
+        Expense expense = new Expense(company, employee, project, "arquivo-nota", ExpenseCategory.FOOD.name(),
             new BigDecimal("42.50"), LocalDate.now(), PaymentMethod.OTHER);
         setField(expense, "id", UUID.randomUUID());
         expense.transitionTo(ExpenseStatus.NEEDS_REVISION);
@@ -65,7 +65,7 @@ class ExpenseServiceTest {
 
         EmployeeExpenseCorrectionRequest request = new EmployeeExpenseCorrectionRequest(
             "Restaurante XPTO",
-            ExpenseCategory.FOOD,
+            ExpenseCategory.FOOD.name(),
             LocalDate.of(2026, 5, 5),
             "Correcao manual apos falha do OCR"
         );
@@ -92,7 +92,7 @@ class ExpenseServiceTest {
         Project project = new Project(company, "Projeto Demo", employee);
         setField(project, "id", UUID.randomUUID());
 
-        Expense expense = new Expense(company, employee, project, "arquivo-nota", ExpenseCategory.FOOD,
+        Expense expense = new Expense(company, employee, project, "arquivo-nota", ExpenseCategory.FOOD.name(),
             null, LocalDate.now(), PaymentMethod.OTHER);
         setField(expense, "id", UUID.randomUUID());
         expense.transitionTo(ExpenseStatus.NEEDS_REVISION);
@@ -101,7 +101,7 @@ class ExpenseServiceTest {
 
         EmployeeExpenseCorrectionRequest request = new EmployeeExpenseCorrectionRequest(
             "Restaurante XPTO",
-            ExpenseCategory.FOOD,
+            ExpenseCategory.FOOD.name(),
             LocalDate.of(2026, 5, 5),
             "Correcao manual apos falha do OCR"
         );
@@ -124,11 +124,11 @@ class ExpenseServiceTest {
         Project project = new Project(company, "Projeto Demo", employee);
         setField(project, "id", UUID.randomUUID());
 
-        Expense original = new Expense(company, employee, project, "Restaurante XPTO", ExpenseCategory.FOOD,
+        Expense original = new Expense(company, employee, project, "Restaurante XPTO", ExpenseCategory.FOOD.name(),
             new BigDecimal("42.50"), LocalDate.now(), PaymentMethod.OTHER);
         setField(original, "id", UUID.randomUUID());
 
-        Expense duplicate = new Expense(company, employee, project, "Restaurante XPTO", ExpenseCategory.FOOD,
+        Expense duplicate = new Expense(company, employee, project, "Restaurante XPTO", ExpenseCategory.FOOD.name(),
             new BigDecimal("42.50"), LocalDate.now(), PaymentMethod.OTHER);
         setField(duplicate, "id", UUID.randomUUID());
         duplicate.transitionTo(ExpenseStatus.NEEDS_REVISION);
@@ -138,7 +138,7 @@ class ExpenseServiceTest {
 
         EmployeeExpenseCorrectionRequest request = new EmployeeExpenseCorrectionRequest(
             "Restaurante XPTO",
-            ExpenseCategory.FOOD,
+            ExpenseCategory.FOOD.name(),
             LocalDate.of(2026, 5, 5),
             "Tentativa de corrigir duplicidade"
         );

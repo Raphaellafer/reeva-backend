@@ -1,6 +1,5 @@
 package com.reeva.backend.finance.dto;
 
-import com.reeva.backend.expense.ExpenseCategory;
 import com.reeva.backend.expense.ExpenseStatus;
 
 import java.math.BigDecimal;
@@ -35,7 +34,7 @@ public record CfoOverviewResponse(
     ) {}
 
     public record CategorySpendItem(
-        ExpenseCategory category,
+        String category,
         BigDecimal amount,
         long expenseCount,
         BigDecimal avoidableLosses

@@ -3,7 +3,7 @@ package com.reeva.backend.finance;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reeva.backend.common.exception.BusinessException;
-import com.reeva.backend.expense.ExpenseCategory;
+import com.reeva.backend.expense.CategoryUtils;
 import com.reeva.backend.manager.ManagerService;
 import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
@@ -40,20 +40,23 @@ public class PolicyUploadService {
 
         Sua tarefa e analisar o documento de politica de reembolso fornecido e extrair as regras por categoria de despesa.
 
-        Categorias disponiveis no sistema:
+        Categorias padrao sugeridas no sistema:
         - FOOD: alimentacao, refeicoes, restaurantes, lanches, delivery, cafe
         - TRANSPORT: transporte, Uber, taxi, combustivel, estacionamento, pedagio, metro, onibus, locomocao
         - LODGING: hospedagem, hotel, pousada, Airbnb, diaria, pernoite
         - PURCHASE: compras gerais, material de escritorio, papelaria, materiais, eletronicos
         - HARDWARE: equipamentos de TI, computadores, notebooks, monitores, perifericos, mouse, teclado
 
+        Se o documento mencionar uma categoria que nao existe na lista padrao, crie um codigo curto em maiusculo,
+        sem acentos e com underscore entre palavras. Exemplos: LAVANDERIA, ESTACIONAMENTO, TREINAMENTO.
+
         Para cada categoria mencionada no documento, extraia:
-        - category: nome exato da categoria (FOOD, TRANSPORT, LODGING, PURCHASE ou HARDWARE)
+        - category: codigo normalizado da categoria
         - maxAmount: valor maximo permitido por despesa em BRL (numero decimal, ex: 50.00)
         - dailyLimit: limite diario total em BRL (numero decimal ou null se nao mencionado)
         - monthlyLimit: limite mensal total em BRL (numero decimal ou null se nao mencionado)
         - requiresReceipt: se e obrigatorio comprovante/nota fiscal (true ou false)
-        - autoApprovalMinScore: score minimo para aprovacao automatica (inteiro de 0 a 100, use 90 se nao mencionado)
+        - autoApprovalMinScore: score minimo de conformidade para aprovacao automatica (inteiro de 0 a 100, use 90 se nao mencionado). O score tecnico de leitura OCR e fixo no sistema e nao deve ser extraido.
         - description: texto completo das regras e observacoes para essa categoria, copiando as informacoes relevantes do documento
 
         Se uma categoria nao for mencionada no documento, nao a inclua na resposta.
@@ -177,7 +180,8 @@ public class PolicyUploadService {
                 String categoryStr = node.path("category").asText(null);
                 if (categoryStr == null || categoryStr.isBlank()) continue;
 
-                ExpenseCategory category = ExpenseCategory.valueOf(categoryStr.toUpperCase());
+                String category = CategoryUtils.normalize(categoryStr);
+                if (category == null) continue;
                 BigDecimal maxAmount = readDecimal(node, "maxAmount");
                 if (maxAmount == null || maxAmount.compareTo(BigDecimal.ZERO) <= 0) continue;
 
@@ -192,7 +196,7 @@ public class PolicyUploadService {
                     requiresReceipt, minScore, description
                 ));
             } catch (IllegalArgumentException e) {
-                log.warn("Unrecognized category in policy upload response: {}", node.path("category").asText());
+                log.warn("Invalid policy upload response for category: {}", node.path("category").asText());
             }
         }
         return result;
@@ -210,8 +214,7 @@ public class PolicyUploadService {
 
     private java.util.Map<String, Object> buildResponseFormat() {
         var policyProps = new LinkedHashMap<String, Object>();
-        policyProps.put("category", java.util.Map.of("type", "string",
-            "enum", List.of("FOOD", "TRANSPORT", "LODGING", "PURCHASE", "HARDWARE")));
+        policyProps.put("category", java.util.Map.of("type", "string"));
         policyProps.put("maxAmount", java.util.Map.of("type", "number"));
         policyProps.put("dailyLimit", java.util.Map.of("type", List.of("number", "null")));
         policyProps.put("monthlyLimit", java.util.Map.of("type", List.of("number", "null")));

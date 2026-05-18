@@ -47,9 +47,8 @@ public class Expense {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, columnDefinition = "expense_category")
-    private ExpenseCategory category;
+    @Column(nullable = false, length = 80)
+    private String category;
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
@@ -77,6 +76,9 @@ public class Expense {
 
     @Column(name = "ai_score")
     private Short aiScore;
+
+    @Column(name = "compliance_score")
+    private Short complianceScore;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "ai_alert_level", nullable = false, columnDefinition = "ai_alert_level")
@@ -180,7 +182,7 @@ public class Expense {
 
     protected Expense() {}
 
-    public Expense(Company company, User user, Project project, String title, ExpenseCategory category,
+    public Expense(Company company, User user, Project project, String title, String category,
                    BigDecimal amount, LocalDate expenseDate, PaymentMethod paymentMethod) {
         this.company = company;
         this.user = user;
@@ -207,13 +209,14 @@ public class Expense {
     public Project getProject() { return project; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
-    public ExpenseCategory getCategory() { return category; }
+    public String getCategory() { return category; }
     public BigDecimal getAmount() { return amount; }
     public String getCurrency() { return currency; }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }
     public LocalDate getExpenseDate() { return expenseDate; }
     public ExpenseStatus getStatus() { return status; }
     public Short getAiScore() { return aiScore; }
+    public Short getComplianceScore() { return complianceScore; }
     public AiAlertLevel getAiAlertLevel() { return aiAlertLevel; }
     public String getOcrData() { return ocrData; }
     public String getAiAnalysis() { return aiAnalysis; }
@@ -249,11 +252,12 @@ public class Expense {
     public void setProject(Project project) { this.project = project; }
     public void setDescription(String description) { this.description = description; }
     public void setAmount(java.math.BigDecimal amount) { this.amount = amount; }
-    public void setCategory(ExpenseCategory category) { this.category = category; }
+    public void setCategory(String category) { this.category = category; }
     public void setExpenseDate(java.time.LocalDate expenseDate) { this.expenseDate = expenseDate; }
     public void setOcrData(String ocrData) { this.ocrData = ocrData; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public void setAiScore(Short aiScore) { this.aiScore = aiScore; }
+    public void setComplianceScore(Short complianceScore) { this.complianceScore = complianceScore; }
     public void setAiAlertLevel(AiAlertLevel aiAlertLevel) { this.aiAlertLevel = aiAlertLevel; }
     public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
     public void setAiCheckedAt(Instant aiCheckedAt) { this.aiCheckedAt = aiCheckedAt; }

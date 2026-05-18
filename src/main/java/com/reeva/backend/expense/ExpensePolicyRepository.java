@@ -8,9 +8,9 @@ import java.util.UUID;
 
 public interface ExpensePolicyRepository extends JpaRepository<ExpensePolicy, UUID> {
 
-    Optional<ExpensePolicy> findByCompanyIdAndCategoryAndActiveTrue(UUID companyId, ExpenseCategory category);
+    Optional<ExpensePolicy> findByCompanyIdAndCategoryAndActiveTrue(UUID companyId, String category);
 
-    Optional<ExpensePolicy> findByCompanyIdAndCategory(UUID companyId, ExpenseCategory category);
+    Optional<ExpensePolicy> findByCompanyIdAndCategory(UUID companyId, String category);
 
     List<ExpensePolicy> findByCompanyIdAndActiveTrueOrderByCategoryAsc(UUID companyId);
 }

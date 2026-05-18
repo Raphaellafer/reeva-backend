@@ -99,7 +99,7 @@ public class CfoProjectMetricsService {
                 project.getId(), companyId, range.from(), range.to());
         List<Expense> expenses = expenseRepository.findByProjectForCfoMetrics(
             companyId, project.getId(), range.from(), range.to());
-        Map<ExpenseCategory, ExpensePolicy> policies = policiesByCategory(companyId);
+        Map<String, ExpensePolicy> policies = policiesByCategory(companyId);
 
         BigDecimal revenue = sumEntries(entries, FinancialEntryType.REVENUE);
         BigDecimal generalExpenses = sumEntries(entries, FinancialEntryType.GENERAL_EXPENSE);
@@ -152,15 +152,15 @@ public class CfoProjectMetricsService {
             .orElseThrow(() -> BusinessException.notFound("Project not found"));
     }
 
-    private Map<ExpenseCategory, ExpensePolicy> policiesByCategory(UUID companyId) {
-        Map<ExpenseCategory, ExpensePolicy> policies = new EnumMap<>(ExpenseCategory.class);
+    private Map<String, ExpensePolicy> policiesByCategory(UUID companyId) {
+        Map<String, ExpensePolicy> policies = new java.util.HashMap<>();
         for (ExpensePolicy policy : policyRepository.findByCompanyIdAndActiveTrueOrderByCategoryAsc(companyId)) {
             policies.put(policy.getCategory(), policy);
         }
         return policies;
     }
 
-    private BigDecimal avoidableLosses(List<Expense> expenses, Map<ExpenseCategory, ExpensePolicy> policies) {
+    private BigDecimal avoidableLosses(List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         BigDecimal total = BigDecimal.ZERO;
         for (Expense expense : expenses) {
             if (isRejected(expense) || isPolicyRejected(expense)) {

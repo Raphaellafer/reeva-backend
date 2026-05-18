@@ -79,7 +79,7 @@ export function F03Historico() {
       if (filter === 'APROVADO' && !isApproved(expense)) return false
       if (filter === 'ENCERRADO' && !isRejected(expense)) return false
       if (!normalizedQuery) return true
-      const content = `${expense.title} ${expense.projectName} ${categoryLabels[expense.category]}`.toLowerCase()
+      const content = `${expense.title} ${expense.projectName} ${categoryLabels[expense.category] ?? expense.category}`.toLowerCase()
       return content.includes(normalizedQuery)
     })
   }, [expenses, filter, query])
@@ -146,7 +146,7 @@ export function F03Historico() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{expense.title}</p>
                       <p className="text-[11px] text-gray-400">
-                        {expense.projectName} · {categoryLabels[expense.category]} · {fmtDate(expense.expenseDate)}
+                        {expense.projectName} · {categoryLabels[expense.category] ?? expense.category} · {fmtDate(expense.expenseDate)}
                       </p>
                       {(isActionRequired(expense) || expense.status === 'PENDING_REVIEW') && (
                         <p className="mt-1 line-clamp-2 text-[11px] text-gray-500">{nextActionText(expense)}</p>

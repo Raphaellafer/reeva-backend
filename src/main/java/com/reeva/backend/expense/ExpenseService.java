@@ -69,8 +69,12 @@ public class ExpenseService {
         StorageService.StoredFile stored = storageService.store(file);
         Project project = projectService.getEmployeeProject(currentUser, request.projectId());
 
+        String category = CategoryUtils.normalize(request.category());
+        if (category == null) {
+            throw BusinessException.badRequest("Categoria invalida");
+        }
         Expense expense = new Expense(
-            currentUser.getCompany(), currentUser, project, request.title(), request.category(),
+            currentUser.getCompany(), currentUser, project, request.title(), category,
             request.amount(), request.expenseDate(),
             request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.OTHER
         );
@@ -145,6 +149,7 @@ public class ExpenseService {
         ExpenseStatus from = expense.getStatus();
         expense.setDuplicateOfExpense(original);
         expense.setAiScore((short) 0);
+        expense.setComplianceScore((short) 0);
         expense.setAiAlertLevel(AiAlertLevel.HIGH);
         expense.setAiAnalysis("Possivel duplicidade detectada: " + evidence + ".");
         expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
@@ -221,7 +226,11 @@ public class ExpenseService {
         }
 
         expense.setTitle(request.title());
-        expense.setCategory(request.category());
+        String category = CategoryUtils.normalize(request.category());
+        if (category == null) {
+            throw BusinessException.badRequest("Categoria invalida");
+        }
+        expense.setCategory(category);
         expense.setExpenseDate(request.expenseDate());
         expense.setDescription(request.description());
         expense.setManualReviewReason(null);
@@ -246,7 +255,7 @@ public class ExpenseService {
             "EXPENSE_EMPLOYEE_CORRECTED", "Expense", expense.getId(),
             Map.of(
                 "title", request.title(),
-                "category", request.category().name(),
+                "category", category,
                 "amount", expense.getAmount().toPlainString(),
                 "amountSource", "OCR_LOCKED"
             ), null

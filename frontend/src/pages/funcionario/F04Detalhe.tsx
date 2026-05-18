@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getMyExpense, retryExpenseOcr, submitEmployeeCorrection } from '../../api'
+import { getMyExpense, getPolicies, retryExpenseOcr, submitEmployeeCorrection } from '../../api'
 import { AttachmentPreview } from '../../components/attachments/AttachmentPreview'
 import { MobileShell } from '../../components/layout/MobileShell'
 import { Badge } from '../../components/ui/Badge'
@@ -11,6 +11,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { Timeline } from '../../components/ui/Timeline'
 import {
   aiDecisionLabel,
+  categoryLabel,
   categoryLabels,
   fmt,
   fmtDate,
@@ -23,7 +24,7 @@ import { getToken } from '../../session'
 import type { TimelineItem } from '../../components/ui/Timeline'
 import type { ExpenseCategory } from '../../types'
 
-const categories = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
+const defaultCategoryOptions = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
 
 function buildTimeline(expense: NonNullable<ReturnType<typeof useQuery<any>>['data']>): TimelineItem[] {
   return expense.statusHistory.map((item: any) => ({
@@ -52,6 +53,7 @@ export function F04Detalhe() {
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
   const [expenseDate, setExpenseDate] = useState('')
   const [description, setDescription] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState(defaultCategoryOptions)
 
   const { data: expense, isLoading, error } = useQuery({
     queryKey: ['my-expense', id],
@@ -59,6 +61,17 @@ export function F04Detalhe() {
     enabled: !!token && !!id,
     refetchInterval: (query) => query.state.data?.status === 'SUBMITTED' ? 2500 : false,
   })
+
+  useEffect(() => {
+    if (!token) return
+    getPolicies(token)
+      .then((policies) => {
+        const merged = new Map<string, string>(defaultCategoryOptions)
+        policies.forEach((policy) => merged.set(policy.category, categoryLabel(policy.category)))
+        setCategoryOptions(Array.from(merged.entries()))
+      })
+      .catch(() => undefined)
+  }, [token])
 
   useEffect(() => {
     if (!expense) return
@@ -204,6 +217,7 @@ export function F04Detalhe() {
                 description={description}
                 amount={expense.amount}
                 canCorrectNonFinancialFields={canCorrectNonFinancialFields}
+                categoryOptions={categoryOptions}
                 savingCorrection={savingCorrection}
                 onTitleChange={setTitle}
                 onCategoryChange={setCategory}
@@ -227,7 +241,7 @@ export function F04Detalhe() {
               <div className="grid grid-cols-2 gap-3 text-[12px]">
                 <InfoItem label="Estabelecimento" value={expense.title} full />
                 <InfoItem label="Projeto" value={expense.projectName} />
-                <InfoItem label="Categoria" value={categoryLabels[expense.category]} />
+                <InfoItem label="Categoria" value={categoryLabel(expense.category)} />
                 <InfoItem label="Data" value={fmtDate(expense.expenseDate)} />
                 <InfoItem label="Valor" value={fmt(expense.amount)} />
                 {expense.description && <InfoItem label="Observacoes" value={expense.description} full />}
@@ -237,7 +251,10 @@ export function F04Detalhe() {
             <Card>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <p className="text-[13px] font-medium text-[#1a1a2e]">Analise da IA</p>
-                <Badge variant={scoreVariant(expense.aiScore)}>{expense.aiScore == null ? 'Sem score' : `${expense.aiScore}/100`}</Badge>
+                <div className="flex gap-2">
+                  <Badge variant={scoreVariant(expense.aiScore)}>{expense.aiScore == null ? 'Leitura sem score' : `Leitura ${expense.aiScore}/100`}</Badge>
+                  <Badge variant={scoreVariant(expense.complianceScore)}>{expense.complianceScore == null ? 'Conformidade sem score' : `Conformidade ${expense.complianceScore}/100`}</Badge>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-[12px]">
                 <InfoItem label="Decisao" value={aiDecisionLabel(expense.aiDecision)} />
@@ -296,6 +313,7 @@ function CorrectionCard({
   description,
   amount,
   canCorrectNonFinancialFields,
+  categoryOptions,
   savingCorrection,
   onTitleChange,
   onCategoryChange,
@@ -309,6 +327,7 @@ function CorrectionCard({
   description: string
   amount: number | null
   canCorrectNonFinancialFields: boolean
+  categoryOptions: Array<[ExpenseCategory, string]>
   savingCorrection: boolean
   onTitleChange: (value: string) => void
   onCategoryChange: (value: ExpenseCategory | '') => void
@@ -343,7 +362,7 @@ function CorrectionCard({
           Categoria
           <select value={category} onChange={(event) => onCategoryChange(event.target.value as ExpenseCategory | '')} className={fieldClass}>
             <option value="">Selecione</option>
-            {categories.map(([value, label]) => (
+            {categoryOptions.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>

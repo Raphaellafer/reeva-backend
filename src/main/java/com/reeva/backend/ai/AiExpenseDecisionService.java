@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 public class AiExpenseDecisionService {
 
     private static final short DEFAULT_AUTO_APPROVAL_SCORE = 90;
+    private static final short MIN_READING_SCORE_FOR_AUTO_APPROVAL = 85;
     private static final BigDecimal NEVER_AUTO_APPROVE_AMOUNT = new BigDecimal("5000.00");
     private static final SefazValidationResult SEFAZ_VALIDATION_DISABLED = new SefazValidationResult(
         SefazStatus.NOT_APPLICABLE,
@@ -31,8 +32,21 @@ public class AiExpenseDecisionService {
         short score = normalizeScore(result.score());
         SefazValidationResult sefaz = sefazValidation();
 
-        ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
+        String category = resolveCategory(result.category(), expense.getCategory());
         PolicyCheck policy = checkPolicy(expense, result, category);
+        boolean categoryMismatch = isCategoryMismatch(result, expense.getCategory());
+        boolean trustedAiPolicyViolation = Boolean.FALSE.equals(result.policyCompliant())
+            && shouldTrustAiPolicyViolation(result, category);
+        short complianceScore = complianceScore(result, policy, categoryMismatch, trustedAiPolicyViolation);
+
+        if (categoryMismatch) {
+            String reason = "Categoria enviada nao confere com a nota: enviado como "
+                + expense.getCategory() + ", mas a IA identificou " + result.category() + ".";
+            return decision(AiDecision.NEEDS_EMPLOYEE_CORRECTION, ExpenseStatus.NEEDS_REVISION,
+                AiAlertLevel.HIGH, score, complianceScore, false, reason, sefaz, false,
+                "Funcionario deve corrigir a categoria da despesa.",
+                "Foto precisa ser reenviada ou corrigida: " + reason);
+        }
 
         if (!result.readable()) {
             String summary = "Foto precisa ser reenviada: " + result.reason();
@@ -40,7 +54,7 @@ public class AiExpenseDecisionService {
                 summary += " " + policyFallbackReason(policy.reason());
             }
             return decision(AiDecision.NEEDS_EMPLOYEE_CORRECTION, ExpenseStatus.NEEDS_REVISION,
-                AiAlertLevel.HIGH, score, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
+                AiAlertLevel.HIGH, score, complianceScore, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
                 sefaz, false, result.reason(), summary);
         }
 
@@ -50,48 +64,51 @@ public class AiExpenseDecisionService {
                 summary += " " + policyFallbackReason(policy.reason());
             }
             return decision(AiDecision.NEEDS_EMPLOYEE_CORRECTION, ExpenseStatus.NEEDS_REVISION,
-                AiAlertLevel.HIGH, score, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
+                AiAlertLevel.HIGH, score, complianceScore, policy.compliant(), policy.compliant() ? null : policyFallbackReason(policy.reason()),
                 sefaz, false, "Funcionario deve corrigir campos ou reenviar a foto.",
                 summary);
         }
 
         if (!policy.compliant()) {
             return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
-                AiAlertLevel.HIGH, score, false, policy.reason(), sefaz, false,
+                AiAlertLevel.HIGH, score, complianceScore, false, policy.reason(), sefaz, false,
                 "Fora da politica da empresa. Gestor deve revisar antes de aprovar.",
                 "Revisao obrigatoria do gestor: reembolso fora da politica. " + policy.reason());
         }
 
-        if (Boolean.FALSE.equals(result.policyCompliant()) && shouldTrustAiPolicyViolation(result, category)) {
+        if (trustedAiPolicyViolation) {
             String reason = result.policyReason() != null && !result.policyReason().isBlank()
                 ? result.policyReason()
                 : "IA identificou descumprimento da politica cadastrada.";
             return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
-                AiAlertLevel.HIGH, score, false, reason, sefaz, false,
+                AiAlertLevel.HIGH, score, complianceScore, false, reason, sefaz, false,
                 "Fora da politica da empresa. Gestor deve revisar antes de aprovar.",
                 "Revisao obrigatoria do gestor: reembolso fora da politica. " + reason);
         }
 
-        short minScore = autoApprovalMinScore(expense, category);
+        short minComplianceScore = autoApprovalMinScore(expense, category);
         BigDecimal amount = safeAmount(result, expense);
         boolean overNeverAutoApprove = amount.compareTo(NEVER_AUTO_APPROVE_AMOUNT) > 0;
-        if (score >= minScore && !overNeverAutoApprove) {
+        boolean readingScoreOk = score >= MIN_READING_SCORE_FOR_AUTO_APPROVAL;
+        if (readingScoreOk && complianceScore >= minComplianceScore && !overNeverAutoApprove) {
             return decision(AiDecision.AUTO_APPROVED, ExpenseStatus.MANAGER_APPROVED,
-                AiAlertLevel.NONE, score, true, null, sefaz, true, null,
-                "Aprovado automaticamente pela IA: score " + score + " atingiu o minimo " + minScore
+                AiAlertLevel.NONE, score, complianceScore, true, null, sefaz, true, null,
+                "Aprovado automaticamente pela IA: leitura " + score + "/100 atingiu o minimo fixo "
+                    + MIN_READING_SCORE_FOR_AUTO_APPROVAL + ", conformidade " + complianceScore
+                    + "/100 atingiu o minimo " + minComplianceScore
                     + " e politica ok. Verificacao SEFAZ temporariamente desativada.");
         }
 
-        String reason = autoApprovalBlockReason(score, minScore, amount, overNeverAutoApprove);
+        String reason = autoApprovalBlockReason(score, minComplianceScore, complianceScore, amount, overNeverAutoApprove);
         return decision(AiDecision.READY_FOR_MANAGER, ExpenseStatus.PENDING_REVIEW,
-            AiAlertLevel.MEDIUM, score, true, null, sefaz, false, reason,
+            AiAlertLevel.MEDIUM, score, complianceScore, true, null, sefaz, false, reason,
             "Revisao do gestor recomendada: " + reason);
     }
 
-    private boolean shouldTrustAiPolicyViolation(OcrResult result, ExpenseCategory category) {
+    private boolean shouldTrustAiPolicyViolation(OcrResult result, String category) {
         String reason = normalizeText(result.policyReason() == null ? "" : result.policyReason());
         for (ExpenseCategory otherCategory : ExpenseCategory.values()) {
-            if (otherCategory != category && mentionsCategory(reason, otherCategory)) {
+            if (!otherCategory.name().equals(category) && mentionsCategory(reason, otherCategory)) {
                 return false;
             }
         }
@@ -125,7 +142,7 @@ public class AiExpenseDecisionService {
         return SEFAZ_VALIDATION_DISABLED;
     }
 
-    private PolicyCheck checkPolicy(Expense expense, OcrResult result, ExpenseCategory category) {
+    private PolicyCheck checkPolicy(Expense expense, OcrResult result, String category) {
         BigDecimal amount = safeAmount(result, expense);
         return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category)
             .map(policy -> {
@@ -179,17 +196,20 @@ public class AiExpenseDecisionService {
             .replaceAll("\\p{M}", "");
     }
 
-    private short autoApprovalMinScore(Expense expense, ExpenseCategory category) {
+    private short autoApprovalMinScore(Expense expense, String category) {
         return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category)
             .map(ExpensePolicy::getAutoApprovalMinScore)
             .orElse(DEFAULT_AUTO_APPROVAL_SCORE);
     }
 
-    private String autoApprovalBlockReason(short score, short minScore, BigDecimal amount,
+    private String autoApprovalBlockReason(short score, short minComplianceScore, short complianceScore, BigDecimal amount,
                                            boolean overNeverAutoApprove) {
         java.util.List<String> reasons = new java.util.ArrayList<>();
-        if (score < minScore) {
-            reasons.add("score da IA " + score + " abaixo do minimo configurado " + minScore);
+        if (score < MIN_READING_SCORE_FOR_AUTO_APPROVAL) {
+            reasons.add("leitura OCR " + score + " abaixo do minimo fixo " + MIN_READING_SCORE_FOR_AUTO_APPROVAL);
+        }
+        if (complianceScore < minComplianceScore) {
+            reasons.add("conformidade " + complianceScore + " abaixo do minimo configurado " + minComplianceScore);
         }
         if (overNeverAutoApprove) {
             reasons.add("valor " + amount + " acima do teto automatico de R$ 5.000,00");
@@ -210,21 +230,52 @@ public class AiExpenseDecisionService {
     private boolean hasMissingMandatoryFields(OcrResult result) {
         return result.supplierName() == null || result.supplierName().isBlank()
             || result.totalAmount() == null
-            || result.issueDate() == null
-            || result.category() == null || result.category().isBlank();
+            || result.issueDate() == null;
     }
 
-    private ExpenseCategory resolveCategory(String rawCategory, ExpenseCategory fallback) {
+    private String resolveCategory(String rawCategory, String fallback) {
         if (rawCategory == null || rawCategory.isBlank()) return fallback;
-        try {
-            return ExpenseCategory.valueOf(rawCategory);
-        } catch (IllegalArgumentException ignored) {
+        String normalized = CategoryUtils.normalize(rawCategory);
+        if (normalized == null || "OTHER".equals(normalized)) {
             return fallback;
         }
+        return normalized;
     }
 
     private BigDecimal safeAmount(OcrResult result, Expense expense) {
         return result.totalAmount() != null ? result.totalAmount() : expense.getAmount();
+    }
+
+    private boolean isCategoryMismatch(OcrResult result, String submittedCategory) {
+        if (result.category() == null || result.category().isBlank()) {
+            return false;
+        }
+        String detectedCategory = CategoryUtils.normalize(result.category());
+        if (detectedCategory == null || "OTHER".equals(detectedCategory)) {
+            return false;
+        }
+        return !detectedCategory.equals(submittedCategory);
+    }
+
+    private short complianceScore(OcrResult result, PolicyCheck policy, boolean categoryMismatch,
+                                  boolean trustedAiPolicyViolation) {
+        int score = 100;
+        if (!result.readable()) {
+            score = Math.min(score, 30);
+        }
+        if (hasMissingMandatoryFields(result)) {
+            score = Math.min(score, 40);
+        }
+        if (categoryMismatch) {
+            score = Math.min(score, 30);
+        }
+        if (!policy.compliant() || trustedAiPolicyViolation) {
+            score = Math.min(score, 20);
+        }
+        if (normalizeScore(result.score()) < MIN_READING_SCORE_FOR_AUTO_APPROVAL) {
+            score = Math.min(score, 60);
+        }
+        return (short) Math.max(0, Math.min(100, score));
     }
 
     private short normalizeScore(Short score) {
@@ -235,10 +286,10 @@ public class AiExpenseDecisionService {
     }
 
     private AiExpenseDecision decision(AiDecision decision, ExpenseStatus status, AiAlertLevel alertLevel,
-                                       short score, boolean policyCompliant, String policyViolationReason,
+                                       short score, short complianceScore, boolean policyCompliant, String policyViolationReason,
                                        SefazValidationResult sefaz, boolean autoApprovalEligible,
                                        String manualReviewReason, String summary) {
-        return new AiExpenseDecision(decision, status, alertLevel, score, policyCompliant,
+        return new AiExpenseDecision(decision, status, alertLevel, score, complianceScore, policyCompliant,
             policyViolationReason, sefaz.status(), sefaz.message(), autoApprovalEligible,
             manualReviewReason, summary);
     }

@@ -131,7 +131,7 @@ export function F01Home() {
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{expense.title}</p>
                     <p className="text-[11px] text-gray-400">
-                      {expense.projectName} · {categoryLabels[expense.category]} · {fmtDate(expense.expenseDate)}
+                      {expense.projectName} · {categoryLabels[expense.category] ?? expense.category} · {fmtDate(expense.expenseDate)}
                     </p>
                     {(isActionRequired(expense) || expense.status === 'PENDING_REVIEW') && (
                       <p className="mt-1 line-clamp-2 text-[11px] text-gray-500">{nextActionText(expense)}</p>

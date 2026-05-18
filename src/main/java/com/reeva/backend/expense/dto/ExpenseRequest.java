@@ -1,6 +1,5 @@
 package com.reeva.backend.expense.dto;
 
-import com.reeva.backend.expense.ExpenseCategory;
 import com.reeva.backend.expense.PaymentMethod;
 import jakarta.validation.constraints.*;
 
@@ -14,8 +13,9 @@ public record ExpenseRequest(
     @Size(max = 255)
     String title,
 
-    @NotNull(message = "Categoria e obrigatoria")
-    ExpenseCategory category,
+    @NotBlank(message = "Categoria e obrigatoria")
+    @Size(max = 80)
+    String category,
 
     @NotNull(message = "Projeto e obrigatorio")
     UUID projectId,

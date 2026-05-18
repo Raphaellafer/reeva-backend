@@ -8,12 +8,10 @@ import { SideDrawer } from '../../components/ui/SideDrawer'
 import { getStoredUser } from '../../hooks/useAuth'
 import { categoryLabels, fmt } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseCategory, PolicyAuditLogResponse, PolicyPayload, PolicyResponse } from '../../types'
-
-const categories = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
+import type { PolicyAuditLogResponse, PolicyPayload, PolicyResponse } from '../../types'
 
 const emptyForm: PolicyPayload = {
-  category: 'FOOD',
+  category: '',
   maxAmount: '150.00',
   dailyLimit: null,
   monthlyLimit: null,
@@ -104,6 +102,14 @@ export function G06Politicas() {
     setDrawerOpen(true)
   }
 
+  function createPolicy() {
+    setEditingPolicy(null)
+    setForm(emptyForm)
+    setMessage(null)
+    setDrawerError(null)
+    setDrawerOpen(true)
+  }
+
   function closeDrawer() {
     if (saveMutation.isPending) return
     setDrawerOpen(false)
@@ -117,8 +123,13 @@ export function G06Politicas() {
     event.preventDefault()
     setMessage(null)
     setDrawerError(null)
+    if (!form.category.trim()) {
+      setDrawerError('Informe o nome da categoria.')
+      return
+    }
     saveMutation.mutate({
       ...form,
+      category: form.category.trim(),
       dailyLimit: form.dailyLimit || null,
       monthlyLimit: form.monthlyLimit || null,
     })
@@ -150,9 +161,12 @@ export function G06Politicas() {
       </Card>
 
       <Card>
-        <div className="mb-4 flex flex-col gap-1">
-          <p className="text-[14px] font-medium text-[#1a1a2e]">Políticas cadastradas</p>
-          <p className="text-[12px] text-gray-400">{policies.length} categorias configuradas</p>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Políticas cadastradas</p>
+            <p className="text-[12px] text-gray-400">{policies.length} categorias configuradas</p>
+          </div>
+          <Button type="button" onClick={createPolicy} className="justify-center">Nova categoria</Button>
         </div>
 
         {policiesError && !drawerOpen && (
@@ -163,7 +177,7 @@ export function G06Politicas() {
           <table className="w-full min-w-[760px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Categoria', 'Limite', 'Diário', 'Mensal', 'Score auto', 'Comprovante', ''].map((header) => (
+                {['Categoria', 'Limite', 'Diário', 'Mensal', 'Conformidade', 'Comprovante', ''].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
@@ -174,7 +188,7 @@ export function G06Politicas() {
               ) : (
                 policies.map((policy) => (
                   <tr key={policy.id} className="border-b border-black/[0.04] hover:bg-gray-50">
-                    <td className="py-4 pr-3 font-medium text-[#1a1a2e]">{categoryLabels[policy.category]}</td>
+                    <td className="py-4 pr-3 font-medium text-[#1a1a2e]">{categoryLabels[policy.category] ?? policy.category}</td>
                     <td className="py-4 pr-3 whitespace-nowrap">{fmt(policy.maxAmount)}</td>
                     <td className="py-4 pr-3 whitespace-nowrap">{policy.dailyLimit == null ? '-' : fmt(policy.dailyLimit)}</td>
                     <td className="py-4 pr-3 whitespace-nowrap">{policy.monthlyLimit == null ? '-' : fmt(policy.monthlyLimit)}</td>
@@ -219,7 +233,7 @@ export function G06Politicas() {
                     <td className="py-3 pr-3 whitespace-nowrap">{formatDateTime(log.changedAt)}</td>
                     <td className="py-3 pr-3">{log.changedByName ?? log.changedByUserId}</td>
                     <td className="py-3 pr-3">{actionLabel(log.action)}</td>
-                    <td className="py-3 pr-3">{categoryLabels[log.category as ExpenseCategory] ?? log.category ?? '-'}</td>
+                    <td className="py-3 pr-3">{log.category ? categoryLabels[String(log.category)] ?? log.category : '-'}</td>
                     <td className="py-3 pr-3 text-[#1a1a2e]">{changeSummary(log)}</td>
                   </tr>
                 ))}
@@ -238,7 +252,7 @@ export function G06Politicas() {
 
       <SideDrawer
         open={drawerOpen}
-        title="Editar política"
+        title={editingPolicy ? 'Editar política' : 'Nova categoria'}
         onClose={closeDrawer}
         footer={
           <div className="space-y-3">
@@ -257,11 +271,15 @@ export function G06Politicas() {
           <section className="space-y-3">
             <p className={sectionTitleClass}>Categoria</p>
             <label className={labelClass}>
-              Categoria
-              <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as ExpenseCategory }))} className={fieldClass}>
-                {categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              Nome ou código da categoria
+              <input
+                value={form.category}
+                onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                placeholder="Ex: Transporte, Lavanderia, Treinamento"
+                className={fieldClass}
+              />
             </label>
+            <p className="text-[11px] text-gray-400">O sistema salva a categoria como código normalizado, sem acentos e em maiúsculo. Ex: "Treinamento externo" vira TREINAMENTO_EXTERNO.</p>
             <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Responsável pela alteração</p>
               <p className="mt-1 text-[13px] font-medium text-[#1a1a2e]">{managerName}</p>
@@ -280,9 +298,13 @@ export function G06Politicas() {
           <section className="space-y-3">
             <p className={sectionTitleClass}>Autoaprovação</p>
             <label className={labelClass}>
-              Score mínimo
+              Score mínimo de conformidade
               <input type="number" min={0} max={100} value={form.autoApprovalMinScore} onChange={(event) => setForm((current) => ({ ...current, autoApprovalMinScore: Math.max(0, Math.min(100, Number(event.target.value) || 0)) }))} className={fieldClass} />
             </label>
+            <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3 text-[12px] text-gray-500">
+              <p className="font-medium text-[#1a1a2e]">Score mínimo de leitura OCR: 85/100</p>
+              <p className="mt-1">Este limite é fixo para todas as categorias. O gestor ajusta apenas a conformidade com a política.</p>
+            </div>
             <label className="flex items-center justify-between gap-3 rounded-[8px] border border-black/[0.08] px-3 py-2 text-[13px] font-medium text-[#1a1a2e]">
               <span>Exigir comprovante</span>
               <input type="checkbox" checked={form.requiresReceipt} onChange={(event) => setForm((current) => ({ ...current, requiresReceipt: event.target.checked }))} className="h-4 w-4" />
@@ -324,7 +346,7 @@ function snapshotSummary(snapshot: Record<string, unknown>) {
   const monthlyLimit = moneyValue(snapshot.monthlyLimit)
   const score = snapshot.autoApprovalMinScore == null ? '-' : String(snapshot.autoApprovalMinScore)
   const receipt = snapshot.requiresReceipt === true ? 'sim' : snapshot.requiresReceipt === false ? 'não' : '-'
-  return `Limite ${maxAmount}; diário ${dailyLimit}; mensal ${monthlyLimit}; score ${score}; comprovante ${receipt}`
+  return `Limite ${maxAmount}; diário ${dailyLimit}; mensal ${monthlyLimit}; conformidade ${score}; leitura 85 fixa; comprovante ${receipt}`
 }
 
 function changeSummary(log: PolicyAuditLogResponse) {
@@ -334,7 +356,7 @@ function changeSummary(log: PolicyAuditLogResponse) {
     diffMoney('limite por nota', log.before.maxAmount, log.after.maxAmount),
     diffMoney('limite diário', log.before.dailyLimit, log.after.dailyLimit),
     diffMoney('limite mensal', log.before.monthlyLimit, log.after.monthlyLimit),
-    diffValue('score auto', log.before.autoApprovalMinScore, log.after.autoApprovalMinScore),
+    diffValue('score conformidade', log.before.autoApprovalMinScore, log.after.autoApprovalMinScore),
     diffValue('comprovante', receiptLabel(log.before.requiresReceipt), receiptLabel(log.after.requiresReceipt)),
     diffText('regras', log.before.description, log.after.description),
   ].filter(Boolean)
@@ -367,12 +389,12 @@ function moneyValue(value: unknown) {
 }
 
 function buildPolicyImpact(policy: PolicyResponse | null, form: PolicyPayload) {
-  if (!policy) return ['Selecione uma política para ver o impacto da alteração.']
+  if (!policy) return ['Nova categoria será criada com a política informada.']
   const changes = [
     impactMoney('Limite por nota', policy.maxAmount, form.maxAmount),
     impactMoney('Limite diário', policy.dailyLimit, form.dailyLimit),
     impactMoney('Limite mensal', policy.monthlyLimit, form.monthlyLimit),
-    impactNumber('Score mínimo', policy.autoApprovalMinScore, form.autoApprovalMinScore),
+    impactNumber('Score mínimo de conformidade', policy.autoApprovalMinScore, form.autoApprovalMinScore),
     policy.requiresReceipt !== form.requiresReceipt ? `Comprovante: ${policy.requiresReceipt ? 'obrigatório' : 'opcional'} -> ${form.requiresReceipt ? 'obrigatório' : 'opcional'}` : null,
     String(policy.description ?? '') !== String(form.description ?? '') ? 'Regras para IA serão atualizadas.' : null,
   ].filter(Boolean) as string[]

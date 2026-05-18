@@ -108,7 +108,7 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
   ])
   const noteData = [
     { label: 'Estabelecimento', value: firstValue(expense.title, ocr?.supplier_name) },
-    { label: 'Categoria', value: categoryLabels[expense.category] ?? ocrCategoryLabel(ocr?.category) },
+    { label: 'Categoria', value: categoryLabels[expense.category] ?? expense.category ?? ocrCategoryLabel(ocr?.category) },
     { label: 'Valor', value: expense.amount != null ? fmt(expense.amount) : formatNullableMoney(ocr?.total_amount) },
     { label: 'Data da nota', value: expense.expenseDate ? fmtDate(expense.expenseDate) : fmtDate(ocr?.issue_date) },
     { label: 'Descrição', value: firstValue(expense.description, ocr?.description) },
@@ -126,14 +126,15 @@ export function ExpenseDetailPanel({ expense, token, actions }: ExpenseDetailPan
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
             <p className="text-[15px] font-medium text-[#1a1a2e] truncate">{expense.title}</p>
-            <p className="text-[12px] text-gray-400">{expense.userName} - {expense.projectName} - {categoryLabels[expense.category]} - {fmtDate(expense.expenseDate)}</p>
+            <p className="text-[12px] text-gray-400">{expense.userName} - {expense.projectName} - {categoryLabels[expense.category] ?? expense.category} - {fmtDate(expense.expenseDate)}</p>
           </div>
           <StatusBadge status={expense.status} />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px] mb-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[12px] mb-3">
           <div><p className="text-gray-400">Valor</p><p className="font-medium">{fmt(expense.amount)}</p></div>
-          <div><p className="text-gray-400">Score IA</p><p className="font-medium">{expense.aiScore ?? '-'}</p></div>
+          <div><p className="text-gray-400">Leitura OCR</p><p className="font-medium">{expense.aiScore == null ? '-' : `${expense.aiScore}/100`}</p></div>
+          <div><p className="text-gray-400">Conformidade</p><p className="font-medium">{expense.complianceScore == null ? '-' : `${expense.complianceScore}/100`}</p></div>
           <div><p className="text-gray-400">Política</p><p className="font-medium">{expense.aiDecision === 'REJECTED_BY_FISCAL_VALIDATION' ? 'Bloqueio fiscal' : expense.policyCompliant == null ? 'Pendente' : expense.policyCompliant ? 'Ok' : 'Fora'}</p></div>
           <div><p className="text-gray-400">Fiscal</p><p className="font-medium">{sefazStatusLabel(expense.sefazStatus)}</p></div>
         </div>

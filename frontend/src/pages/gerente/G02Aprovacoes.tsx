@@ -15,7 +15,7 @@ type ManagerAction = 'reject' | 'revision'
 
 function risk(expense: ExpenseResponse): { label: string; variant: 'green' | 'amber' | 'red' } {
   if (expense.policyCompliant === false || expense.sefazStatus === 'INVALID') return { label: 'Alto', variant: 'red' }
-  if ((expense.aiScore ?? 0) < 80 || expense.status === 'PENDING_REVIEW') return { label: 'Médio', variant: 'amber' }
+  if ((expense.complianceScore ?? 100) < 70 || (expense.aiScore ?? 100) < 85 || expense.status === 'PENDING_REVIEW') return { label: 'Médio', variant: 'amber' }
   return { label: 'Baixo', variant: 'green' }
 }
 
@@ -124,7 +124,7 @@ export function G02Aprovacoes() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[14px] font-medium text-[#1a1a2e]">Notas aguardando decisão</p>
-                <p className="mt-0.5 text-[12px] text-gray-400">Priorize risco alto, política fora do padrão e score baixo.</p>
+                <p className="mt-0.5 text-[12px] text-gray-400">Priorize risco alto, política fora do padrão, conformidade baixa e leitura OCR baixa.</p>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -161,7 +161,7 @@ export function G02Aprovacoes() {
                           <p className="truncate text-[#1a1a2e]">{expense.title}</p>
                           <p className="truncate text-[11px] text-gray-400">{expense.projectName}</p>
                         </td>
-                        <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category]}</td>
+                        <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category] ?? expense.category}</td>
                         <td className="whitespace-nowrap py-3 pr-3 font-medium">{fmt(expense.amount)}</td>
                         <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{fmtDate(expense.expenseDate)}</td>
                         <td className="py-3 pr-3"><StatusBadge status={expense.status} /></td>

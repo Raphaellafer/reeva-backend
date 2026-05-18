@@ -1,4 +1,4 @@
-import type { AiDecision, ExpenseCategory, ExpenseResponse, ExpenseStatus, PaymentMethod, SefazStatus } from './types'
+import type { AiDecision, ExpenseResponse, ExpenseStatus, PaymentMethod, SefazStatus } from './types'
 
 export function fmt(value: number | null | undefined) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
@@ -9,12 +9,17 @@ export function fmtDate(value: string | null | undefined) {
   return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR')
 }
 
-export const categoryLabels: Record<ExpenseCategory, string> = {
+export const categoryLabels: Record<string, string> = {
   FOOD: 'Alimentação',
   TRANSPORT: 'Transporte',
   LODGING: 'Hospedagem',
   PURCHASE: 'Compras',
   HARDWARE: 'Hardware',
+}
+
+export function categoryLabel(category: string | null | undefined) {
+  if (!category) return '-'
+  return categoryLabels[category] ?? category
 }
 
 export const paymentMethodLabels: Record<PaymentMethod | string, string> = {

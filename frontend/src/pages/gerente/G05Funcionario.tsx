@@ -94,7 +94,7 @@ export function G05Funcionario() {
                     {profile.recentExpenses.map((expense) => (
                       <tr key={expense.id} className="border-b border-black/[0.04] hover:bg-gray-50">
                         <td className="max-w-[190px] truncate py-3 pr-3 font-medium text-[#1a1a2e]">{expense.title}</td>
-                        <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category]}</td>
+                        <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{categoryLabels[expense.category] ?? expense.category}</td>
                         <td className="max-w-[160px] truncate py-3 pr-3 text-gray-500">{expense.projectName}</td>
                         <td className="whitespace-nowrap py-3 pr-3 text-gray-500">{fmtDate(expense.expenseDate)}</td>
                         <td className="whitespace-nowrap py-3 pr-3 font-medium">{expense.amount != null ? fmt(expense.amount) : '-'}</td>

@@ -90,14 +90,14 @@ export function G01Dashboard() {
           <table className="w-full min-w-[760px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Funcionário', 'Projeto', 'Nota', 'Categoria', 'Valor', 'Data', 'IA', 'Status'].map((header) => (
+                {['Funcionário', 'Projeto', 'Nota', 'Categoria', 'Valor', 'Data', 'Leitura', 'Conform.', 'Status'].map((header) => (
                   <th key={header} className="py-2 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {expenses.length === 0 && (
-                <tr><td colSpan={8} className="py-8 text-center text-gray-400">Nenhuma nota encontrada.</td></tr>
+                <tr><td colSpan={9} className="py-8 text-center text-gray-400">Nenhuma nota encontrada.</td></tr>
               )}
               {expenses.map((expense) => (
                 <tr
@@ -108,11 +108,14 @@ export function G01Dashboard() {
                   <td className="py-3 pr-3 font-medium text-[#1a1a2e]">{expense.userName}</td>
                   <td className="max-w-[160px] truncate py-3 pr-3">{expense.projectName}</td>
                   <td className="max-w-[200px] truncate py-3 pr-3">{expense.title}</td>
-                  <td className="py-3 pr-3">{categoryLabels[expense.category]}</td>
+                  <td className="py-3 pr-3">{categoryLabels[expense.category] ?? expense.category}</td>
                   <td className="py-3 pr-3 font-medium">{fmt(expense.amount)}</td>
                   <td className="py-3 pr-3">{fmtDate(expense.expenseDate)}</td>
                   <td className="py-3 pr-3">
                     {expense.aiScore == null ? '-' : <Badge variant={scoreVariant(expense.aiScore)}>{expense.aiScore}</Badge>}
+                  </td>
+                  <td className="py-3 pr-3">
+                    {expense.complianceScore == null ? '-' : <Badge variant={scoreVariant(expense.complianceScore)}>{expense.complianceScore}</Badge>}
                   </td>
                   <td className="py-3 pr-3"><StatusBadge status={expense.status} /></td>
                 </tr>

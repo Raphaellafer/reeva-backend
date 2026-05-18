@@ -423,7 +423,12 @@ export default function ManagerDashboard({ token, user, onLogout }: Props) {
                     <strong>{formatCurrency(expense.amount, expense.currency || 'BRL')}</strong>
                     {expense.aiScore != null && (
                       <span className={`score-chip ${expense.aiScore > 90 ? 'score-good' : expense.aiScore > 70 ? 'score-warn' : 'score-risk'}`}>
-                        Score IA {expense.aiScore}
+                        Leitura {expense.aiScore}
+                      </span>
+                    )}
+                    {expense.complianceScore != null && (
+                      <span className={`score-chip ${expense.complianceScore > 90 ? 'score-good' : expense.complianceScore > 70 ? 'score-warn' : 'score-risk'}`}>
+                        Conformidade {expense.complianceScore}
                       </span>
                     )}
                     {expense.aiAlertLevel && expense.aiAlertLevel !== 'NONE' && (
@@ -542,8 +547,14 @@ export default function ManagerDashboard({ token, user, onLogout }: Props) {
                 </div>
                 {modal.expense.aiScore != null && (
                   <div>
-                    <span className="detail-label">Score IA</span>
+                    <span className="detail-label">Leitura OCR</span>
                     <span>{modal.expense.aiScore}/100</span>
+                  </div>
+                )}
+                {modal.expense.complianceScore != null && (
+                  <div>
+                    <span className="detail-label">Conformidade</span>
+                    <span>{modal.expense.complianceScore}/100</span>
                   </div>
                 )}
                 <div>

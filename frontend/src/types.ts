@@ -1,4 +1,4 @@
-export type ExpenseCategory = 'FOOD' | 'TRANSPORT' | 'LODGING' | 'PURCHASE' | 'HARDWARE';
+export type ExpenseCategory = string;
 
 export type PaymentMethod =
   | 'CASH'
@@ -77,6 +77,7 @@ export interface ExpenseResponse {
   expenseDate: string;
   status: ExpenseStatus;
   aiScore: number | null;
+  complianceScore: number | null;
   aiAlertLevel: string | null;
   aiAnalysis: string | null;
   aiDecision: AiDecision | null;
@@ -320,6 +321,7 @@ export interface CfoExpenseResponse {
   expenseDate: string;
   status: ExpenseStatus;
   aiScore: number | null;
+  complianceScore: number | null;
   aiAlertLevel: string | null;
   aiDecision: AiDecision | null;
   policyCompliant: boolean | null;

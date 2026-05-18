@@ -915,12 +915,6 @@ public class OcrService {
             expense.setAmount(result.totalAmount());
         }
         if (result.issueDate() != null) expense.setExpenseDate(result.issueDate());
-        if (result.category() != null) {
-            try {
-                expense.setCategory(ExpenseCategory.valueOf(result.category()));
-            } catch (IllegalArgumentException ignored) {}
-        }
-
         String imageHash = result.imageSha256();
         if (imageHash != null && !imageHash.isBlank() && !expense.getAttachments().isEmpty()) {
             var attachment = expense.getAttachments().get(0);
@@ -948,6 +942,7 @@ public class OcrService {
 
         AiExpenseDecision decision = aiExpenseDecisionService.decide(expense, result);
         expense.setAiScore(decision.score());
+        expense.setComplianceScore(decision.complianceScore());
         expense.setAiAlertLevel(decision.alertLevel());
         expense.setAiAnalysis(decision.summary());
         expense.setAiDecision(decision.decision());
@@ -958,6 +953,13 @@ public class OcrService {
         expense.setSefazValidationMessage(decision.sefazValidationMessage());
         expense.setAutoApprovalEligible(decision.autoApprovalEligible());
         expense.setManualReviewReason(decision.manualReviewReason());
+
+        if (decision.decision() != AiDecision.NEEDS_EMPLOYEE_CORRECTION && result.category() != null) {
+            String detectedCategory = CategoryUtils.normalize(result.category());
+            if (detectedCategory != null && !"OTHER".equals(detectedCategory)) {
+                expense.setCategory(detectedCategory);
+            }
+        }
 
         ExpenseStatus from = expense.getStatus();
         expense.transitionTo(decision.status());
@@ -975,6 +977,7 @@ public class OcrService {
     private void markAsDuplicate(Expense expense, Expense original, OcrResult result, String evidence) {
         expense.setDuplicateOfExpense(original);
         expense.setAiScore(result.score() == null ? 0 : (short) Math.min(result.score(), 20));
+        expense.setComplianceScore((short) 0);
         expense.setAiAlertLevel(AiAlertLevel.HIGH);
         expense.setAiAnalysis("Possivel duplicidade detectada: " + evidence + ".");
         expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
@@ -1007,6 +1010,8 @@ public class OcrService {
             expense.setAiAnalysis(reason);
             expense.setAiDecision(AiDecision.PENDING_MANUAL_REVIEW);
             expense.setAiDecisionReason(reason);
+            expense.setAiScore((short) 0);
+            expense.setComplianceScore((short) 0);
             expense.setManualReviewReason(reason);
             expense.setAutoApprovalEligible(false);
             expense.setAiAlertLevel(AiAlertLevel.MEDIUM);

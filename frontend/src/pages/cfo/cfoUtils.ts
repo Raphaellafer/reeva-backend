@@ -1,7 +1,7 @@
 import type { BadgeVariant } from '../../components/ui/Badge'
-import type { ExpenseCategory, ExpenseStatus } from '../../types'
+import type { ExpenseStatus } from '../../types'
 
-export const categoryLabels: Record<ExpenseCategory, string> = {
+export const categoryLabels: Record<string, string> = {
   FOOD: 'Alimentacao',
   TRANSPORT: 'Transporte',
   LODGING: 'Hospedagem',
@@ -9,7 +9,7 @@ export const categoryLabels: Record<ExpenseCategory, string> = {
   HARDWARE: 'Hardware',
 }
 
-export const categoryColors: Record<ExpenseCategory, string> = {
+export const categoryColors: Record<string, string> = {
   FOOD: '#97C459',
   TRANSPORT: '#85B7EB',
   LODGING: '#AFA9EC',

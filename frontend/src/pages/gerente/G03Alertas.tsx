@@ -51,7 +51,7 @@ export function G03Alertas() {
             <Card className="py-10 text-center">
               <p className="text-[15px] font-medium text-[#1a1a2e]">Nenhum alerta aberto</p>
               <p className="mx-auto mt-1 max-w-[420px] text-[13px] text-gray-400">
-                Quando uma nota fugir da política, tiver score baixo ou falhar na validação fiscal, ela aparecerá aqui.
+                Quando uma nota fugir da política, tiver conformidade baixa, leitura OCR baixa ou falhar na validação fiscal, ela aparecerá aqui.
               </p>
             </Card>
           )}
@@ -74,8 +74,9 @@ export function G03Alertas() {
                 <p className="mb-3 text-[13px] text-gray-700">{alert.description}</p>
 
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <Badge variant="gray">{categoryLabels[alert.expense.category]}</Badge>
-                  {alert.expense.aiScore != null && <Badge variant={alert.expense.aiScore >= 80 ? 'green' : 'amber'}>Score {alert.expense.aiScore}</Badge>}
+                  <Badge variant="gray">{categoryLabels[alert.expense.category] ?? alert.expense.category}</Badge>
+                  {alert.expense.aiScore != null && <Badge variant={alert.expense.aiScore >= 85 ? 'green' : 'amber'}>Leitura {alert.expense.aiScore}</Badge>}
+                  {alert.expense.complianceScore != null && <Badge variant={alert.expense.complianceScore >= 80 ? 'green' : 'amber'}>Conform. {alert.expense.complianceScore}</Badge>}
                   {alert.expense.policyCompliant === false && <Badge variant="red">Fora da política</Badge>}
                   {alert.expense.sefazStatus === 'INVALID' && <Badge variant="red">Fiscal inválida</Badge>}
                 </div>
@@ -108,7 +109,7 @@ export function G03Alertas() {
             <p className="mb-3 text-[14px] font-medium text-[#1a1a2e]">Critérios de alerta</p>
             <div className="space-y-3 text-[12px] text-gray-500">
               <p><strong className="text-[#1a1a2e]">Crítico:</strong> política violada ou validação fiscal inválida.</p>
-              <p><strong className="text-[#1a1a2e]">Médio:</strong> score baixo, revisão manual ou motivo de política pendente.</p>
+              <p><strong className="text-[#1a1a2e]">Médio:</strong> conformidade baixa, leitura OCR baixa, revisão manual ou motivo de política pendente.</p>
               <p><strong className="text-[#1a1a2e]">Informativo:</strong> falha de leitura ou correção solicitada ao funcionário.</p>
             </div>
           </Card>
@@ -133,7 +134,7 @@ function buildAlerts(expenses: ExpenseResponse[]): AlertItem[] {
         }
       }
 
-      if ((expense.aiScore ?? 100) < 80 || expense.manualReviewReason || expense.policyViolationReason || expense.status === 'PENDING_REVIEW') {
+      if ((expense.complianceScore ?? 100) < 70 || (expense.aiScore ?? 100) < 85 || expense.manualReviewReason || expense.policyViolationReason || expense.status === 'PENDING_REVIEW') {
         return {
           id: `${expense.id}-medium`,
           level: 'MEDIO',
