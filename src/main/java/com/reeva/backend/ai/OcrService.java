@@ -163,14 +163,14 @@ public class OcrService {
 
         Entrada:
         - JSON de extracao campo por campo;
-        - politicas cadastradas da empresa, incluindo limites estruturados e regras em texto livre.
+        - politica cadastrada para a categoria enviada, incluindo limites estruturados e regras em texto livre.
 
         Sua tarefa e:
         - dizer se algum documento de despesa foi detectado;
         - classificar a categoria corporativa;
         - gerar uma descricao curta para aprovacao;
         - gerar um score tecnico de confianca da extracao, de 0 a 100.
-        - avaliar se a despesa cumpre as regras textuais da politica cadastrada para a categoria identificada.
+        - avaliar se a despesa cumpre as regras textuais da politica cadastrada para a categoria enviada.
 
         Categorias:
         - FOOD: restaurante, cafeteria, padaria, delivery, alimentacao.
@@ -193,7 +193,8 @@ public class OcrService {
         - Se nao houver documento de despesa detectado, readable=false.
 
         Regras de politica:
-        - Use as regras textuais da categoria identificada quando elas existirem.
+        - Use somente as regras textuais da categoria enviada no contexto.
+        - Nunca aplique regras de categorias ausentes no contexto.
         - Interprete limites temporais relativos usando a data atual informada no contexto.
         - Exemplo: se a politica diz "nao reembolsar notas de mais de 30 dias atras", compare issue_date com a data atual.
         - Se a despesa violar uma regra textual, retorne policy_compliant=false e explique em policy_reason.
@@ -300,7 +301,7 @@ public class OcrService {
             "role", "user",
             "content", ANALYSIS_PROMPT
                 + "\n\nData atual para regras relativas: " + LocalDate.now()
-                + "\n\nPoliticas cadastradas:\n" + policyContext
+                + "\n\nPolitica cadastrada da categoria enviada:\n" + policyContext
                 + "\n\nExtracao OCR:\n" + extractionJson
         )), analysisResponseFormat());
 
@@ -363,22 +364,20 @@ public class OcrService {
     }
 
     private String buildPolicyContext(Expense expense) {
-        var policies = policyRepository.findByCompanyIdAndActiveTrueOrderByCategoryAsc(expense.getCompany().getId());
-        if (policies.isEmpty()) {
-            return "- Nenhuma politica cadastrada. Avalie apenas legibilidade e dados fiscais.";
-        }
-
-        return policies.stream()
-            .map(policy -> "- " + policy.getCategory()
-                + ": limite por despesa R$ " + policy.getMaxAmount()
-                + (policy.getDailyLimit() != null ? ", limite diario R$ " + policy.getDailyLimit() : "")
-                + (policy.getMonthlyLimit() != null ? ", limite mensal R$ " + policy.getMonthlyLimit() : "")
-                + (policy.isRequiresReceipt() ? ", comprovante obrigatorio" : ", comprovante opcional")
-                + ", autoaprovacao exige score minimo " + policy.getAutoApprovalMinScore()
+        return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(
+                expense.getCompany().getId(), expense.getCategory()
+            )
+            .map(policy -> "- Categoria enviada: " + policy.getCategory()
+                + "\n- Limite por despesa: R$ " + policy.getMaxAmount()
+                + (policy.getDailyLimit() != null ? "\n- Limite diario: R$ " + policy.getDailyLimit() : "")
+                + (policy.getMonthlyLimit() != null ? "\n- Limite mensal: R$ " + policy.getMonthlyLimit() : "")
+                + "\n- Comprovante: " + (policy.isRequiresReceipt() ? "obrigatorio" : "opcional")
+                + "\n- Autoaprovacao exige score minimo: " + policy.getAutoApprovalMinScore()
                 + (policy.getDescription() != null && !policy.getDescription().isBlank()
-                    ? ". Regras: " + policy.getDescription()
-                    : ""))
-            .collect(java.util.stream.Collectors.joining("\n"));
+                    ? "\n- Regras em texto desta categoria: " + policy.getDescription()
+                    : "\n- Regras em texto desta categoria: nenhuma"))
+            .orElse("- Nenhuma politica cadastrada para a categoria enviada " + expense.getCategory()
+                + ". Retorne policy_compliant=null e nao aplique regras de outras categorias.");
     }
 
     private java.util.Map<String, Object> extractionResponseFormat() {

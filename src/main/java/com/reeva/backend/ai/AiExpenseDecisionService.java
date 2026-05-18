@@ -62,7 +62,7 @@ public class AiExpenseDecisionService {
                 "Revisao obrigatoria do gestor: reembolso fora da politica. " + policy.reason());
         }
 
-        if (Boolean.FALSE.equals(result.policyCompliant())) {
+        if (Boolean.FALSE.equals(result.policyCompliant()) && shouldTrustAiPolicyViolation(result, category)) {
             String reason = result.policyReason() != null && !result.policyReason().isBlank()
                 ? result.policyReason()
                 : "IA identificou descumprimento da politica cadastrada.";
@@ -86,6 +86,38 @@ public class AiExpenseDecisionService {
         return decision(AiDecision.READY_FOR_MANAGER, ExpenseStatus.PENDING_REVIEW,
             AiAlertLevel.MEDIUM, score, true, null, sefaz, false, reason,
             "Revisao do gestor recomendada: " + reason);
+    }
+
+    private boolean shouldTrustAiPolicyViolation(OcrResult result, ExpenseCategory category) {
+        String reason = normalizeText(result.policyReason() == null ? "" : result.policyReason());
+        for (ExpenseCategory otherCategory : ExpenseCategory.values()) {
+            if (otherCategory != category && mentionsCategory(reason, otherCategory)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean mentionsCategory(String normalizedText, ExpenseCategory category) {
+        return switch (category) {
+            case FOOD -> normalizedText.contains("food")
+                || normalizedText.contains("alimentacao")
+                || normalizedText.contains("refeicao")
+                || normalizedText.contains("restaurante");
+            case TRANSPORT -> normalizedText.contains("transport")
+                || normalizedText.contains("transporte")
+                || normalizedText.contains("uber")
+                || normalizedText.contains("taxi")
+                || normalizedText.contains("locomocao");
+            case LODGING -> normalizedText.contains("lodging")
+                || normalizedText.contains("hospedagem")
+                || normalizedText.contains("hotel");
+            case PURCHASE -> normalizedText.contains("purchase")
+                || normalizedText.contains("compras")
+                || normalizedText.contains("compra");
+            case HARDWARE -> normalizedText.contains("hardware")
+                || normalizedText.contains("equipamento");
+        };
     }
 
     private SefazValidationResult sefazValidation() {

@@ -221,6 +221,47 @@ class AiExpenseDecisionServiceTest {
         assertThat(decision.summary()).contains("Regra textual da politica violada");
     }
 
+    @Test
+    void aiPolicyViolationFromAnotherCategoryShouldBeIgnored() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
+
+        Expense expense = expense(ExpenseCategory.FOOD, new BigDecimal("120.00"));
+        ExpensePolicy foodPolicy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.FOOD, new BigDecimal("150.00"));
+        foodPolicy.setAutoApprovalMinScore((short) 90);
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.FOOD))
+            .thenReturn(Optional.of(foodPolicy));
+
+        OcrResult result = readableResult(ExpenseCategory.FOOD, new BigDecimal("120.00"), LocalDate.now().minusDays(60));
+        result = new OcrResult(
+            result.readable(),
+            result.reason(),
+            result.supplierName(),
+            result.supplierCnpj(),
+            result.totalAmount(),
+            result.issueDate(),
+            result.category(),
+            result.description(),
+            result.score(),
+            result.confidenceReason(),
+            false,
+            "A nota fiscal e de mais de 30 dias atras, violando a regra de reembolso para a categoria TRANSPORT.",
+            result.sefazVerificationCode(),
+            result.sefazReason(),
+            "Enviar para revisao do gestor.",
+            result.lineItems(),
+            result.rawJson(),
+            result.imageSha256()
+        );
+
+        AiExpenseDecision decision = service.decide(expense, result);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.AUTO_APPROVED);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_APPROVED);
+        assertThat(decision.policyCompliant()).isTrue();
+        assertThat(decision.policyViolationReason()).isNull();
+    }
+
     private Expense expense(ExpenseCategory category, BigDecimal amount) throws Exception {
         Company company = new Company("Reeva", "11.222.333/0001-81", "demo@reeva.com.br", "PRO");
         setField(company, "id", UUID.randomUUID());
