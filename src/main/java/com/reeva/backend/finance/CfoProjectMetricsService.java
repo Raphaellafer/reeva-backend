@@ -26,8 +26,6 @@ public class CfoProjectMetricsService {
 
     private static final BigDecimal MANUAL_REVIEW_SAVINGS = new BigDecimal("18.00");
     private static final List<ExpenseStatus> REIMBURSED_STATUSES = List.of(
-        ExpenseStatus.MANAGER_APPROVED,
-        ExpenseStatus.FINANCE_APPROVED,
         ExpenseStatus.PAID
     );
 

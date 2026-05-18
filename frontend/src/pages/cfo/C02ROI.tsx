@@ -10,7 +10,7 @@ import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt } from '../../data/mock'
 import { getToken } from '../../session'
 import type { ProjectPerformanceResponse } from '../../types'
-import { formatMonthLabel, multiple, pct } from './cfoUtils'
+import { formatMonthLabel, multiple } from './cfoUtils'
 import { MultiSeriesTrendChart } from './cfoVisuals'
 
 function roiColor(roi: number): string {
@@ -54,12 +54,11 @@ export function C02ROI() {
     const totalCost = detailProjects.reduce((sum, p) => sum + p.totalCost, 0)
     const profit = detailProjects.reduce((sum, p) => sum + p.profit, 0)
     const aiSavings = detailProjects.reduce((sum, p) => sum + p.aiSavings, 0)
-    const margin = revenue > 0 ? profit / revenue : null
     const roi = totalCost > 0 ? profit / totalCost : null
     const compliance = detailProjects.length > 0
       ? Math.round(detailProjects.reduce((sum, p) => sum + p.complianceRate, 0) / detailProjects.length)
       : 0
-    return { revenue, totalCost, profit, aiSavings, margin, roi, compliance }
+    return { revenue, totalCost, profit, aiSavings, roi, compliance }
   }, [detailProjects])
 
   const trend = useMemo(() => buildTrend(detailProjects), [detailProjects])
@@ -98,8 +97,8 @@ export function C02ROI() {
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="Receita" value={fmt(totals.revenue)} subtext="contexto financeiro" />
-        <MetricCard label="Lucro" value={fmt(totals.profit)} subtext={`margem ${pct(totals.margin)}`} />
-        <MetricCard label="ROI" value={multiple(totals.roi)} subtext={roiDelta ? `vs ${roiDelta.prevLabel}` : 'lucro sobre custo'} trend={roiDelta ? (roiDelta.delta >= 0 ? 'up' : 'down') : undefined} trendValue={roiDelta ? `${roiDelta.delta >= 0 ? '+' : ''}${roiDelta.delta.toFixed(1)}x` : undefined} />
+        <MetricCard label="Gastos" value={fmt(totals.totalCost)} subtext="custos e reembolsos pagos" />
+        <MetricCard label="ROI" value={multiple(totals.roi)} subtext={roiDelta ? `vs ${roiDelta.prevLabel}` : 'retorno sobre gastos'} trend={roiDelta ? (roiDelta.delta >= 0 ? 'up' : 'down') : undefined} trendValue={roiDelta ? `${roiDelta.delta >= 0 ? '+' : ''}${roiDelta.delta.toFixed(1)}x` : undefined} />
         <MetricCard label="Economia IA" value={fmt(totals.aiSavings)} subtext={`compliance medio ${totals.compliance}%`} />
       </div>
 
@@ -108,21 +107,21 @@ export function C02ROI() {
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-[14px] font-medium text-[#1a1a2e]">Tendencia financeira</p>
-              <p className="mt-1 text-[12px] text-gray-400">Receita, custo e lucro por mes para enxergar margem no tempo.</p>
+              <p className="mt-1 text-[12px] text-gray-400">Receita e gastos por mes para acompanhar o consumo financeiro dos projetos.</p>
             </div>
             <Badge variant={totals.roi != null && totals.roi >= 1 ? 'green' : 'amber'}>{multiple(totals.roi)} ROI</Badge>
           </div>
-          <MultiSeriesTrendChart points={trend} series={[{ key: 'revenue', label: 'Receita', color: '#85B7EB' }, { key: 'totalCost', label: 'Custo', color: '#FAC775' }, { key: 'profit', label: 'Lucro', color: '#97C459' }]} formatValue={(value) => fmt(value)} emptyText="Nenhum mes com movimentacao financeira." />
+          <MultiSeriesTrendChart points={trend} series={[{ key: 'revenue', label: 'Receita', color: '#85B7EB' }, { key: 'totalCost', label: 'Gastos', color: '#FAC775' }]} formatValue={(value) => fmt(value)} emptyText="Nenhum mes com movimentacao financeira." />
         </Card>
 
         <div className="rounded-[10px] border border-[#97C459] bg-[#EAF3DE] p-4">
           <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#27500A]">Ultimo periodo</p>
           <p className="text-[15px] font-medium text-[#27500A]">{latestTrend?.label ?? 'Sem periodo'}</p>
-          <p className="my-1 text-[32px] font-medium leading-none text-[#27500A]">{fmt(latestTrend?.values.profit ?? 0)}</p>
-          <p className="text-[12px] text-[#27500A]/60">lucro do periodo</p>
+          <p className="my-1 text-[32px] font-medium leading-none text-[#27500A]">{fmt(latestTrend?.values.totalCost ?? 0)}</p>
+          <p className="text-[12px] text-[#27500A]/60">gastos do periodo</p>
           <div className="mt-3 space-y-1.5 text-[12px]">
             <div className="flex justify-between"><span className="text-[#27500A]/60">Receita</span><span className="font-medium text-[#27500A]">{fmt(latestTrend?.values.revenue ?? 0)}</span></div>
-            <div className="flex justify-between"><span className="text-[#27500A]/60">Custo</span><span className="font-medium text-[#27500A]">{fmt(latestTrend?.values.totalCost ?? 0)}</span></div>
+            <div className="flex justify-between"><span className="text-[#27500A]/60">Gastos</span><span className="font-medium text-[#27500A]">{fmt(latestTrend?.values.totalCost ?? 0)}</span></div>
             {roiDelta && <div className="flex justify-between"><span className="text-[#27500A]/60">ROI vs mes anterior</span><span className={`font-medium ${roiDelta.delta >= 0 ? 'text-[#27500A]' : 'text-[#791F1F]'}`}>{roiDelta.delta >= 0 ? '+' : ''}{roiDelta.delta.toFixed(2)}x</span></div>}
             <div className="flex justify-between"><span className="text-[#27500A]/60">Compliance medio</span><span className="font-medium text-[#27500A]">{totals.compliance}%</span></div>
           </div>
@@ -142,7 +141,7 @@ export function C02ROI() {
             <table className="w-full min-w-[600px] text-[13px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Projeto', 'Receita', 'Margem', 'ROI', 'Compliance', ''].map((header) => (
+                  {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance', ''].map((header) => (
                     <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                   ))}
                 </tr>
@@ -152,7 +151,7 @@ export function C02ROI() {
                   <tr key={p.projectId} className={`border-b border-black/[0.04] hover:bg-gray-50 ${selectedProject ? '' : 'cursor-pointer'}`} onClick={() => !selectedProject && setSelectedProjectId(p.projectId)}>
                     <td className="py-3 pr-3"><p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>{p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}</td>
                     <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
-                    <td className="whitespace-nowrap py-3 pr-3">{pct(p.margin)}</td>
+                    <td className="whitespace-nowrap py-3 pr-3">{fmt(p.totalCost)}</td>
                     <td className="py-3 pr-3"><span className="font-medium" style={{ color: roiColor(p.roi ?? 0) }}>{multiple(p.roi)}</span></td>
                     <td className="py-3 pr-3"><Badge variant={p.complianceRate >= 90 ? 'green' : p.complianceRate >= 70 ? 'amber' : 'red'}>{p.complianceRate}%</Badge></td>
                     <td className="whitespace-nowrap py-3 text-right text-[12px] font-medium text-[#3C3489]">{selectedProject ? '' : 'Abrir'}</td>

@@ -8,9 +8,9 @@ import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt, fmtDate } from '../../realData'
 import { getToken } from '../../session'
 
-function monthStart() {
+function yearStart() {
   const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  return new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10)
 }
 
 function today() {
@@ -31,7 +31,7 @@ const categoryLabels: Record<string, string> = {
 export function C07FluxoCaixa() {
   const token = getToken()
   const queryClient = useQueryClient()
-  const [from, setFrom] = useState(monthStart())
+  const [from, setFrom] = useState(yearStart())
   const [to, setTo] = useState(today())
   const [queryFrom, setQueryFrom] = useState(from)
   const [queryTo, setQueryTo] = useState(to)
@@ -80,6 +80,10 @@ export function C07FluxoCaixa() {
 
   const sortedProjects = useMemo(
     () => [...(data?.projectCashFlows ?? [])].sort((a, b) => b.netCashFlow - a.netCashFlow),
+    [data]
+  )
+  const openingBalance = useMemo(
+    () => (data?.accounts ?? []).reduce((sum, account) => sum + account.openingBalance, 0),
     [data]
   )
 
@@ -168,7 +172,7 @@ export function C07FluxoCaixa() {
       </Card>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <MetricCard label="Saldo atual" value={isLoading ? '...' : fmt(data?.totalBalance ?? 0)} subtext={`${data?.accounts.length ?? 0} conta(s)`} />
+        <MetricCard label="Saldo atual" value={isLoading ? '...' : fmt(data?.totalBalance ?? 0)} subtext={`saldo inicial ${fmt(openingBalance)}`} />
         <MetricCard label="Entradas" value={isLoading ? '...' : fmt(data?.periodInflow ?? 0)} subtext="no periodo" />
         <MetricCard label="Saidas" value={isLoading ? '...' : fmt(data?.periodOutflow ?? 0)} subtext="no periodo" />
         <MetricCard label="Fluxo liquido" value={isLoading ? '...' : fmt(data?.netCashFlow ?? 0)} subtext="entradas - saidas" trend={(data?.netCashFlow ?? 0) >= 0 ? 'up' : 'down'} />
@@ -180,7 +184,7 @@ export function C07FluxoCaixa() {
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <p className="text-[14px] font-medium text-[#1a1a2e]">Fluxo por projeto</p>
-              <p className="mt-1 text-[12px] text-gray-400">Entradas, saidas e caixa liquido no periodo selecionado.</p>
+              <p className="mt-1 text-[12px] text-gray-400">Entradas, saidas e caixa liquido no periodo selecionado. O saldo atual tambem inclui o saldo inicial das contas.</p>
             </div>
             <Badge variant="blue">{sortedProjects.length} projeto(s)</Badge>
           </div>
