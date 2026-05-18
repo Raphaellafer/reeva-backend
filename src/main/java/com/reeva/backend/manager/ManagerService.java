@@ -4,6 +4,8 @@ import com.reeva.backend.common.audit.AuditLog;
 import com.reeva.backend.common.audit.AuditRepository;
 import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.exception.BusinessException;
+import com.reeva.backend.company.Company;
+import com.reeva.backend.company.CompanyRepository;
 import com.reeva.backend.company.Department;
 import com.reeva.backend.company.DepartmentRepository;
 import com.reeva.backend.company.PaymentFrequency;
@@ -68,6 +70,7 @@ public class ManagerService {
     private final DepartmentRepository departmentRepository;
     private final BankAccountRepository bankAccountRepository;
     private final CashTransactionRepository cashTransactionRepository;
+    private final CompanyRepository companyRepository;
 
     public ManagerService(ExpenseRepository expenseRepository,
                           ExpensePolicyRepository policyRepository,
@@ -78,7 +81,8 @@ public class ManagerService {
                           PasswordEncoder passwordEncoder,
                           DepartmentRepository departmentRepository,
                           BankAccountRepository bankAccountRepository,
-                          CashTransactionRepository cashTransactionRepository) {
+                          CashTransactionRepository cashTransactionRepository,
+                          CompanyRepository companyRepository) {
         this.expenseRepository = expenseRepository;
         this.policyRepository = policyRepository;
         this.userRepository = userRepository;
@@ -89,6 +93,7 @@ public class ManagerService {
         this.departmentRepository = departmentRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.cashTransactionRepository = cashTransactionRepository;
+        this.companyRepository = companyRepository;
     }
 
     @Transactional(readOnly = true)
@@ -352,11 +357,16 @@ public class ManagerService {
 
     @Transactional(readOnly = true)
     public PaymentScheduleResponse paymentSchedule(User manager) {
-        return PaymentScheduleResponse.from(manager.getCompany());
+        Company company = companyRepository.findById(manager.getCompany().getId())
+            .orElseThrow(() -> BusinessException.notFound("Empresa nao encontrada"));
+        return PaymentScheduleResponse.from(company);
     }
 
     @Transactional
     public PaymentScheduleResponse updatePaymentSchedule(User manager, PaymentScheduleRequest request) {
+        if (request.frequency() == null) {
+            throw BusinessException.badRequest("Informe a frequencia de pagamento");
+        }
         if (request.frequency() == PaymentFrequency.WEEKLY && request.weekday() == null) {
             throw BusinessException.badRequest("Informe o dia da semana para pagamento semanal");
         }
@@ -364,10 +374,12 @@ public class ManagerService {
             throw BusinessException.badRequest("Informe o dia do mes para pagamento mensal");
         }
 
-        manager.getCompany().setPaymentFrequency(request.frequency());
-        manager.getCompany().setPaymentWeekday(request.frequency() == PaymentFrequency.WEEKLY ? request.weekday() : null);
-        manager.getCompany().setPaymentDayOfMonth(request.frequency() == PaymentFrequency.MONTHLY ? request.dayOfMonth() : null);
-        return PaymentScheduleResponse.from(manager.getCompany());
+        Company company = companyRepository.findById(manager.getCompany().getId())
+            .orElseThrow(() -> BusinessException.notFound("Empresa nao encontrada"));
+        company.setPaymentFrequency(request.frequency());
+        company.setPaymentWeekday(request.frequency() == PaymentFrequency.WEEKLY ? request.weekday() : null);
+        company.setPaymentDayOfMonth(request.frequency() == PaymentFrequency.MONTHLY ? request.dayOfMonth() : null);
+        return PaymentScheduleResponse.from(companyRepository.save(company));
     }
 
     // ── Employee management ──────────────────────────────────────────

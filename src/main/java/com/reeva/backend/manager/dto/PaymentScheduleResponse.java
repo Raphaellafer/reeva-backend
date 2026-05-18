@@ -15,9 +15,10 @@ public record PaymentScheduleResponse(
     String summary
 ) {
     public static PaymentScheduleResponse from(Company company) {
+        PaymentFrequency frequency = effectiveFrequency(company);
         LocalDate next = nextPaymentDate(company);
         return new PaymentScheduleResponse(
-            company.getPaymentFrequency(),
+            frequency,
             company.getPaymentWeekday(),
             company.getPaymentDayOfMonth(),
             next,
@@ -27,7 +28,7 @@ public record PaymentScheduleResponse(
 
     private static LocalDate nextPaymentDate(Company company) {
         LocalDate today = LocalDate.now();
-        return switch (company.getPaymentFrequency()) {
+        return switch (effectiveFrequency(company)) {
             case DAILY -> today;
             case WEEKLY -> {
                 int weekday = company.getPaymentWeekday() != null ? company.getPaymentWeekday() : 4;
@@ -48,11 +49,15 @@ public record PaymentScheduleResponse(
     }
 
     private static String summary(Company company, LocalDate next) {
-        return switch (company.getPaymentFrequency()) {
+        return switch (effectiveFrequency(company)) {
             case DAILY -> "Pagamentos liberados diariamente";
             case WEEKLY -> "Pagamentos semanais";
             case MONTHLY -> "Pagamentos mensais";
             case MANUAL -> "Pagamentos manuais, sem agenda fixa";
         };
+    }
+
+    private static PaymentFrequency effectiveFrequency(Company company) {
+        return company.getPaymentFrequency() != null ? company.getPaymentFrequency() : PaymentFrequency.WEEKLY;
     }
 }
