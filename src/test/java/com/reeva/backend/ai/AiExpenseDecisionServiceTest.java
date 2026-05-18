@@ -159,6 +159,68 @@ class AiExpenseDecisionServiceTest {
         assertThat(decision.summary()).contains("Valor informado pelo funcionario exige revisao de politica");
     }
 
+    @Test
+    void textualPolicyAgeRuleShouldPreventAutoApprovalForOldReceipt() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
+
+        Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.TRANSPORT, new BigDecimal("300.00"));
+        policy.setAutoApprovalMinScore((short) 85);
+        policy.setDescription("Nao reembolsar notas de mais de 30 dias atras.");
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
+            .thenReturn(Optional.of(policy));
+
+        AiExpenseDecision decision = service.decide(
+            expense,
+            readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"), LocalDate.now().minusDays(31))
+        );
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
+        assertThat(decision.policyCompliant()).isFalse();
+        assertThat(decision.policyViolationReason()).contains("mais de 30 dias");
+        assertThat(decision.autoApprovalEligible()).isFalse();
+    }
+
+    @Test
+    void aiPolicyViolationShouldPreventAutoApprovalForFreeTextRules() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
+
+        Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
+            .thenReturn(Optional.empty());
+
+        OcrResult result = readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"), LocalDate.now());
+        result = new OcrResult(
+            result.readable(),
+            result.reason(),
+            result.supplierName(),
+            result.supplierCnpj(),
+            result.totalAmount(),
+            result.issueDate(),
+            result.category(),
+            result.description(),
+            result.score(),
+            result.confidenceReason(),
+            false,
+            "Regra textual da politica violada.",
+            result.sefazVerificationCode(),
+            result.sefazReason(),
+            "Enviar para revisao do gestor.",
+            result.lineItems(),
+            result.rawJson(),
+            result.imageSha256()
+        );
+
+        AiExpenseDecision decision = service.decide(expense, result);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
+        assertThat(decision.policyCompliant()).isFalse();
+        assertThat(decision.summary()).contains("Regra textual da politica violada");
+    }
+
     private Expense expense(ExpenseCategory category, BigDecimal amount) throws Exception {
         Company company = new Company("Reeva", "11.222.333/0001-81", "demo@reeva.com.br", "PRO");
         setField(company, "id", UUID.randomUUID());
@@ -171,13 +233,17 @@ class AiExpenseDecisionServiceTest {
     }
 
     private OcrResult readableResult(ExpenseCategory category, BigDecimal amount) {
+        return readableResult(category, amount, LocalDate.of(2025, 5, 14));
+    }
+
+    private OcrResult readableResult(ExpenseCategory category, BigDecimal amount, LocalDate issueDate) {
         return new OcrResult(
             true,
             null,
             "LESTE SUSHI BAR",
             "12.345.678/0001-90",
             amount,
-            LocalDate.of(2025, 5, 14),
+            issueDate,
             category.name(),
             "Despesa corporativa",
             (short) 95,

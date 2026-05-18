@@ -159,15 +159,18 @@ public class OcrService {
         """;
 
     private static final String ANALYSIS_PROMPT = """
-        Voce classifica uma extracao OCR de comprovante corporativo brasileiro.
+        Voce classifica uma extracao OCR de comprovante corporativo brasileiro e avalia a politica de reembolso cadastrada.
 
-        Entrada: JSON de extracao campo por campo.
-        Sua tarefa NAO e aprovar, reprovar ou aplicar politica da empresa.
-        Sua tarefa e somente:
+        Entrada:
+        - JSON de extracao campo por campo;
+        - politicas cadastradas da empresa, incluindo limites estruturados e regras em texto livre.
+
+        Sua tarefa e:
         - dizer se algum documento de despesa foi detectado;
         - classificar a categoria corporativa;
         - gerar uma descricao curta para aprovacao;
         - gerar um score tecnico de confianca da extracao, de 0 a 100.
+        - avaliar se a despesa cumpre as regras textuais da politica cadastrada para a categoria identificada.
 
         Categorias:
         - FOOD: restaurante, cafeteria, padaria, delivery, alimentacao.
@@ -177,8 +180,9 @@ public class OcrService {
         - PURCHASE: farmacia, papelaria, mercado, materiais, eletronicos, compras em geral.
         - OTHER: despesa valida que nao encaixa acima.
 
-        Regras:
-        - Nao use politica, fraude ou aprovacao.
+        Regras de extracao:
+        - Nao decida aprovacao final.
+        - Nao avalie fraude.
         - Nao puna automaticamente campos ausentes quando outros campos foram extraidos com confianca.
         - Se total_amount estiver ausente, incerto ou ilegivel, readable=false.
         - Se a soma dos itens legiveis divergir muito do total_amount, readable=false.
@@ -187,6 +191,14 @@ public class OcrService {
         - O score deve refletir a confianca tecnica nos campos recuperados e a qualidade da imagem.
         - Se houver valor total validado e fornecedor ou data com boa confianca, o documento pode ser considerado readable.
         - Se nao houver documento de despesa detectado, readable=false.
+
+        Regras de politica:
+        - Use as regras textuais da categoria identificada quando elas existirem.
+        - Interprete limites temporais relativos usando a data atual informada no contexto.
+        - Exemplo: se a politica diz "nao reembolsar notas de mais de 30 dias atras", compare issue_date com a data atual.
+        - Se a despesa violar uma regra textual, retorne policy_compliant=false e explique em policy_reason.
+        - Se nao houver regra textual aplicavel ou os dados necessarios estiverem ausentes, retorne policy_compliant=null.
+        - Nao invente violacao sem evidencias extraidas.
 
         Retorne somente JSON valido.
         """;
@@ -283,9 +295,13 @@ public class OcrService {
             "content", java.util.List.of(textContent, imageContent)
         )), extractionResponseFormat());
 
+        String policyContext = buildPolicyContext(expense);
         String analysisJson = callOpenAi(java.util.List.of(java.util.Map.of(
             "role", "user",
-            "content", ANALYSIS_PROMPT + "\n\nExtracao OCR:\n" + extractionJson
+            "content", ANALYSIS_PROMPT
+                + "\n\nData atual para regras relativas: " + LocalDate.now()
+                + "\n\nPoliticas cadastradas:\n" + policyContext
+                + "\n\nExtracao OCR:\n" + extractionJson
         )), analysisResponseFormat());
 
         return parseOcrJson(extractionJson, analysisJson, rawOcrText, imageSha256);
@@ -426,13 +442,17 @@ public class OcrService {
         properties.put("description", nullableString());
         properties.put("score", java.util.Map.of("type", java.util.List.of("integer", "null"), "minimum", 0, "maximum", 100));
         properties.put("confidence_reason", nullableString());
+        properties.put("policy_compliant", java.util.Map.of("type", java.util.List.of("boolean", "null")));
+        properties.put("policy_reason", nullableString());
+        properties.put("suggested_action", nullableString());
 
         var schema = new java.util.LinkedHashMap<String, Object>();
         schema.put("type", "object");
         schema.put("additionalProperties", false);
         schema.put("properties", properties);
         schema.put("required", java.util.List.of(
-            "readable", "reason", "category", "description", "score", "confidence_reason"
+            "readable", "reason", "category", "description", "score", "confidence_reason",
+            "policy_compliant", "policy_reason", "suggested_action"
         ));
 
         return java.util.Map.of(
@@ -560,11 +580,11 @@ public class OcrService {
                 validationReason != null
                     ? appendReason(analysis.path("confidence_reason").asText(null), validationReason)
                     : analysis.path("confidence_reason").asText(null),
-                null,
-                null,
+                readBoolean(analysis, "policy_compliant"),
+                analysis.path("policy_reason").asText(null),
                 readFieldText(extraction, "sefaz_verification_code"),
                 buildSefazReason(extraction),
-                null,
+                analysis.path("suggested_action").asText(null),
                 lineItems,
                 rawJson,
                 imageSha256
