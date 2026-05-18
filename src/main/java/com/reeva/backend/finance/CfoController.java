@@ -2,6 +2,8 @@ package com.reeva.backend.finance;
 
 import com.reeva.backend.expense.ExpenseStatus;
 import com.reeva.backend.finance.dto.CfoComplianceResponse;
+import com.reeva.backend.finance.dto.CfoCashFlowResponse;
+import com.reeva.backend.finance.dto.CashTransactionRequest;
 import com.reeva.backend.finance.dto.CfoExpenseResponse;
 import com.reeva.backend.finance.dto.CfoOverviewResponse;
 import com.reeva.backend.finance.dto.CreateManagerRequest;
@@ -39,15 +41,18 @@ public class CfoController {
     private final CfoExecutiveService executiveService;
     private final CfoManagerService managerService;
     private final PolicyUploadService policyUploadService;
+    private final CfoCashFlowService cashFlowService;
 
     public CfoController(CfoProjectMetricsService metricsService,
                          CfoExecutiveService executiveService,
                          CfoManagerService managerService,
-                         PolicyUploadService policyUploadService) {
+                         PolicyUploadService policyUploadService,
+                         CfoCashFlowService cashFlowService) {
         this.metricsService = metricsService;
         this.executiveService = executiveService;
         this.managerService = managerService;
         this.policyUploadService = policyUploadService;
+        this.cashFlowService = cashFlowService;
     }
 
     @GetMapping("/overview")
@@ -105,6 +110,26 @@ public class CfoController {
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         return executiveService.compliance(currentUser, from, to);
+    }
+
+    @GetMapping("/cash-flow")
+    @Operation(summary = "Get cash flow overview from bank accounts and cash transactions")
+    public CfoCashFlowResponse cashFlow(
+        @AuthenticationPrincipal User currentUser,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return cashFlowService.overview(currentUser, from, to);
+    }
+
+    @PostMapping("/cash-transactions")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create a manual cash transaction")
+    public CfoCashFlowResponse.CashTransactionItem createCashTransaction(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody CashTransactionRequest request
+    ) {
+        return cashFlowService.createManualTransaction(currentUser, request);
     }
 
     // ── Manager management ───────────────────────────────────────────

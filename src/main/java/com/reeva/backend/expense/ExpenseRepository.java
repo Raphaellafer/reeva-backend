@@ -175,6 +175,24 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         @Param("to") LocalDate to
     );
 
+    @Query("""
+        SELECT e FROM Expense e
+        JOIN FETCH e.project p
+        JOIN FETCH e.user u
+        WHERE e.company.id = :companyId
+          AND e.status IN :statuses
+          AND e.deleted = false
+          AND e.expenseDate >= :from
+          AND e.expenseDate <= :to
+        ORDER BY e.expenseDate DESC, e.createdAt DESC
+        """)
+    List<Expense> findByCompanyAndStatusesBetween(
+        @Param("companyId") UUID companyId,
+        @Param("statuses") List<ExpenseStatus> statuses,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
+
     @Query(
         value = """
             SELECT e FROM Expense e

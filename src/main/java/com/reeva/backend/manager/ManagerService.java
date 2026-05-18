@@ -6,17 +6,29 @@ import com.reeva.backend.common.audit.AuditService;
 import com.reeva.backend.common.exception.BusinessException;
 import com.reeva.backend.company.Department;
 import com.reeva.backend.company.DepartmentRepository;
+import com.reeva.backend.company.PaymentFrequency;
 import com.reeva.backend.expense.*;
 import com.reeva.backend.expense.dto.ExpenseResponse;
+import com.reeva.backend.finance.BankAccount;
+import com.reeva.backend.finance.BankAccountRepository;
+import com.reeva.backend.finance.CashTransaction;
+import com.reeva.backend.finance.CashTransactionCategory;
+import com.reeva.backend.finance.CashTransactionRepository;
+import com.reeva.backend.finance.CashTransactionSource;
+import com.reeva.backend.finance.CashTransactionType;
+import com.reeva.backend.finance.dto.BankAccountResponse;
 import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.EmployeeListResponse;
 import com.reeva.backend.manager.dto.EmployeeProfileResponse;
 import com.reeva.backend.manager.dto.PaymentBatchResponse;
+import com.reeva.backend.manager.dto.PaymentScheduleRequest;
+import com.reeva.backend.manager.dto.PaymentScheduleResponse;
 import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
 import com.reeva.backend.manager.dto.ReviewRequest;
+import com.reeva.backend.manager.dto.MarkPaymentRequest;
 import com.reeva.backend.user.User;
 import com.reeva.backend.user.CpfUtils;
 import com.reeva.backend.user.UserRepository;
@@ -43,6 +55,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ManagerService {
+    private static final BigDecimal DEFAULT_MONTHLY_BUSINESS_DAYS = BigDecimal.valueOf(22);
+
 
     private final ExpenseRepository expenseRepository;
     private final ExpensePolicyRepository policyRepository;
@@ -52,6 +66,8 @@ public class ManagerService {
     private final AuditRepository auditRepository;
     private final PasswordEncoder passwordEncoder;
     private final DepartmentRepository departmentRepository;
+    private final BankAccountRepository bankAccountRepository;
+    private final CashTransactionRepository cashTransactionRepository;
 
     public ManagerService(ExpenseRepository expenseRepository,
                           ExpensePolicyRepository policyRepository,
@@ -60,7 +76,9 @@ public class ManagerService {
                           AuditService auditService,
                           AuditRepository auditRepository,
                           PasswordEncoder passwordEncoder,
-                          DepartmentRepository departmentRepository) {
+                          DepartmentRepository departmentRepository,
+                          BankAccountRepository bankAccountRepository,
+                          CashTransactionRepository cashTransactionRepository) {
         this.expenseRepository = expenseRepository;
         this.policyRepository = policyRepository;
         this.userRepository = userRepository;
@@ -69,6 +87,8 @@ public class ManagerService {
         this.auditRepository = auditRepository;
         this.passwordEncoder = passwordEncoder;
         this.departmentRepository = departmentRepository;
+        this.bankAccountRepository = bankAccountRepository;
+        this.cashTransactionRepository = cashTransactionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -218,16 +238,17 @@ public class ManagerService {
         if (category == null) {
             throw BusinessException.badRequest("Categoria invalida");
         }
+        NormalizedPolicyLimits limits = normalizePolicyLimits(request);
         var existing = policyRepository.findByCompanyIdAndCategory(manager.getCompany().getId(), category);
         boolean created = existing.isEmpty();
         boolean reactivated = existing.map(policy -> !policy.isActive()).orElse(false);
         ExpensePolicy policy = existing
-            .orElseGet(() -> new ExpensePolicy(manager.getCompany(), category, request.maxAmount()));
+            .orElseGet(() -> new ExpensePolicy(manager.getCompany(), category, limits.maxAmount()));
         Map<String, Object> before = created ? Map.of() : policySnapshot(policy);
 
-        policy.setMaxAmount(request.maxAmount());
-        policy.setDailyLimit(request.dailyLimit());
-        policy.setMonthlyLimit(request.monthlyLimit());
+        policy.setMaxAmount(limits.maxAmount());
+        policy.setDailyLimit(limits.dailyLimit());
+        policy.setMonthlyLimit(limits.monthlyLimit());
         policy.setRequiresReceipt(request.requiresReceipt());
         policy.setAutoApprovalMinScore(
             request.autoApprovalMinScore() != null ? request.autoApprovalMinScore() : (short) 90
@@ -257,6 +278,24 @@ public class ManagerService {
         return PolicyResponse.from(saved);
     }
 
+    private NormalizedPolicyLimits normalizePolicyLimits(PolicyUpdateRequest request) {
+        BigDecimal maxAmount = request.maxAmount();
+        BigDecimal dailyLimit = request.dailyLimit() != null ? request.dailyLimit() : maxAmount;
+        if (dailyLimit.compareTo(maxAmount) < 0) {
+            throw BusinessException.badRequest("Limite diario nao pode ser menor que o limite por nota");
+        }
+
+        BigDecimal minimumMonthlyLimit = dailyLimit.multiply(DEFAULT_MONTHLY_BUSINESS_DAYS);
+        BigDecimal monthlyLimit = request.monthlyLimit() != null ? request.monthlyLimit() : minimumMonthlyLimit;
+        if (monthlyLimit.compareTo(minimumMonthlyLimit) < 0) {
+            throw BusinessException.badRequest(
+                "Limite mensal nao pode ser menor que o limite diario multiplicado por 22 dias uteis"
+            );
+        }
+
+        return new NormalizedPolicyLimits(maxAmount, dailyLimit, monthlyLimit);
+    }
+
     private Map<String, Object> policySnapshot(ExpensePolicy policy) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("category", policy.getCategory());
@@ -269,6 +308,8 @@ public class ManagerService {
         snapshot.put("active", policy.isActive());
         return snapshot;
     }
+
+    private record NormalizedPolicyLimits(BigDecimal maxAmount, BigDecimal dailyLimit, BigDecimal monthlyLimit) {}
 
     // ── Payments ──────────────────────────────────────────────────────
 
@@ -309,7 +350,85 @@ public class ManagerService {
         return new PaymentBatchResponse(from, to, total, employees.size(), expenses.size(), employees);
     }
 
+    @Transactional(readOnly = true)
+    public PaymentScheduleResponse paymentSchedule(User manager) {
+        return PaymentScheduleResponse.from(manager.getCompany());
+    }
+
+    @Transactional
+    public PaymentScheduleResponse updatePaymentSchedule(User manager, PaymentScheduleRequest request) {
+        if (request.frequency() == PaymentFrequency.WEEKLY && request.weekday() == null) {
+            throw BusinessException.badRequest("Informe o dia da semana para pagamento semanal");
+        }
+        if (request.frequency() == PaymentFrequency.MONTHLY && request.dayOfMonth() == null) {
+            throw BusinessException.badRequest("Informe o dia do mes para pagamento mensal");
+        }
+
+        manager.getCompany().setPaymentFrequency(request.frequency());
+        manager.getCompany().setPaymentWeekday(request.frequency() == PaymentFrequency.WEEKLY ? request.weekday() : null);
+        manager.getCompany().setPaymentDayOfMonth(request.frequency() == PaymentFrequency.MONTHLY ? request.dayOfMonth() : null);
+        return PaymentScheduleResponse.from(manager.getCompany());
+    }
+
     // ── Employee management ──────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<BankAccountResponse> bankAccounts(User manager) {
+        return bankAccountRepository.findByCompanyIdAndActiveTrueOrderByAccountNameAsc(manager.getCompany().getId())
+            .stream()
+            .map(BankAccountResponse::from)
+            .toList();
+    }
+
+    @Transactional
+    public ExpenseResponse markExpenseAsPaid(User manager, UUID expenseId, MarkPaymentRequest request) {
+        Expense expense = expenseRepository.findByIdAndManagerId(expenseId, manager.getId())
+            .orElseThrow(() -> BusinessException.notFound("Expense not found"));
+
+        if (expense.getStatus() != ExpenseStatus.MANAGER_APPROVED
+            && expense.getStatus() != ExpenseStatus.FINANCE_APPROVED) {
+            throw BusinessException.badRequest("Somente reembolsos aprovados podem ser marcados como pagos");
+        }
+        if (expense.getAmount() == null || expense.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw BusinessException.badRequest("Reembolso sem valor valido nao pode ser marcado como pago");
+        }
+        if (cashTransactionRepository.findByExpenseId(expense.getId()).isPresent()) {
+            throw BusinessException.badRequest("Este reembolso ja possui lancamento de caixa");
+        }
+
+        BankAccount account = bankAccountRepository
+            .findByIdAndCompanyIdAndActiveTrue(request.bankAccountId(), manager.getCompany().getId())
+            .orElseThrow(() -> BusinessException.notFound("Conta bancaria nao encontrada"));
+
+        BigDecimal amount = expense.getAmount();
+        account.apply(amount.negate());
+
+        ExpenseStatus from = expense.getStatus();
+        expense.transitionTo(ExpenseStatus.PAID);
+        expense.setPaidAt(Instant.now());
+        expense.setPaymentReference(request.paymentReference());
+        expense.getStatusHistory().add(new ExpenseStatusHistory(
+            expense, from, ExpenseStatus.PAID, manager,
+            "Pagamento confirmado: " + (request.paymentReference() == null || request.paymentReference().isBlank()
+                ? "sem referencia" : request.paymentReference())
+        ));
+
+        CashTransaction transaction = new CashTransaction(
+            manager.getCompany(), account, expense.getProject(), expense, request.paidDate(),
+            "Reembolso pago: " + expense.getTitle(), CashTransactionType.OUTFLOW,
+            CashTransactionCategory.REIMBURSEMENT, amount, account.getCurrentBalance(),
+            CashTransactionSource.REIMBURSEMENT_PAYMENT, request.paymentReference(), manager
+        );
+
+        cashTransactionRepository.save(transaction);
+        bankAccountRepository.save(account);
+        Expense saved = expenseRepository.save(expense);
+        auditService.log(manager.getCompany().getId(), manager.getId(),
+            "EXPENSE_PAID", "Expense", expenseId,
+            Map.of("from", from.name(), "bankAccountId", account.getId(),
+                "amount", amount, "paidDate", request.paidDate()), null);
+        return ExpenseResponse.from(saved);
+    }
 
     @Transactional(readOnly = true)
     public List<EmployeeListResponse> listEmployees(User manager) {

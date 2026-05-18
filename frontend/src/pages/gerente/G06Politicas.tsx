@@ -13,12 +13,14 @@ import type { PolicyAuditLogResponse, PolicyPayload, PolicyResponse } from '../.
 const emptyForm: PolicyPayload = {
   category: '',
   maxAmount: '150.00',
-  dailyLimit: null,
-  monthlyLimit: null,
+  dailyLimit: '150.00',
+  monthlyLimit: '3300.00',
   requiresReceipt: true,
   autoApprovalMinScore: 90,
   description: '',
 }
+
+const BUSINESS_DAYS_PER_MONTH = 22
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
 const labelClass = 'block text-[12px] font-medium text-gray-500'
@@ -127,12 +129,27 @@ export function G06Politicas() {
       setDrawerError('Informe o nome da categoria.')
       return
     }
-    saveMutation.mutate({
-      ...form,
-      category: form.category.trim(),
-      dailyLimit: form.dailyLimit || null,
-      monthlyLimit: form.monthlyLimit || null,
-    })
+    const normalizedForm = normalizePolicyForm({ ...form, category: form.category.trim() })
+    const validationMessage = validatePolicyForm(normalizedForm)
+    if (validationMessage) {
+      setDrawerError(validationMessage)
+      setForm(normalizedForm)
+      return
+    }
+    setForm(normalizedForm)
+    saveMutation.mutate(normalizedForm)
+  }
+
+  function updateMaxAmount(value: string) {
+    setForm((current) => normalizePolicyForm({ ...current, maxAmount: value }))
+  }
+
+  function updateDailyLimit(value: string) {
+    setForm((current) => normalizePolicyForm({ ...current, dailyLimit: value || null }))
+  }
+
+  function updateMonthlyLimit(value: string) {
+    setForm((current) => ({ ...current, monthlyLimit: value || null }))
   }
 
   return (
@@ -289,10 +306,11 @@ export function G06Politicas() {
           <section className="space-y-3">
             <p className={sectionTitleClass}>Limites</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <label className={labelClass}>Por nota<input value={form.maxAmount} onChange={(event) => setForm((current) => ({ ...current, maxAmount: event.target.value }))} className={fieldClass} /></label>
-              <label className={labelClass}>Diário<input value={form.dailyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, dailyLimit: event.target.value }))} className={fieldClass} /></label>
-              <label className={labelClass}>Mensal<input value={form.monthlyLimit ?? ''} onChange={(event) => setForm((current) => ({ ...current, monthlyLimit: event.target.value }))} className={fieldClass} /></label>
+              <label className={labelClass}>Por nota<input value={form.maxAmount} onChange={(event) => updateMaxAmount(event.target.value)} className={fieldClass} /></label>
+              <label className={labelClass}>Diário<input value={form.dailyLimit ?? ''} onChange={(event) => updateDailyLimit(event.target.value)} className={fieldClass} /></label>
+              <label className={labelClass}>Mensal<input value={form.monthlyLimit ?? ''} onChange={(event) => updateMonthlyLimit(event.target.value)} className={fieldClass} /></label>
             </div>
+            <p className="text-[11px] text-gray-400">O mensal sugerido usa {BUSINESS_DAYS_PER_MONTH} dias úteis: limite diário x {BUSINESS_DAYS_PER_MONTH}. O gestor pode aumentar os limites, mas não salvar valores menores que a base financeira.</p>
           </section>
 
           <section className="space-y-3">
@@ -386,6 +404,54 @@ function moneyValue(value: unknown) {
   if (value == null || value === '') return '-'
   const numeric = Number(value)
   return Number.isFinite(numeric) ? fmt(numeric) : String(value)
+}
+
+function normalizePolicyForm(form: PolicyPayload): PolicyPayload {
+  const maxAmount = parseMoney(form.maxAmount)
+  if (maxAmount == null) return form
+
+  const currentDaily = parseMoney(form.dailyLimit)
+  const dailyLimit = currentDaily == null || currentDaily < maxAmount ? maxAmount : currentDaily
+  const minimumMonthly = dailyLimit * BUSINESS_DAYS_PER_MONTH
+  const currentMonthly = parseMoney(form.monthlyLimit)
+  const monthlyLimit = currentMonthly == null || currentMonthly < minimumMonthly ? minimumMonthly : currentMonthly
+
+  return {
+    ...form,
+    maxAmount: moneyInput(maxAmount),
+    dailyLimit: moneyInput(dailyLimit),
+    monthlyLimit: moneyInput(monthlyLimit),
+  }
+}
+
+function validatePolicyForm(form: PolicyPayload) {
+  const maxAmount = parseMoney(form.maxAmount)
+  if (maxAmount == null || maxAmount <= 0) return 'Informe um limite por nota maior que zero.'
+
+  const dailyLimit = parseMoney(form.dailyLimit)
+  if (dailyLimit == null || dailyLimit < maxAmount) {
+    return 'O limite diário precisa ser pelo menos igual ao limite por nota.'
+  }
+
+  const monthlyLimit = parseMoney(form.monthlyLimit)
+  const minimumMonthly = dailyLimit * BUSINESS_DAYS_PER_MONTH
+  if (monthlyLimit == null || monthlyLimit < minimumMonthly) {
+    return `O limite mensal precisa ser pelo menos ${fmt(minimumMonthly)}, considerando ${BUSINESS_DAYS_PER_MONTH} dias úteis.`
+  }
+
+  return null
+}
+
+function parseMoney(value: string | number | null | undefined) {
+  if (value == null || value === '') return null
+  const raw = String(value).trim()
+  const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function moneyInput(value: number) {
+  return value.toFixed(2)
 }
 
 function buildPolicyImpact(policy: PolicyResponse | null, form: PolicyPayload) {

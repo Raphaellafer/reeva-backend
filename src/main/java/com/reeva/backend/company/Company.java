@@ -31,6 +31,16 @@ public class Company {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_frequency", nullable = false, length = 20)
+    private PaymentFrequency paymentFrequency = PaymentFrequency.WEEKLY;
+
+    @Column(name = "payment_weekday")
+    private Integer paymentWeekday = 4;
+
+    @Column(name = "payment_day_of_month")
+    private Integer paymentDayOfMonth;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -53,10 +63,16 @@ public class Company {
     public String getLogoUrl() { return logoUrl; }
     public String getPlan() { return plan; }
     public boolean isActive() { return active; }
+    public PaymentFrequency getPaymentFrequency() { return paymentFrequency; }
+    public Integer getPaymentWeekday() { return paymentWeekday; }
+    public Integer getPaymentDayOfMonth() { return paymentDayOfMonth; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
     public void setName(String name) { this.name = name; }
     public void setActive(boolean active) { this.active = active; }
     public void setPlan(String plan) { this.plan = plan; }
+    public void setPaymentFrequency(PaymentFrequency paymentFrequency) { this.paymentFrequency = paymentFrequency; }
+    public void setPaymentWeekday(Integer paymentWeekday) { this.paymentWeekday = paymentWeekday; }
+    public void setPaymentDayOfMonth(Integer paymentDayOfMonth) { this.paymentDayOfMonth = paymentDayOfMonth; }
 }

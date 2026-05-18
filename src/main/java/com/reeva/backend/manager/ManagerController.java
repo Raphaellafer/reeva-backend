@@ -2,11 +2,15 @@ package com.reeva.backend.manager;
 
 import com.reeva.backend.expense.dto.ExpenseResponse;
 import com.reeva.backend.finance.PolicyUploadService;
+import com.reeva.backend.finance.dto.BankAccountResponse;
 import com.reeva.backend.manager.dto.CreateEmployeeRequest;
 import com.reeva.backend.manager.dto.DashboardResponse;
 import com.reeva.backend.manager.dto.EmployeeListResponse;
 import com.reeva.backend.manager.dto.EmployeeProfileResponse;
+import com.reeva.backend.manager.dto.MarkPaymentRequest;
 import com.reeva.backend.manager.dto.PaymentBatchResponse;
+import com.reeva.backend.manager.dto.PaymentScheduleRequest;
+import com.reeva.backend.manager.dto.PaymentScheduleResponse;
 import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
 import com.reeva.backend.manager.dto.PolicyUpdateRequest;
@@ -139,7 +143,38 @@ public class ManagerController {
         return managerService.approvedPayments(currentUser, from, to);
     }
 
+    @GetMapping("/payment-schedule")
+    @Operation(summary = "Get company reimbursement payment schedule")
+    public PaymentScheduleResponse paymentSchedule(@AuthenticationPrincipal User currentUser) {
+        return managerService.paymentSchedule(currentUser);
+    }
+
+    @PutMapping("/payment-schedule")
+    @Operation(summary = "Update company reimbursement payment schedule")
+    public PaymentScheduleResponse updatePaymentSchedule(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody PaymentScheduleRequest request
+    ) {
+        return managerService.updatePaymentSchedule(currentUser, request);
+    }
+
     // ── Employee management ──────────────────────────────────────────
+
+    @GetMapping("/bank-accounts")
+    @Operation(summary = "List active bank accounts available for reimbursement payments")
+    public List<BankAccountResponse> bankAccounts(@AuthenticationPrincipal User currentUser) {
+        return managerService.bankAccounts(currentUser);
+    }
+
+    @PostMapping("/expenses/{id}/mark-paid")
+    @Operation(summary = "Mark an approved reimbursement as paid and create cash outflow")
+    public ExpenseResponse markPaid(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id,
+        @Valid @RequestBody MarkPaymentRequest request
+    ) {
+        return managerService.markExpenseAsPaid(currentUser, id, request);
+    }
 
     @GetMapping("/employees")
     @Operation(summary = "List team employees with expense metrics")

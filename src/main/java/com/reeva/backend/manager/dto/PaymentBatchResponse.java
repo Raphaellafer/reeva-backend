@@ -37,7 +37,7 @@ public record PaymentBatchResponse(
             return new PaymentExpense(
                 expense.getId(),
                 expense.getTitle(),
-                null,
+                expense.getProject() != null ? expense.getProject().getName() : null,
                 expense.getExpenseDate(),
                 expense.getAmount(),
                 expense.getAiDecision() == AiDecision.AUTO_APPROVED

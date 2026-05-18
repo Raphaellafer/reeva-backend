@@ -1,7 +1,10 @@
 import type {
   ApiError,
   AuthResponse,
+  BankAccountResponse,
   CfoComplianceResponse,
+  CfoCashFlowResponse,
+  CfoCashTransactionItem,
   CfoExpenseResponse,
   CfoOverviewResponse,
   CreateEmployeePayload,
@@ -15,6 +18,7 @@ import type {
   ManagerListItem,
   PageResponse,
   PaymentBatchResponse,
+  PaymentScheduleResponse,
   PolicyPayload,
   PolicyAuditLogResponse,
   PolicyResponse,
@@ -331,6 +335,47 @@ export async function getApprovedPayments(token: string, from?: string, to?: str
 
 // ── Manager: Employees ────────────────────────────────────────────
 
+export async function getBankAccounts(token: string) {
+  return request<BankAccountResponse[]>('/manager/bank-accounts', { token });
+}
+
+export async function getPaymentSchedule(token: string) {
+  return request<PaymentScheduleResponse>('/manager/payment-schedule', { token });
+}
+
+export async function updatePaymentSchedule(token: string, payload: { frequency: string; weekday: number | null; dayOfMonth: number | null }) {
+  return request<PaymentScheduleResponse>('/manager/payment-schedule', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function markExpensePaid(token: string, expenseId: string, payload: { bankAccountId: string; paidDate: string; paymentReference: string }) {
+  return request<ExpenseResponse>(`/manager/expenses/${expenseId}/mark-paid`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function createCashTransaction(token: string, payload: {
+  bankAccountId: string;
+  projectId: string | null;
+  transactionDate: string;
+  description: string;
+  type: 'INFLOW' | 'OUTFLOW';
+  category: string;
+  amount: string;
+  externalReference: string;
+}) {
+  return request<CfoCashTransactionItem>('/cfo/cash-transactions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
 export async function getTeamEmployees(token: string) {
   return request<EmployeeListItem[]>('/manager/employees', { token });
 }
@@ -371,6 +416,14 @@ export async function getCfoCompliance(token: string, from?: string, to?: string
   if (to) params.set('to', to);
   const query = params.toString();
   return request<CfoComplianceResponse>(`/cfo/compliance${query ? `?${query}` : ''}`, { token });
+}
+
+export async function getCfoCashFlow(token: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString();
+  return request<CfoCashFlowResponse>(`/cfo/cash-flow${query ? `?${query}` : ''}`, { token });
 }
 
 export async function getCfoPolicies(token: string) {

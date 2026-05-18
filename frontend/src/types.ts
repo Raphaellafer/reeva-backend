@@ -214,6 +214,19 @@ export interface PaymentBatchResponse {
   employees: EmployeePayment[];
 }
 
+export interface BankAccountResponse {
+  id: string;
+  bankName: string;
+  accountName: string;
+  agency: string | null;
+  accountNumber: string | null;
+  projectId: string | null;
+  projectName: string | null;
+  openingBalance: number;
+  currentBalance: number;
+  openingBalanceDate: string;
+}
+
 export interface ProjectMonthlyTrendResponse {
   month: string;
   revenue: number;
@@ -380,6 +393,53 @@ export interface CfoComplianceResponse {
   riskyEmployees: CfoRiskyEmployeeItem[];
   riskyProjects: CfoRiskyProjectItem[];
   riskyCategories: CfoRiskyCategoryItem[];
+}
+
+export interface CfoCashTransactionItem {
+  id: string;
+  transactionDate: string;
+  description: string;
+  type: 'INFLOW' | 'OUTFLOW';
+  category: string;
+  amount: number;
+  balanceAfter: number;
+  source: string;
+  bankAccountName: string;
+  projectId: string | null;
+  projectName: string | null;
+  expenseId: string | null;
+  externalReference: string | null;
+}
+
+export interface CfoProjectCashFlowItem {
+  projectId: string;
+  projectName: string;
+  inflow: number;
+  outflow: number;
+  netCashFlow: number;
+}
+
+export interface CfoCashFlowResponse {
+  from: string;
+  to: string;
+  totalBalance: number;
+  periodInflow: number;
+  periodOutflow: number;
+  netCashFlow: number;
+  pendingReimbursementAmount: number;
+  pendingReimbursementCount: number;
+  paidReimbursementAmount: number;
+  accounts: BankAccountResponse[];
+  projectCashFlows: CfoProjectCashFlowItem[];
+  recentTransactions: CfoCashTransactionItem[];
+}
+
+export interface PaymentScheduleResponse {
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'MANUAL';
+  weekday: number | null;
+  dayOfMonth: number | null;
+  nextPaymentDate: string | null;
+  summary: string;
 }
 
 // ── Employee (manager view) ───────────────────────────────────────

@@ -27,6 +27,7 @@ const navByRole = (role: UserRole) => {
       items: [
         { label: 'Dashboard', href: '/cfo', exact: true, icon: <IconGrid /> },
         { label: 'ROI Corporativo', href: '/cfo/roi', icon: <IconTrend /> },
+        { label: 'Fluxo de caixa', href: '/cfo/fluxo-caixa', icon: <IconMoney /> },
         { label: 'Compliance', href: '/cfo/compliance', icon: <IconShield /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
         { label: 'Gestores', href: '/cfo/gestores', icon: <IconUsers /> },
