@@ -24,11 +24,9 @@ class AiExpenseDecisionServiceTest {
 
     @ParameterizedTest
     @EnumSource(ExpenseCategory.class)
-    void invalidFiscalValidationShouldRequireReviewForEveryCategory(ExpenseCategory category) throws Exception {
+    void sefazValidationShouldNotBlockAutoApprovalForEveryCategory(ExpenseCategory category) throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
-        SefazValidationService sefazValidationService = request ->
-            new SefazValidationResult(SefazStatus.INVALID, "CNPJ do fornecedor invalido.");
-        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(category, new BigDecimal("40.00"));
         when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category))
@@ -36,21 +34,21 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, readableResult(category, new BigDecimal("40.00")));
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
-        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
-        assertThat(decision.alertLevel()).isEqualTo(AiAlertLevel.HIGH);
+        assertThat(decision.decision()).isEqualTo(AiDecision.AUTO_APPROVED);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_APPROVED);
+        assertThat(decision.alertLevel()).isEqualTo(AiAlertLevel.NONE);
         assertThat(decision.policyCompliant()).isTrue();
         assertThat(decision.policyViolationReason()).isNull();
-        assertThat(decision.summary()).contains("Revisao fiscal obrigatoria");
-        assertThat(decision.manualReviewReason()).contains("Gestor deve revisar");
+        assertThat(decision.sefazStatus()).isEqualTo(SefazStatus.NOT_APPLICABLE);
+        assertThat(decision.sefazValidationMessage()).contains("desativada temporariamente");
+        assertThat(decision.summary()).contains("Verificacao SEFAZ temporariamente desativada");
+        assertThat(decision.manualReviewReason()).isNull();
     }
 
     @Test
-    void invalidFiscalValidationShouldRequireReviewEvenWhenOcrIsUnreadable() throws Exception {
+    void disabledSefazValidationShouldNotOverrideUnreadableOcrCorrection() throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
-        SefazValidationService sefazValidationService = request ->
-            new SefazValidationResult(SefazStatus.INVALID, "CNPJ do fornecedor invalido.");
-        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.PURCHASE, new BigDecimal("80.00"));
         when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.PURCHASE))
@@ -79,18 +77,17 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, unreadableWithFiscalData);
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
-        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
-        assertThat(decision.summary()).contains("Revisao fiscal obrigatoria");
+        assertThat(decision.decision()).isEqualTo(AiDecision.NEEDS_EMPLOYEE_CORRECTION);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.NEEDS_REVISION);
+        assertThat(decision.sefazStatus()).isEqualTo(SefazStatus.NOT_APPLICABLE);
+        assertThat(decision.summary()).contains("Foto precisa ser reenviada");
     }
 
     @ParameterizedTest
     @EnumSource(ExpenseCategory.class)
     void outOfPolicyAmountShouldRequireManagerReviewForEveryCategory(ExpenseCategory category) throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
-        SefazValidationService sefazValidationService = request ->
-            new SefazValidationResult(SefazStatus.VALID, "Chave fiscal valida.");
-        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(category, new BigDecimal("250.00"));
         ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), category, new BigDecimal("100.00"));
@@ -106,11 +103,9 @@ class AiExpenseDecisionServiceTest {
     }
 
     @Test
-    void inconclusiveFiscalValidationShouldNotRejectAutomatically() throws Exception {
+    void disabledSefazValidationShouldAllowAutoApprovalWhenOtherCriteriaPass() throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
-        SefazValidationService sefazValidationService = request ->
-            new SefazValidationResult(SefazStatus.UNAVAILABLE, "Codigo fiscal parcial ou nao verificavel.");
-        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("40.00"));
         when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT))
@@ -118,18 +113,16 @@ class AiExpenseDecisionServiceTest {
 
         AiExpenseDecision decision = service.decide(expense, readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("40.00")));
 
-        assertThat(decision.decision()).isEqualTo(AiDecision.READY_FOR_MANAGER);
-        assertThat(decision.status()).isEqualTo(ExpenseStatus.PENDING_REVIEW);
+        assertThat(decision.decision()).isEqualTo(AiDecision.AUTO_APPROVED);
+        assertThat(decision.status()).isEqualTo(ExpenseStatus.MANAGER_APPROVED);
         assertThat(decision.policyCompliant()).isTrue();
-        assertThat(decision.summary()).contains("Revisao do gestor recomendada");
+        assertThat(decision.summary()).contains("Verificacao SEFAZ temporariamente desativada");
     }
 
     @Test
     void unreadableOcrShouldStillFlagSubmittedAmountAbovePolicy() throws Exception {
         ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
-        SefazValidationService sefazValidationService = request ->
-            new SefazValidationResult(SefazStatus.UNAVAILABLE, "Codigo fiscal nao verificavel.");
-        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository, sefazValidationService);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.LODGING, new BigDecimal("6000.00"));
         ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.LODGING, new BigDecimal("800.00"));

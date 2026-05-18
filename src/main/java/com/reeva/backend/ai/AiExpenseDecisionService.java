@@ -10,32 +10,23 @@ public class AiExpenseDecisionService {
 
     private static final short DEFAULT_AUTO_APPROVAL_SCORE = 90;
     private static final BigDecimal NEVER_AUTO_APPROVE_AMOUNT = new BigDecimal("5000.00");
+    private static final SefazValidationResult SEFAZ_VALIDATION_DISABLED = new SefazValidationResult(
+        SefazStatus.NOT_APPLICABLE,
+        "Verificacao de autenticidade SEFAZ desativada temporariamente. Nao usada como criterio de aprovacao."
+    );
 
     private final ExpensePolicyRepository policyRepository;
-    private final SefazValidationService sefazValidationService;
 
-    public AiExpenseDecisionService(ExpensePolicyRepository policyRepository,
-                                    SefazValidationService sefazValidationService) {
+    public AiExpenseDecisionService(ExpensePolicyRepository policyRepository) {
         this.policyRepository = policyRepository;
-        this.sefazValidationService = sefazValidationService;
     }
 
     public AiExpenseDecision decide(Expense expense, OcrResult result) {
         short score = normalizeScore(result.score());
-        SefazValidationResult sefaz = sefazValidationService.validate(new SefazValidationRequest(
-            result.supplierCnpj(), result.issueDate(), result.totalAmount(), result.sefazVerificationCode()
-        ));
+        SefazValidationResult sefaz = sefazValidation();
 
         ExpenseCategory category = resolveCategory(result.category(), expense.getCategory());
         PolicyCheck policy = checkPolicy(expense, result, category);
-
-        if (sefaz.status() == SefazStatus.INVALID) {
-            return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
-                AiAlertLevel.HIGH, score, true, null, sefaz, false,
-                "Validacao fiscal inconclusiva ou invalida no modo demo. Gestor deve revisar antes de aprovar.",
-                "Revisao fiscal obrigatoria: a validacao automatica marcou um risco e enviou o reembolso para analise do gestor. "
-                    + sefaz.message());
-        }
 
         if (!result.readable()) {
             String summary = "Foto precisa ser reenviada: " + result.reason();
@@ -78,18 +69,22 @@ public class AiExpenseDecisionService {
         short minScore = autoApprovalMinScore(expense, category);
         BigDecimal amount = safeAmount(result, expense);
         boolean overNeverAutoApprove = amount.compareTo(NEVER_AUTO_APPROVE_AMOUNT) > 0;
-        boolean fiscalOk = sefaz.status() == SefazStatus.VALID || sefaz.status() == SefazStatus.NOT_APPLICABLE;
-        if (score >= minScore && !overNeverAutoApprove && fiscalOk) {
+        if (score >= minScore && !overNeverAutoApprove) {
             return decision(AiDecision.AUTO_APPROVED, ExpenseStatus.MANAGER_APPROVED,
                 AiAlertLevel.NONE, score, true, null, sefaz, true, null,
                 "Aprovado automaticamente pela IA: score " + score + " atingiu o minimo " + minScore
-                    + ", politica ok e validacao fiscal aceita. Nao precisa de aprovacao do gestor.");
+                    + " e politica ok. Verificacao SEFAZ temporariamente desativada.");
         }
 
-        String reason = autoApprovalBlockReason(score, minScore, amount, overNeverAutoApprove, sefaz, fiscalOk);
+        String reason = autoApprovalBlockReason(score, minScore, amount, overNeverAutoApprove);
         return decision(AiDecision.READY_FOR_MANAGER, ExpenseStatus.PENDING_REVIEW,
             AiAlertLevel.MEDIUM, score, true, null, sefaz, false, reason,
             "Revisao do gestor recomendada: " + reason);
+    }
+
+    private SefazValidationResult sefazValidation() {
+        // Future integration point: call a real SEFAZ provider here when credentials/API key are available.
+        return SEFAZ_VALIDATION_DISABLED;
     }
 
     private PolicyCheck checkPolicy(Expense expense, OcrResult result, ExpenseCategory category) {
@@ -108,17 +103,13 @@ public class AiExpenseDecisionService {
     }
 
     private String autoApprovalBlockReason(short score, short minScore, BigDecimal amount,
-                                           boolean overNeverAutoApprove, SefazValidationResult sefaz,
-                                           boolean fiscalOk) {
+                                           boolean overNeverAutoApprove) {
         java.util.List<String> reasons = new java.util.ArrayList<>();
         if (score < minScore) {
             reasons.add("score da IA " + score + " abaixo do minimo configurado " + minScore);
         }
         if (overNeverAutoApprove) {
             reasons.add("valor " + amount + " acima do teto automatico de R$ 5.000,00");
-        }
-        if (!fiscalOk) {
-            reasons.add("validacao fiscal " + sefaz.status() + ": " + sefaz.message());
         }
         if (reasons.isEmpty()) {
             return "criterios de autoaprovacao nao atendidos.";
