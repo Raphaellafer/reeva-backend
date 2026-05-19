@@ -133,7 +133,6 @@ export function G06Politicas() {
     const validationMessage = validatePolicyForm(normalizedForm)
     if (validationMessage) {
       setDrawerError(validationMessage)
-      setForm(normalizedForm)
       return
     }
     setForm(normalizedForm)
@@ -141,15 +140,15 @@ export function G06Politicas() {
   }
 
   function updateMaxAmount(value: string) {
-    setForm((current) => normalizePolicyForm({ ...current, maxAmount: value }))
+    setForm((current) => ({ ...current, maxAmount: value }))
   }
 
   function updateDailyLimit(value: string) {
-    setForm((current) => normalizePolicyForm({ ...current, dailyLimit: value || null }))
+    setForm((current) => ({ ...current, dailyLimit: value }))
   }
 
   function updateMonthlyLimit(value: string) {
-    setForm((current) => ({ ...current, monthlyLimit: value || null }))
+    setForm((current) => ({ ...current, monthlyLimit: value }))
   }
 
   return (
@@ -410,17 +409,18 @@ function normalizePolicyForm(form: PolicyPayload): PolicyPayload {
   const maxAmount = parseMoney(form.maxAmount)
   if (maxAmount == null) return form
 
-  const currentDaily = parseMoney(form.dailyLimit)
-  const dailyLimit = currentDaily == null || currentDaily < maxAmount ? maxAmount : currentDaily
+  const dailyLimit = parseMoney(form.dailyLimit)
+  if (dailyLimit == null) return form
+
   const minimumMonthly = dailyLimit * BUSINESS_DAYS_PER_MONTH
   const currentMonthly = parseMoney(form.monthlyLimit)
-  const monthlyLimit = currentMonthly == null || currentMonthly < minimumMonthly ? minimumMonthly : currentMonthly
+  if (currentMonthly == null) return form
 
   return {
     ...form,
     maxAmount: moneyInput(maxAmount),
     dailyLimit: moneyInput(dailyLimit),
-    monthlyLimit: moneyInput(monthlyLimit),
+    monthlyLimit: moneyInput(currentMonthly),
   }
 }
 
@@ -469,7 +469,7 @@ function buildPolicyImpact(policy: PolicyResponse | null, form: PolicyPayload) {
 
 function impactMoney(label: string, before: number | null, after: string | null) {
   const beforeNumber = before == null ? null : Number(before)
-  const afterNumber = after == null || after === '' ? null : Number(after)
+  const afterNumber = parseMoney(after)
   if (beforeNumber === afterNumber) return null
   return `${label}: ${beforeNumber == null ? '-' : fmt(beforeNumber)} -> ${afterNumber == null || Number.isNaN(afterNumber) ? '-' : fmt(afterNumber)}`
 }
