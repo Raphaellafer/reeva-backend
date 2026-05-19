@@ -193,3 +193,88 @@ export function RiskMeter({ score, label }: RiskMeterProps) {
     </div>
   )
 }
+
+export interface PieSegment {
+  label: string
+  value: number
+  color: string
+  sublabel?: string
+}
+
+interface CompliancePieChartProps {
+  segments: PieSegment[]
+  emptyText?: string
+}
+
+function arcPath(start: number, end: number, cx: number, cy: number, r: number, innerR: number): string {
+  const gap = 0.03
+  const s = start + gap / 2
+  const e = end - gap / 2
+  if (e <= s) return ''
+  const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s)
+  const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e)
+  const x3 = cx + innerR * Math.cos(e), y3 = cy + innerR * Math.sin(e)
+  const x4 = cx + innerR * Math.cos(s), y4 = cy + innerR * Math.sin(s)
+  const large = (e - s) > Math.PI ? 1 : 0
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${large} 0 ${x4} ${y4} Z`
+}
+
+export function CompliancePieChart({ segments, emptyText = 'Sem dados no periodo.' }: CompliancePieChartProps) {
+  const total = segments.reduce((s, seg) => s + seg.value, 0)
+  if (total === 0 || segments.length === 0) {
+    return <p className="py-8 text-center text-[13px] text-gray-400">{emptyText}</p>
+  }
+
+  const cx = 90, cy = 90, r = 76, innerR = 48
+
+  let cumAngle = -Math.PI / 2
+  const arcs = segments.map((seg) => {
+    const angle = (seg.value / total) * 2 * Math.PI
+    const start = cumAngle
+    const end = cumAngle + angle
+    cumAngle = end
+    return { ...seg, start, end }
+  })
+
+  const visible = segments.slice(0, 8)
+  const overflow = segments.length - visible.length
+
+  return (
+    <div className="flex items-start gap-5">
+      <div className="shrink-0">
+        <svg viewBox="0 0 180 180" className="h-[180px] w-[180px]">
+          {arcs.map((arc, i) => {
+            const d = arcPath(arc.start, arc.end, cx, cy, r, innerR)
+            return d ? <path key={i} d={d} fill={arc.color} /> : null
+          })}
+          <text x={cx} y={cy - 8} textAnchor="middle" fontSize="22" fontWeight="700" fill="#1a1a2e">
+            {segments.length}
+          </text>
+          <text x={cx} y={cy + 12} textAnchor="middle" fontSize="11" fill="#9ca3af">
+            {segments.length === 1 ? 'item' : 'itens'}
+          </text>
+        </svg>
+      </div>
+      <div className="flex flex-1 flex-col justify-center gap-3 overflow-hidden py-1">
+        {visible.map((seg, i) => {
+          const share = Math.round((seg.value / total) * 100)
+          return (
+            <div key={i} className="flex items-start gap-2">
+              <span className="mt-[3px] h-3 w-3 shrink-0 rounded-full" style={{ background: seg.color }} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[12px] font-medium text-[#1a1a2e]">{seg.label}</p>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{share}%</span>
+                </div>
+                {seg.sublabel && (
+                  <p className="mt-0.5 text-[11px] text-gray-400">{seg.sublabel}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {overflow > 0 && <p className="text-[11px] text-gray-400">+{overflow} outros</p>}
+      </div>
+    </div>
+  )
+}
