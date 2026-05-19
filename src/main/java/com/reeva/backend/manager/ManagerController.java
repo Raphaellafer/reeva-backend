@@ -85,6 +85,16 @@ public class ManagerController {
         return managerService.savePolicy(currentUser, request);
     }
 
+    @DeleteMapping("/policies/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Deactivate a company expense policy category")
+    public void deletePolicy(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id
+    ) {
+        managerService.deletePolicy(currentUser, id);
+    }
+
     @GetMapping("/expenses")
     @Operation(summary = "List team expenses, optionally filtered by status")
     public Page<ExpenseResponse> listExpenses(

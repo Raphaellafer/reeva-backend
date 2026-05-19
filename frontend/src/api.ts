@@ -295,6 +295,13 @@ export async function savePolicy(token: string, payload: PolicyPayload) {
   });
 }
 
+export async function deletePolicy(token: string, policyId: string) {
+  return request<void>(`/manager/policies/${policyId}`, {
+    method: 'DELETE',
+    token
+  });
+}
+
 export async function getManagedProjects(token: string) {
   return request<ProjectResponse[]>('/manager/projects', { token });
 }

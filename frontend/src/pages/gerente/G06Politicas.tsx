@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPolicies, getPolicyAuditLogs, savePolicy, uploadManagerPolicyFile } from '../../api'
+import { deletePolicy, getPolicies, getPolicyAuditLogs, savePolicy, uploadManagerPolicyFile } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -39,6 +39,7 @@ export function G06Politicas() {
   const [form, setForm] = useState<PolicyPayload>(emptyForm)
   const [message, setMessage] = useState<string | null>(null)
   const [drawerError, setDrawerError] = useState<string | null>(null)
+  const [deletingPolicyId, setDeletingPolicyId] = useState<string | null>(null)
   const managerName = getStoredUser()?.name ?? 'Gestor responsável'
 
   const uploadMutation = useMutation({
@@ -86,6 +87,17 @@ export function G06Politicas() {
       setDrawerError(null)
     },
     onError: (err) => setDrawerError(err instanceof Error ? err.message : 'Falha ao salvar política.'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (policyId: string) => deletePolicy(token!, policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['policies'] })
+      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      setDeletingPolicyId(null)
+      setMessage('Categoria excluída.')
+    },
+    onError: () => setDeletingPolicyId(null),
   })
 
   function edit(policy: PolicyResponse) {
@@ -151,6 +163,14 @@ export function G06Politicas() {
     setForm((current) => ({ ...current, monthlyLimit: value }))
   }
 
+  function requestDelete(policy: PolicyResponse) {
+    if (deletingPolicyId === policy.id) {
+      deleteMutation.mutate(policy.id)
+      return
+    }
+    setDeletingPolicyId(policy.id)
+  }
+
   return (
     <DesktopShell title="Políticas de reembolso" role="GERENTE">
       <Card className="mb-5">
@@ -213,7 +233,16 @@ export function G06Politicas() {
                     </td>
                     <td className="py-4 pr-3">{policy.requiresReceipt ? 'Sim' : 'Não'}</td>
                     <td className="py-4 pr-3 text-right">
-                      <button onClick={() => edit(policy)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
+                      <div className="flex justify-end gap-3">
+                        <button onClick={() => edit(policy)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
+                        <button
+                          onClick={() => requestDelete(policy)}
+                          disabled={deleteMutation.isPending && deletingPolicyId === policy.id}
+                          className="text-[12px] font-medium text-[#791F1F] disabled:opacity-50"
+                        >
+                          {deletingPolicyId === policy.id ? (deleteMutation.isPending ? 'Excluindo...' : 'Confirmar') : 'Excluir'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -353,7 +382,7 @@ function formatDateTime(value: string) {
 }
 
 function actionLabel(action: string) {
-  return { POLICY_CREATED: 'Criação', POLICY_UPDATED: 'Edição', POLICY_REACTIVATED: 'Reativação' }[action] ?? action
+  return { POLICY_CREATED: 'Criação', POLICY_UPDATED: 'Edição', POLICY_REACTIVATED: 'Reativação', POLICY_DELETED: 'Exclusão' }[action] ?? action
 }
 
 function snapshotSummary(snapshot: Record<string, unknown>) {
@@ -368,6 +397,7 @@ function snapshotSummary(snapshot: Record<string, unknown>) {
 
 function changeSummary(log: PolicyAuditLogResponse) {
   if (log.action === 'POLICY_CREATED') return `Criou política: ${snapshotSummary(log.after)}`
+  if (log.action === 'POLICY_DELETED') return `Excluiu categoria: ${snapshotSummary(log.before)}`
   if (!log.before || Object.keys(log.before).length === 0) return 'Registro legado sem detalhamento do antes/depois.'
   const changes = [
     diffMoney('limite por nota', log.before.maxAmount, log.after.maxAmount),

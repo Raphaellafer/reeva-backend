@@ -283,6 +283,38 @@ public class ManagerService {
         return PolicyResponse.from(saved);
     }
 
+    @Transactional
+    public void deletePolicy(User manager, UUID policyId) {
+        ExpensePolicy policy = policyRepository.findById(policyId)
+            .filter(item -> item.getCompany().getId().equals(manager.getCompany().getId()))
+            .orElseThrow(() -> BusinessException.notFound("Politica nao encontrada"));
+        if (!policy.isActive()) {
+            return;
+        }
+
+        Map<String, Object> before = policySnapshot(policy);
+        policy.setActive(false);
+        ExpensePolicy saved = policyRepository.save(policy);
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("category", saved.getCategory());
+        metadata.put("changedByName", manager.getName());
+        metadata.put("changedByEmail", manager.getEmail());
+        metadata.put("before", before);
+        metadata.put("after", policySnapshot(saved));
+
+        auditRepository.save(
+            AuditLog.builder()
+                .companyId(manager.getCompany().getId())
+                .userId(manager.getId())
+                .action("POLICY_DELETED")
+                .entityType("ExpensePolicy")
+                .entityId(saved.getId())
+                .metadata(metadata)
+                .build()
+        );
+    }
+
     private NormalizedPolicyLimits normalizePolicyLimits(PolicyUpdateRequest request) {
         BigDecimal maxAmount = request.maxAmount();
         BigDecimal dailyLimit = request.dailyLimit() != null ? request.dailyLimit() : maxAmount;
