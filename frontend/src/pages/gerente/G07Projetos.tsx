@@ -25,7 +25,6 @@ export function G07Projetos() {
   const currentManagerId = currentUser?.userId ?? null
   const [editingId, setEditingId] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerManagerId, setDrawerManagerId] = useState<string | null>(currentManagerId)
   const [employeeQuery, setEmployeeQuery] = useState('')
   const [form, setForm] = useState<ProjectPayload>(() => buildEmptyForm(currentManagerId))
   const [error, setError] = useState<string | null>(null)
@@ -44,9 +43,9 @@ export function G07Projetos() {
   })
 
   const { data: employees = [], isFetching: teamLoading } = useQuery({
-    queryKey: ['team-members', drawerManagerId],
-    queryFn: () => getTeamMembers(token!, drawerManagerId),
-    enabled: !!token && !!drawerManagerId && drawerOpen,
+    queryKey: ['team-members'],
+    queryFn: () => getTeamMembers(token!),
+    enabled: !!token && drawerOpen,
   })
 
   const saveMutation = useMutation({
@@ -73,11 +72,6 @@ export function G07Projetos() {
     [employees, form.employeeIds]
   )
 
-  const selectedManager = useMemo(
-    () => managers.find((manager) => manager.id === form.managerId) ?? null,
-    [form.managerId, managers]
-  )
-
   const filteredEmployees = useMemo(() => {
     const q = employeeQuery.trim().toLowerCase()
     if (!q) return employees
@@ -92,7 +86,6 @@ export function G07Projetos() {
     const managerId = defaultManagerId()
     setEditingId(null)
     setForm(buildEmptyForm(managerId))
-    setDrawerManagerId(managerId)
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
@@ -103,7 +96,6 @@ export function G07Projetos() {
     const managerId = project.managerId ?? defaultManagerId()
     setEditingId(project.id)
     setForm({ name: project.name, code: project.code ?? '', description: project.description ?? '', policyText: project.policyText ?? '', revenue: project.revenue == null ? null : String(project.revenue), managerId, employeeIds: project.members.map((member) => member.id) })
-    setDrawerManagerId(managerId)
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
@@ -122,9 +114,7 @@ export function G07Projetos() {
 
   function handleManagerChange(managerId: string) {
     const nextManagerId = managerId || null
-    setForm((current) => ({ ...current, managerId: nextManagerId, employeeIds: [] }))
-    setDrawerManagerId(nextManagerId)
-    setEmployeeQuery('')
+    setForm((current) => ({ ...current, managerId: nextManagerId }))
     setMessage(null)
     setError(null)
   }
@@ -241,12 +231,12 @@ export function G07Projetos() {
               <div>
                 <p className={sectionTitleClass}>Funcionários do projeto</p>
                 <p className="mt-1 text-[12px] text-gray-400">
-                  {selectedManager ? `Equipe de ${selectedManager.name}` : 'Selecione o gestor responsável para carregar a equipe.'}
+                  Todos os funcionários ativos da empresa ficam disponíveis para este projeto.
                 </p>
               </div>
               <span className="rounded-full bg-[#EEEDFE] px-2.5 py-1 text-[12px] font-medium text-[#3C3489]">{selectedEmployees.length} selecionados</span>
             </div>
-            <input value={employeeQuery} onChange={(event) => setEmployeeQuery(event.target.value)} placeholder="Buscar por nome ou e-mail" className={fieldClass} disabled={!form.managerId} />
+            <input value={employeeQuery} onChange={(event) => setEmployeeQuery(event.target.value)} placeholder="Buscar por nome ou e-mail" className={fieldClass} />
             {selectedEmployees.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {selectedEmployees.map((employee) => (
@@ -256,8 +246,7 @@ export function G07Projetos() {
             )}
             <div className="max-h-[360px] space-y-2 overflow-y-auto rounded-[8px] border border-black/[0.08] bg-white p-2">
               {teamLoading && <p className="p-3 text-[12px] text-gray-400">Carregando equipe...</p>}
-              {!teamLoading && !form.managerId && <p className="p-3 text-[12px] text-gray-400">Selecione um gestor para ver funcionários.</p>}
-              {!teamLoading && form.managerId && filteredEmployees.length === 0 && <p className="p-3 text-[12px] text-gray-400">Nenhum funcionário encontrado para este gestor.</p>}
+              {!teamLoading && filteredEmployees.length === 0 && <p className="p-3 text-[12px] text-gray-400">Nenhum funcionário encontrado.</p>}
               {!teamLoading && filteredEmployees.map((employee) => (
                 <label key={employee.id} className="flex cursor-pointer items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-gray-50">
                   <input type="checkbox" className="h-4 w-4 shrink-0" checked={form.employeeIds.includes(employee.id)} onChange={() => toggleEmployee(employee.id)} />

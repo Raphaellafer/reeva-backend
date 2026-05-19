@@ -65,9 +65,9 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public List<TeamMemberResponse> listTeamMembers(User currentUser, UUID managerId) {
-        User responsibleManager = resolveResponsibleManager(currentUser, managerId);
-        return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(responsibleManager.getId())
+        return userRepository.findByCompanyIdAndActiveTrueOrderByNameAsc(currentUser.getCompany().getId())
             .stream()
+            .filter(user -> user.getRole() == UserRole.EMPLOYEE)
             .map(TeamMemberResponse::from)
             .toList();
     }
