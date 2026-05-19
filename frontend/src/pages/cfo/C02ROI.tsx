@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { getCfoProjectPerformance } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
-import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { HorizontalBarChart } from '../../components/ui/HorizontalBarChart'
 import { MetricCard } from '../../components/ui/MetricCard'
@@ -34,7 +34,15 @@ function buildTrend(projects: ProjectPerformanceResponse[]) {
 
 export function C02ROI() {
   const token = getToken()
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const location = useLocation()
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    (location.state as { projectId?: string } | null)?.projectId ?? null
+  )
+
+  useEffect(() => {
+    const id = (location.state as { projectId?: string } | null)?.projectId
+    if (id) setSelectedProjectId(id)
+  }, [location.state])
 
   const { data: projects = [], isLoading, error } = useQuery({
     queryKey: ['cfo-project-performance'],
@@ -83,17 +91,41 @@ export function C02ROI() {
   return (
     <DesktopShell title="Performance por projeto" role="CFO">
       {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar performance.'}</p>}
-      {isLoading && <p className="mb-4 text-[13px] text-gray-400">Carregando performance financeira...</p>}
 
-      {selectedProject && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[12px] text-gray-400">Projeto selecionado</p>
-            <h2 className="text-[20px] font-medium text-[#1a1a2e]">{selectedProject.projectName}</h2>
+      {/* Seletor de projeto */}
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[220px]">
+            <p className="mb-1 text-[12px] text-gray-500">Projeto</p>
+            <select
+              value={selectedProjectId ?? ''}
+              onChange={(e) => setSelectedProjectId(e.target.value || null)}
+              className="block w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] focus:outline-none"
+            >
+              <option value="">Todos os projetos (visao geral)</option>
+              {projects.map((p) => (
+                <option key={p.projectId} value={p.projectId}>
+                  {p.projectName}{p.projectCode ? ` (${p.projectCode})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedProjectId(null)}>Voltar para projetos</Button>
+          {selectedProjectId && (
+            <button
+              onClick={() => setSelectedProjectId(null)}
+              className="rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[12px] font-medium text-[#1a1a2e] hover:bg-gray-50"
+            >
+              Ver todos
+            </button>
+          )}
+          <div className="text-right text-[12px] text-gray-400">
+            {selectedProject
+              ? <span><span className="font-medium text-[#1a1a2e]">{selectedProject.projectName}</span> · performance individual</span>
+              : <span><span className="font-medium text-[#1a1a2e]">{projects.length} projeto(s)</span> · visao consolidada</span>
+            }
+          </div>
         </div>
-      )}
+      </Card>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="Receita" value={fmt(totals.revenue)} subtext="contexto financeiro" />
@@ -141,23 +173,22 @@ export function C02ROI() {
             <table className="w-full min-w-[600px] text-[13px]">
               <thead>
                 <tr className="border-b border-black/[0.06]">
-                  {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance', ''].map((header) => (
+                  {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance'].map((header) => (
                     <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {detailProjects.map((p) => (
-                  <tr key={p.projectId} className={`border-b border-black/[0.04] hover:bg-gray-50 ${selectedProject ? '' : 'cursor-pointer'}`} onClick={() => !selectedProject && setSelectedProjectId(p.projectId)}>
+                  <tr key={p.projectId} className={`border-b border-black/[0.04] ${p.projectId === selectedProjectId ? 'bg-[#F5F8FF]' : ''}`}>
                     <td className="py-3 pr-3"><p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>{p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}</td>
                     <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
                     <td className="whitespace-nowrap py-3 pr-3">{fmt(p.totalCost)}</td>
                     <td className="py-3 pr-3"><span className="font-medium" style={{ color: roiColor(p.roi ?? 0) }}>{multiple(p.roi)}</span></td>
                     <td className="py-3 pr-3"><Badge variant={p.complianceRate >= 90 ? 'green' : p.complianceRate >= 70 ? 'amber' : 'red'}>{p.complianceRate}%</Badge></td>
-                    <td className="whitespace-nowrap py-3 text-right text-[12px] font-medium text-[#3C3489]">{selectedProject ? '' : 'Abrir'}</td>
                   </tr>
                 ))}
-                {!isLoading && detailProjects.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Nenhum projeto encontrado.</td></tr>}
+                {!isLoading && detailProjects.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-gray-400">Nenhum projeto encontrado.</td></tr>}
               </tbody>
             </table>
           </div>

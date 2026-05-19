@@ -1,30 +1,89 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getCfoOverview } from '../../api'
+import { useNavigate } from 'react-router-dom'
+import { getCfoOverview, getCfoProjectPerformance } from '../../api'
+
+function yearStart() {
+  return `${new Date().getFullYear()}-01-01`
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
 import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt } from '../../data/mock'
 import { getToken } from '../../session'
-import type { CfoOverviewResponse } from '../../types'
 import {
   categoryColors,
   categoryLabels,
   formatMonthLabel,
+  multiple,
   severityRank,
   severityVariant,
 } from './cfoUtils'
-import { ExecutiveBarList, MultiSeriesTrendChart, RiskMeter } from './cfoVisuals'
+import { CompliancePieChart, ExecutiveBarList, MultiSeriesTrendChart } from './cfoVisuals'
+import type { PieSegment } from './cfoVisuals'
+
+const PROJECT_PALETTE = [
+  '#85B7EB', '#AFA9EC', '#FAC775', '#7EC8C8',
+  '#F4A86B', '#B0D9B1', '#E8A4C9', '#A0C4FF',
+  '#FFD6A5', '#CAFFBF',
+]
+
+function roiColor(roi: number): string {
+  if (roi > 2) return '#27500A'
+  if (roi >= 1) return '#97C459'
+  if (roi > 0) return '#EF9F27'
+  return '#F09595'
+}
+
+type SortKey = 'roi-desc' | 'roi-asc' | 'cost-desc' | 'cost-asc' | 'revenue-desc'
+
+const sortOptions: { value: SortKey; label: string }[] = [
+  { value: 'roi-desc',     label: 'Maior ROI' },
+  { value: 'roi-asc',      label: 'Menor ROI' },
+  { value: 'cost-desc',    label: 'Maior custo' },
+  { value: 'cost-asc',     label: 'Menor custo' },
+  { value: 'revenue-desc', label: 'Maior receita' },
+]
 
 export function C01Dashboard() {
   const token = getToken()
+  const navigate = useNavigate()
+  const [sortKey, setSortKey] = useState<SortKey>('roi-desc')
+  const [from, setFrom] = useState(yearStart())
+  const [to, setTo] = useState(today())
+  const [queryFrom, setQueryFrom] = useState(from)
+  const [queryTo, setQueryTo] = useState(to)
 
-  const { data: overview, isLoading, error } = useQuery({
-    queryKey: ['cfo-overview'],
-    queryFn: () => getCfoOverview(token!),
+  const { data: overview, isLoading: loadingOverview, error } = useQuery({
+    queryKey: ['cfo-overview', queryFrom, queryTo],
+    queryFn: () => getCfoOverview(token!, queryFrom, queryTo),
     enabled: !!token,
   })
+
+  const { data: projects = [], isLoading: loadingProjects } = useQuery({
+    queryKey: ['cfo-project-performance', queryFrom, queryTo],
+    queryFn: () => getCfoProjectPerformance(token!, queryFrom, queryTo),
+    enabled: !!token,
+  })
+
+  const isLoading = loadingOverview || loadingProjects
+
+  const sortedProjects = useMemo(() => {
+    const list = [...projects]
+    switch (sortKey) {
+      case 'roi-desc':     return list.sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0))
+      case 'roi-asc':      return list.sort((a, b) => (a.roi ?? 0) - (b.roi ?? 0))
+      case 'cost-desc':    return list.sort((a, b) => b.totalCost - a.totalCost)
+      case 'cost-asc':     return list.sort((a, b) => a.totalCost - b.totalCost)
+      case 'revenue-desc': return list.sort((a, b) => b.revenue - a.revenue)
+      default:             return list
+    }
+  }, [projects, sortKey])
 
   const monthlyTrend = useMemo(
     () => (overview?.monthlyReimbursementTrend ?? []).map((item) => ({
@@ -75,19 +134,94 @@ export function C01Dashboard() {
     return { projected, current: currentData.reimbursedAmount, daysRemaining: remainingDays, label: formatMonthLabel(currentMonth) }
   }, [overview])
 
-  const complianceTrend = useMemo((): 'up' | 'down' | null => {
-    const trend = overview?.monthlyReimbursementTrend ?? []
-    if (trend.length < 2) return null
-    const last = trend[trend.length - 1]
-    const prev = trend[trend.length - 2]
-    if (!last || !prev || prev.submittedAmount === 0 || last.submittedAmount === 0) return null
-    const lastRatio = last.avoidableLosses / last.submittedAmount
-    const prevRatio = prev.avoidableLosses / prev.submittedAmount
-    return lastRatio <= prevRatio ? 'up' : 'down'
-  }, [overview])
+  const consolidatedRoi = useMemo(() => {
+    const totalCost = projects.reduce((s, p) => s + p.totalCost, 0)
+    const totalProfit = projects.reduce((s, p) => s + p.profit, 0)
+    return totalCost > 0 ? totalProfit / totalCost : null
+  }, [projects])
+
+  const roiTrend = useMemo((): 'up' | 'down' | null => {
+    const allMonths = Array.from(new Set(projects.flatMap((p) => p.monthlyTrend.map((t) => t.month)))).sort()
+    if (allMonths.length < 2) return null
+    const last = allMonths[allMonths.length - 1]
+    const prev = allMonths[allMonths.length - 2]
+    const roiFor = (month: string) => {
+      const cost = projects.reduce((s, p) => s + (p.monthlyTrend.find((t) => t.month === month)?.totalCost ?? 0), 0)
+      const profit = projects.reduce((s, p) => s + (p.monthlyTrend.find((t) => t.month === month)?.profit ?? 0), 0)
+      return cost > 0 ? profit / cost : null
+    }
+    const lastRoi = roiFor(last), prevRoi = roiFor(prev)
+    if (lastRoi === null || prevRoi === null) return null
+    return lastRoi >= prevRoi ? 'up' : 'down'
+  }, [projects])
+
+  // Pie charts — cores distintas por fatia (paleta por projeto, categoryColors por categoria)
+  const projectPieSegments = useMemo((): PieSegment[] =>
+    projects
+      .filter((p) => p.totalExpenseCount > 0)
+      .sort((a, b) => b.totalExpenseCount - a.totalExpenseCount)
+      .map((p, i) => ({
+        label: p.projectCode ?? p.projectName,
+        value: p.totalExpenseCount,
+        color: PROJECT_PALETTE[i % PROJECT_PALETTE.length],
+        sublabel: `${p.complianceRate}% compliance · ${p.totalExpenseCount} notas`,
+      })),
+    [projects]
+  )
+
+  const categoryPieSegments = useMemo((): PieSegment[] =>
+    (overview?.categorySpend ?? [])
+      .filter((c) => c.expenseCount > 0)
+      .sort((a, b) => b.expenseCount - a.expenseCount)
+      .map((c) => {
+        const ratio = c.amount > 0 ? c.avoidableLosses / c.amount : 0
+        const pct = Math.round((1 - ratio) * 100)
+        const risk = ratio === 0 ? 'ok' : ratio < 0.15 ? 'revisar' : 'alto risco'
+        return {
+          label: categoryLabels[c.category] ?? c.category,
+          value: c.expenseCount,
+          color: categoryColors[c.category] ?? '#85B7EB',
+          sublabel: `${pct}% compliance · ${risk} · ${c.expenseCount} notas`,
+        }
+      }),
+    [overview]
+  )
 
   return (
     <DesktopShell title="Dashboard executivo" role="CFO">
+      {/* Filtro de período */}
+      <Card className="mb-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-[12px] text-gray-500">
+            De
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="mt-1 block rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+            />
+          </label>
+          <label className="text-[12px] text-gray-500">
+            Ate
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="mt-1 block rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]"
+            />
+          </label>
+          <button
+            onClick={() => { setQueryFrom(from); setQueryTo(to) }}
+            className="rounded-[8px] bg-[#1a1a2e] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#2a2a4e]"
+          >
+            Aplicar filtro
+          </button>
+          <span className="ml-auto text-[12px] text-gray-400">
+            Periodo: <span className="font-medium text-[#1a1a2e]">{queryFrom}</span> até <span className="font-medium text-[#1a1a2e]">{queryTo}</span>
+          </span>
+        </div>
+      </Card>
+
       {error && (
         <Card className="mb-4 border-[#F09595] bg-[#FCEBEB]">
           <p className="text-[13px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar dashboard CFO.'}</p>
@@ -98,7 +232,13 @@ export function C01Dashboard() {
         <MetricCard label="Total submetido" value={isLoading ? '...' : fmt(overview?.totalSubmittedAmount ?? 0)} subtext="base do fechamento" />
         <MetricCard label="Total reembolsado" value={isLoading ? '...' : fmt(overview?.totalReimbursedAmount ?? 0)} subtext={`${reimbursedRatio}% do submetido`} />
         <MetricCard label="Economia pela IA" value={isLoading ? '...' : fmt(overview?.aiSavings ?? 0)} subtext="politica, OCR e duplicidade" />
-        <MetricCard label="Compliance geral" value={isLoading ? '...' : `${overview?.complianceRate ?? 0}%`} subtext={`${overview?.processedExpenseCount ?? 0} notas`} trend={complianceTrend ?? undefined} trendValue={complianceTrend === 'up' ? 'melhorou' : complianceTrend === 'down' ? 'piorou' : undefined} />
+        <MetricCard
+          label="ROI consolidado"
+          value={isLoading ? '...' : multiple(consolidatedRoi)}
+          subtext={`${projects.length} projeto(s)`}
+          trend={roiTrend ?? undefined}
+          trendValue={roiTrend === 'up' ? 'melhorou' : roiTrend === 'down' ? 'piorou' : undefined}
+        />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -110,7 +250,14 @@ export function C01Dashboard() {
             </div>
             <Badge variant={reimbursedRatio >= 80 ? 'green' : 'amber'}>{reimbursedRatio}% reembolsado</Badge>
           </div>
-          <MultiSeriesTrendChart points={monthlyTrend} series={[{ key: 'submitted', label: 'Submetido', color: '#85B7EB' }, { key: 'reimbursed', label: 'Reembolsado', color: '#97C459' }]} formatValue={(value) => fmt(value)} />
+          <MultiSeriesTrendChart
+            points={monthlyTrend}
+            series={[
+              { key: 'submitted', label: 'Submetido', color: '#85B7EB' },
+              { key: 'reimbursed', label: 'Reembolsado', color: '#97C459' },
+            ]}
+            formatValue={(value) => fmt(value)}
+          />
         </Card>
 
         <div className="space-y-3">
@@ -131,14 +278,20 @@ export function C01Dashboard() {
           <div className="rounded-[10px] border border-black/[0.07] bg-white p-4">
             <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Sinais de controle</p>
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3"><p className="text-[22px] font-medium text-[#791F1F]">{overview?.duplicateRejectedCount ?? 0}</p><p className="text-[11px] text-[#791F1F]/70">duplicadas</p></div>
-              <div className="rounded-[8px] border border-[#FAC775] bg-[#FAEEDA] p-3"><p className="text-[22px] font-medium text-[#633806]">{overview?.policyViolationCount ?? 0}</p><p className="text-[11px] text-[#633806]/70">violacoes</p></div>
+              <div className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3">
+                <p className="text-[22px] font-medium text-[#791F1F]">{overview?.duplicateRejectedCount ?? 0}</p>
+                <p className="text-[11px] text-[#791F1F]/70">duplicadas</p>
+              </div>
+              <div className="rounded-[8px] border border-[#FAC775] bg-[#FAEEDA] p-3">
+                <p className="text-[22px] font-medium text-[#633806]">{overview?.policyViolationCount ?? 0}</p>
+                <p className="text-[11px] text-[#633806]/70">violacoes</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           <Card>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -151,31 +304,59 @@ export function C01Dashboard() {
             <ExecutiveBarList items={categoryBars} formatValue={(value) => fmt(value)} emptyText="Ainda nao ha notas no periodo analisado." />
           </Card>
 
+          {/* Painel de projetos com ordenação */}
           <Card>
-            <p className="mb-3 text-[14px] font-medium text-[#1a1a2e]">Projetos por risco em reembolso</p>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos</p>
+                <p className="mt-1 text-[12px] text-gray-400">Clique para ver a performance completa do projeto.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="purple">{projects.length} projeto(s)</Badge>
+                <select
+                  value={sortKey}
+                  onChange={(e) => setSortKey(e.target.value as SortKey)}
+                  className="rounded-[8px] border border-black/[0.08] bg-white px-2 py-1.5 text-[12px] text-[#1a1a2e] focus:outline-none"
+                >
+                  {sortOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-[13px]">
+              <table className="w-full min-w-[540px] text-[13px]">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    {['Projeto', 'Reembolsado', 'Compliance', 'Risco'].map((header) => (
+                    {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance', ''].map((header) => (
                       <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {(overview?.projectRiskRanking ?? []).map((project) => (
-                    <tr key={project.projectId} className="border-b border-black/[0.04] hover:bg-gray-50">
-                      <td className="py-3 pr-3 font-medium text-[#1a1a2e]">
-                        <p className="whitespace-nowrap">{project.projectName}</p>
-                        {project.projectCode && <p className="text-[11px] text-gray-400">{project.projectCode}</p>}
+                  {sortedProjects.map((p) => (
+                    <tr
+                      key={p.projectId}
+                      className="cursor-pointer border-b border-black/[0.04] hover:bg-gray-50"
+                      onClick={() => navigate('/cfo/roi', { state: { projectId: p.projectId } })}
+                    >
+                      <td className="py-3 pr-3">
+                        <p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>
+                        {p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}
                       </td>
-                      <td className="whitespace-nowrap py-3 pr-3 font-medium">{fmt(project.reimbursedAmount)}</td>
-                      <td className="py-3 pr-3"><Badge variant={project.complianceRate >= 95 ? 'green' : project.complianceRate >= 80 ? 'amber' : 'red'}>{project.complianceRate}%</Badge></td>
-                      <td className="py-3"><RiskMeter score={project.riskScore} /></td>
+                      <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
+                      <td className="whitespace-nowrap py-3 pr-3">{fmt(p.totalCost)}</td>
+                      <td className="py-3 pr-3">
+                        <span className="font-medium" style={{ color: roiColor(p.roi ?? 0) }}>{multiple(p.roi)}</span>
+                      </td>
+                      <td className="py-3 pr-3">
+                        <Badge variant={p.complianceRate >= 90 ? 'green' : p.complianceRate >= 70 ? 'amber' : 'red'}>{p.complianceRate}%</Badge>
+                      </td>
+                      <td className="whitespace-nowrap py-3 text-right text-[12px] font-medium text-[#3C3489]">Abrir →</td>
                     </tr>
                   ))}
-                  {!isLoading && (overview?.projectRiskRanking.length ?? 0) === 0 && (
-                    <tr><td colSpan={4} className="py-5 text-[13px] text-gray-400">Nenhum projeto com reembolso no periodo.</td></tr>
+                  {!loadingProjects && projects.length === 0 && (
+                    <tr><td colSpan={6} className="py-5 text-[13px] text-gray-400">Nenhum projeto encontrado.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -202,8 +383,27 @@ export function C01Dashboard() {
                 </div>
               </div>
             ))}
-            {!isLoading && recommendations.length === 0 && <p className="text-[13px] text-gray-400">Sem acoes criticas no periodo.</p>}
+            {!loadingOverview && recommendations.length === 0 && <p className="text-[13px] text-gray-400">Sem acoes criticas no periodo.</p>}
           </div>
+        </Card>
+      </div>
+
+      {/* Gráficos de pizza de compliance */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card>
+          <div className="mb-5">
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Compliance por projeto</p>
+            <p className="mt-1 text-[12px] text-gray-400">Volume de notas por projeto · compliance % e status na legenda</p>
+          </div>
+          <CompliancePieChart segments={projectPieSegments} emptyText="Sem projetos com notas no periodo." />
+        </Card>
+
+        <Card>
+          <div className="mb-5">
+            <p className="text-[14px] font-medium text-[#1a1a2e]">Compliance por categoria</p>
+            <p className="mt-1 text-[12px] text-gray-400">Volume de notas por categoria · compliance % e nivel de risco na legenda</p>
+          </div>
+          <CompliancePieChart segments={categoryPieSegments} emptyText="Sem categorias com notas no periodo." />
         </Card>
       </div>
     </DesktopShell>

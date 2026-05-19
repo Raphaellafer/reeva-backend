@@ -20,6 +20,7 @@ import { G05FuncionariosList } from '../pages/gerente/G05FuncionariosList'
 import { G06Politicas } from '../pages/gerente/G06Politicas'
 import { G07Projetos } from '../pages/gerente/G07Projetos'
 import { G08Pagamentos } from '../pages/gerente/G08Pagamentos'
+import { G09Compliance } from '../pages/gerente/G09Compliance'
 
 import { C01Dashboard } from '../pages/cfo/C01Dashboard'
 import { C02ROI } from '../pages/cfo/C02ROI'
@@ -69,6 +70,7 @@ export function AppRouter() {
         <Route path="/gerente/politicas"       element={<RequireRole role="GERENTE"><G06Politicas /></RequireRole>} />
         <Route path="/gerente/projetos"        element={<RequireRole role="GERENTE"><G07Projetos /></RequireRole>} />
         <Route path="/gerente/pagamentos"      element={<RequireRole role="GERENTE"><G08Pagamentos /></RequireRole>} />
+        <Route path="/gerente/compliance"      element={<RequireRole role="GERENTE"><G09Compliance /></RequireRole>} />
 
         {/* CFO */}
         <Route path="/cfo"               element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
