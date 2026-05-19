@@ -74,7 +74,8 @@ export function AppRouter() {
 
         {/* CFO */}
         <Route path="/cfo"               element={<RequireRole role="CFO"><C01Dashboard /></RequireRole>} />
-        <Route path="/cfo/roi"           element={<RequireRole role="CFO"><C02ROI /></RequireRole>} />
+        <Route path="/cfo/roi/:projectId" element={<RequireRole role="CFO"><C02ROI /></RequireRole>} />
+        <Route path="/cfo/roi"           element={<Navigate to="/cfo" replace />} />
         <Route path="/cfo/compliance"    element={<RequireRole role="CFO"><C03Compliance /></RequireRole>} />
         <Route path="/cfo/notas"         element={<RequireRole role="CFO"><C04Notas /></RequireRole>} />
         <Route path="/cfo/fluxo-caixa"   element={<RequireRole role="CFO"><C07FluxoCaixa /></RequireRole>} />

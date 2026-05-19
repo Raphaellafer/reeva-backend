@@ -101,8 +101,8 @@ export function C06Gestores() {
       setFormError('A senha temporaria precisa ter pelo menos 8 caracteres.')
       return
     }
-    if (!isValidCpf(normalizedCpf)) {
-      setFormError('Informe um CPF valido.')
+    if (normalizedCpf.length !== 11) {
+      setFormError('Informe um CPF com 11 digitos.')
       return
     }
     if (!form.pixKey.trim()) {
@@ -305,17 +305,3 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function isValidCpf(rawCpf: string) {
-  const cpf = normalizeDigits(rawCpf)
-  if (cpf.length !== 11) return false
-  if (/^(\d)\1{10}$/.test(cpf)) return false
-  const calcDigit = (length: number) => {
-    let sum = 0
-    for (let index = 0; index < length; index += 1) {
-      sum += Number(cpf[index]) * (length + 1 - index)
-    }
-    const remainder = sum % 11
-    return remainder < 2 ? 0 : 11 - remainder
-  }
-  return calcDigit(9) === Number(cpf[9]) && calcDigit(10) === Number(cpf[10])
-}

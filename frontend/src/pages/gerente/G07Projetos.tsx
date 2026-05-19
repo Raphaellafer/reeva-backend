@@ -11,7 +11,7 @@ import { getToken } from '../../session'
 import type { ProjectPayload, ProjectResponse, TeamMemberResponse } from '../../types'
 
 function buildEmptyForm(managerId: string | null): ProjectPayload {
-  return { name: '', code: '', description: '', revenue: null, managerId, employeeIds: [] }
+  return { name: '', code: '', description: '', policyText: '', revenue: null, managerId, employeeIds: [] }
 }
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
@@ -102,7 +102,7 @@ export function G07Projetos() {
   function edit(project: ProjectResponse) {
     const managerId = project.managerId ?? defaultManagerId()
     setEditingId(project.id)
-    setForm({ name: project.name, code: project.code ?? '', description: project.description ?? '', revenue: project.revenue == null ? null : String(project.revenue), managerId, employeeIds: project.members.map((member) => member.id) })
+    setForm({ name: project.name, code: project.code ?? '', description: project.description ?? '', policyText: project.policyText ?? '', revenue: project.revenue == null ? null : String(project.revenue), managerId, employeeIds: project.members.map((member) => member.id) })
     setDrawerManagerId(managerId)
     setEmployeeQuery('')
     setMessage(null)

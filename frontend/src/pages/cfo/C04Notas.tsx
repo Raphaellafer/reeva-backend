@@ -13,6 +13,8 @@ import { categoryLabels, statusLabels } from './cfoUtils'
 
 type InvestigationSignal = '' | 'duplicate' | 'fiscal' | 'policy' | 'lowOcr'
 
+const filterControlClass = 'h-11 min-w-0 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] leading-normal text-gray-700'
+
 const categoryOptions: Array<{ value: '' | ExpenseCategory; label: string }> = [
   { value: '', label: 'Todas categorias' },
   { value: 'FOOD', label: categoryLabels.FOOD },
@@ -119,18 +121,18 @@ export function C04Notas() {
           <Badge variant={activeFilterCount > 0 ? 'purple' : 'gray'}>{activeFilterCount} filtro(s)</Badge>
         </div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-6">
-          <select value={category} onChange={(event) => resetPageAnd(() => setCategory(event.target.value as '' | ExpenseCategory))} className="h-9 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] text-gray-700">
+          <select value={category} onChange={(event) => resetPageAnd(() => setCategory(event.target.value as '' | ExpenseCategory))} className={filterControlClass}>
             {categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <select value={status} onChange={(event) => resetPageAnd(() => setStatus(event.target.value as '' | ExpenseStatus))} className="h-9 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] text-gray-700">
+          <select value={status} onChange={(event) => resetPageAnd(() => setStatus(event.target.value as '' | ExpenseStatus))} className={filterControlClass}>
             {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <select value={signal} onChange={(event) => resetPageAnd(() => setSignal(event.target.value as InvestigationSignal))} className="h-9 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] text-gray-700">
+          <select value={signal} onChange={(event) => resetPageAnd(() => setSignal(event.target.value as InvestigationSignal))} className={filterControlClass}>
             {signalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <input type="date" value={from} onChange={(event) => resetPageAnd(() => setFrom(event.target.value))} className="h-9 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] text-gray-700" />
-          <input type="date" value={to} onChange={(event) => resetPageAnd(() => setTo(event.target.value))} className="h-9 rounded-[7px] border border-black/10 bg-white px-3 text-[12px] text-gray-700" />
-          <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={activeFilterCount === 0}>Limpar</Button>
+          <input type="date" value={from} onChange={(event) => resetPageAnd(() => setFrom(event.target.value))} className={filterControlClass} />
+          <input type="date" value={to} onChange={(event) => resetPageAnd(() => setTo(event.target.value))} className={filterControlClass} />
+          <Button type="button" variant="ghost" size="sm" className="h-11 justify-center" onClick={clearFilters} disabled={activeFilterCount === 0}>Limpar</Button>
         </div>
       </Card>
 

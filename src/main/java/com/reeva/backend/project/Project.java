@@ -29,6 +29,9 @@ public class Project {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "policy_text", columnDefinition = "TEXT")
+    private String policyText;
+
     @Column(precision = 14, scale = 2)
     private BigDecimal revenue;
 
@@ -58,6 +61,7 @@ public class Project {
     public String getName() { return name; }
     public String getCode() { return code; }
     public String getDescription() { return description; }
+    public String getPolicyText() { return policyText; }
     public BigDecimal getRevenue() { return revenue; }
     public boolean isActive() { return active; }
     public User getCreatedBy() { return createdBy; }
@@ -67,6 +71,7 @@ public class Project {
     public void setName(String name) { this.name = name; }
     public void setCode(String code) { this.code = code; }
     public void setDescription(String description) { this.description = description; }
+    public void setPolicyText(String policyText) { this.policyText = policyText; }
     public void setRevenue(BigDecimal revenue) { this.revenue = revenue; }
     public void setActive(boolean active) { this.active = active; }
     public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }

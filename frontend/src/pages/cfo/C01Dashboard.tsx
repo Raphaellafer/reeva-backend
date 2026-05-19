@@ -338,7 +338,7 @@ export function C01Dashboard() {
                     <tr
                       key={p.projectId}
                       className="cursor-pointer border-b border-black/[0.04] hover:bg-gray-50"
-                      onClick={() => navigate('/cfo/roi', { state: { projectId: p.projectId } })}
+                      onClick={() => navigate(`/cfo/roi/${p.projectId}`)}
                     >
                       <td className="py-3 pr-3">
                         <p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>

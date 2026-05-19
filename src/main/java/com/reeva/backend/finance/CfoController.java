@@ -12,6 +12,10 @@ import com.reeva.backend.finance.dto.ProjectFinancialEntryRequest;
 import com.reeva.backend.finance.dto.ProjectFinancialEntryResponse;
 import com.reeva.backend.finance.dto.ProjectPerformanceResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
+import com.reeva.backend.project.ProjectService;
+import com.reeva.backend.project.dto.ProjectRequest;
+import com.reeva.backend.project.dto.ProjectResponse;
+import com.reeva.backend.project.dto.TeamMemberResponse;
 import com.reeva.backend.user.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,17 +46,20 @@ public class CfoController {
     private final CfoManagerService managerService;
     private final PolicyUploadService policyUploadService;
     private final CfoCashFlowService cashFlowService;
+    private final ProjectService projectService;
 
     public CfoController(CfoProjectMetricsService metricsService,
                          CfoExecutiveService executiveService,
                          CfoManagerService managerService,
                          PolicyUploadService policyUploadService,
-                         CfoCashFlowService cashFlowService) {
+                         CfoCashFlowService cashFlowService,
+                         ProjectService projectService) {
         this.metricsService = metricsService;
         this.executiveService = executiveService;
         this.managerService = managerService;
         this.policyUploadService = policyUploadService;
         this.cashFlowService = cashFlowService;
+        this.projectService = projectService;
     }
 
     @GetMapping("/overview")
@@ -162,6 +169,34 @@ public class CfoController {
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
         return metricsService.listPerformance(currentUser, from, to);
+    }
+
+    @GetMapping("/projects")
+    @Operation(summary = "List projects for CFO administration")
+    public List<ProjectResponse> listProjects(@AuthenticationPrincipal User currentUser) {
+        return projectService.listManagedProjects(currentUser);
+    }
+
+    @PutMapping("/projects/{projectId}")
+    @Operation(summary = "Update project policy, manager and employee assignments")
+    public ProjectResponse updateProject(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID projectId,
+        @Valid @RequestBody ProjectRequest request
+    ) {
+        return projectService.updateProject(currentUser, projectId, request);
+    }
+
+    @GetMapping("/projects/managers")
+    @Operation(summary = "List managers available for project ownership")
+    public List<TeamMemberResponse> listProjectManagers(@AuthenticationPrincipal User currentUser) {
+        return projectService.listProjectManagers(currentUser);
+    }
+
+    @GetMapping("/projects/employees")
+    @Operation(summary = "List employees available for project assignment")
+    public List<TeamMemberResponse> listProjectEmployees(@AuthenticationPrincipal User currentUser) {
+        return projectService.listCompanyEmployees(currentUser);
     }
 
     @GetMapping("/projects/{projectId}/performance")

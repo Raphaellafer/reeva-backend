@@ -103,8 +103,8 @@ export function G05FuncionariosList() {
       setFormError('A senha temporaria precisa ter pelo menos 8 caracteres.')
       return
     }
-    if (!isValidCpf(normalizedCpf)) {
-      setFormError('Informe um CPF valido.')
+    if (normalizedCpf.length !== 11) {
+      setFormError('Informe um CPF com 11 digitos.')
       return
     }
     if (!form.pixKey.trim()) {
@@ -302,19 +302,3 @@ function formatPhone(value: string) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
-function isValidCpf(rawCpf: string) {
-  const cpf = normalizeDigits(rawCpf)
-  if (cpf.length !== 11) return false
-  if (/^(\d)\1{10}$/.test(cpf)) return false
-
-  const calcDigit = (length: number) => {
-    let sum = 0
-    for (let index = 0; index < length; index += 1) {
-      sum += Number(cpf[index]) * (length + 1 - index)
-    }
-    const remainder = sum % 11
-    return remainder < 2 ? 0 : 11 - remainder
-  }
-
-  return calcDigit(9) === Number(cpf[9]) && calcDigit(10) === Number(cpf[10])
-}

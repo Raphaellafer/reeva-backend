@@ -170,6 +170,7 @@ export interface ProjectResponse {
   name: string;
   code: string | null;
   description: string | null;
+  policyText: string | null;
   revenue: number | null;
   active: boolean;
   managerId: string | null;
@@ -182,6 +183,7 @@ export interface ProjectPayload {
   name: string;
   code: string;
   description: string;
+  policyText: string;
   revenue: string | null;
   managerId: string | null;
   employeeIds: string[];

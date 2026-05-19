@@ -18,6 +18,9 @@ public record ProjectRequest(
     @Size(max = 2000)
     String description,
 
+    @Size(max = 5000)
+    String policyText,
+
     BigDecimal revenue,
 
     UUID managerId,

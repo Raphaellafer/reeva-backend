@@ -314,6 +314,26 @@ export async function updateProject(token: string, projectId: string, payload: P
   });
 }
 
+export async function getCfoProjects(token: string) {
+  return request<ProjectResponse[]>('/cfo/projects', { token });
+}
+
+export async function updateCfoProject(token: string, projectId: string, payload: ProjectPayload) {
+  return request<ProjectResponse>(`/cfo/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function getCfoProjectManagers(token: string) {
+  return request<TeamMemberResponse[]>('/cfo/projects/managers', { token });
+}
+
+export async function getCfoProjectEmployees(token: string) {
+  return request<TeamMemberResponse[]>('/cfo/projects/employees', { token });
+}
+
 export async function getTeamMembers(token: string, managerId?: string | null) {
   const params = new URLSearchParams();
   if (managerId) params.set('managerId', managerId);

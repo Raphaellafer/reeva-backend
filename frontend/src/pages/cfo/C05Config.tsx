@@ -1,202 +1,245 @@
-import React, { useMemo, useRef, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getCfoCompliance, getCfoOverview, getCfoPolicies, uploadPolicyFile } from '../../api'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getCfoProjectEmployees, getCfoProjectManagers, getCfoProjects, updateCfoProject } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
-import { Badge, type BadgeVariant } from '../../components/ui/Badge'
+import { Badge } from '../../components/ui/Badge'
+import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt } from '../../data/mock'
 import { getToken } from '../../session'
-import type { CfoComplianceResponse, CfoOverviewResponse, ExpenseCategory, PolicyResponse } from '../../types'
-import { categoryLabels, riskVariantByScore } from './cfoUtils'
-import { RiskMeter } from './cfoVisuals'
+import type { ProjectPayload, ProjectResponse } from '../../types'
 
-interface GovernanceRow {
-  policy: PolicyResponse
-  spent: number
-  avoidableLosses: number
-  expenseCount: number
-  policyViolationCount: number
-  riskScore: number
-  signal: string
-  signalVariant: BadgeVariant
-  recommendation: string
+const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
+const labelClass = 'block text-[12px] font-medium text-gray-500'
+
+type ProjectForm = {
+  name: string
+  code: string
+  revenue: string
+  managerId: string
+  description: string
+  policyText: string
+  employeeIds: string[]
 }
 
-function buildSignal(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'recommendation'>) {
-  if (row.riskScore >= 70 || row.avoidableLosses > 0) return { label: 'Revisar agora', variant: 'red' as const }
-  if (row.riskScore >= 35 || row.policyViolationCount > 0) return { label: 'Monitorar', variant: 'amber' as const }
-  if (row.expenseCount === 0) return { label: 'Sem amostra', variant: 'gray' as const }
-  return { label: 'Controlada', variant: 'green' as const }
-}
-
-function buildRecommendation(row: Omit<GovernanceRow, 'signal' | 'signalVariant' | 'recommendation'>) {
-  if (row.avoidableLosses > 0) return 'Revisar limite e exigir justificativa para excecoes desta categoria.'
-  if (row.policyViolationCount > 0) return 'Ajustar comunicacao da politica e manter revisao manual ate estabilizar.'
-  if (row.policy.autoApprovalMinScore >= 90) return 'Conformidade conservadora: avaliar automacao se o historico continuar limpo.'
-  if (!row.policy.requiresReceipt) return 'Confirmar se recibo opcional ainda faz sentido para auditoria.'
-  return 'Manter regra atual e acompanhar no fechamento mensal.'
+function formFromProject(project: ProjectResponse): ProjectForm {
+  return {
+    name: project.name,
+    code: project.code ?? '',
+    revenue: project.revenue != null ? String(project.revenue) : '',
+    managerId: project.managerId ?? '',
+    description: project.description ?? '',
+    policyText: project.policyText ?? '',
+    employeeIds: project.members.map((member) => member.id),
+  }
 }
 
 export function C05Config() {
   const token = getToken()
   const queryClient = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [form, setForm] = useState<ProjectForm | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadPolicyFile(token!, file),
-    onSuccess: (savedPolicies) => {
-      void queryClient.invalidateQueries({ queryKey: ['cfo-policies'] })
-      setUploadMessage(`${savedPolicies.length} política(s) importada(s) com sucesso a partir do documento.`)
-      setUploadError(null)
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    },
-    onError: (err) => {
-      setUploadError(err instanceof Error ? err.message : 'Falha ao processar o arquivo de política.')
-      setUploadMessage(null)
+  const { data: projects = [], isLoading, error } = useQuery({
+    queryKey: ['cfo-projects'],
+    queryFn: () => getCfoProjects(token!),
+    enabled: !!token,
+  })
+
+  const { data: managers = [] } = useQuery({
+    queryKey: ['cfo-project-managers'],
+    queryFn: () => getCfoProjectManagers(token!),
+    enabled: !!token,
+  })
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ['cfo-project-employees'],
+    queryFn: () => getCfoProjectEmployees(token!),
+    enabled: !!token,
+  })
+
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === selectedId) ?? projects[0] ?? null,
+    [projects, selectedId]
+  )
+
+  useEffect(() => {
+    if (!selectedProject) {
+      setSelectedId(null)
+      setForm(null)
+      return
+    }
+    setSelectedId(selectedProject.id)
+    setForm(formFromProject(selectedProject))
+    setMessage(null)
+  }, [selectedProject?.id])
+
+  const saveMutation = useMutation({
+    mutationFn: ({ projectId, payload }: { projectId: string; payload: ProjectPayload }) => updateCfoProject(token!, projectId, payload),
+    onSuccess: (saved) => {
+      void queryClient.invalidateQueries({ queryKey: ['cfo-projects'] })
+      setSelectedId(saved.id)
+      setMessage('Projeto atualizado com sucesso.')
     },
   })
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null
-    setSelectedFile(file)
-    setUploadMessage(null)
-    setUploadError(null)
-    if (file) uploadMutation.mutate(file)
+  function updateField<K extends keyof ProjectForm>(field: K, value: ProjectForm[K]) {
+    setForm((current) => current ? { ...current, [field]: value } : current)
+    setMessage(null)
   }
 
-  const { data: policies = [], isLoading: policiesLoading } = useQuery({
-    queryKey: ['cfo-policies'],
-    queryFn: () => getCfoPolicies(token!),
-    enabled: !!token,
-  })
+  function toggleEmployee(employeeId: string) {
+    setForm((current) => {
+      if (!current) return current
+      const selected = current.employeeIds.includes(employeeId)
+      return {
+        ...current,
+        employeeIds: selected
+          ? current.employeeIds.filter((id) => id !== employeeId)
+          : [...current.employeeIds, employeeId],
+      }
+    })
+    setMessage(null)
+  }
 
-  const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['cfo-overview'],
-    queryFn: () => getCfoOverview(token!),
-    enabled: !!token,
-  })
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!selectedProject || !form) return
 
-  const { data: compliance, isLoading: complianceLoading, error } = useQuery({
-    queryKey: ['cfo-compliance'],
-    queryFn: () => getCfoCompliance(token!),
-    enabled: !!token,
-  })
-
-  const isLoading = policiesLoading || overviewLoading || complianceLoading
-
-  const rows = useMemo<GovernanceRow[]>(() => policies.map((policy) => {
-    const spend = overview?.categorySpend.find((item) => item.category === policy.category)
-    const risk = compliance?.riskyCategories.find((item) => item.category === policy.category)
-    const base = { policy, spent: spend?.amount ?? 0, avoidableLosses: spend?.avoidableLosses ?? risk?.avoidedAmount ?? 0, expenseCount: spend?.expenseCount ?? risk?.expenseCount ?? 0, policyViolationCount: risk?.policyViolationCount ?? 0, riskScore: risk?.riskScore ?? 0 }
-    const signal = buildSignal(base)
-    return { ...base, signal: signal.label, signalVariant: signal.variant, recommendation: buildRecommendation(base) }
-  }), [policies, overview, compliance])
-
-  const totals = useMemo(() => {
-    const spent = rows.reduce((sum, row) => sum + row.spent, 0)
-    const avoidable = rows.reduce((sum, row) => sum + row.avoidableLosses, 0)
-    const withSample = rows.filter((row) => row.expenseCount > 0)
-    const controlled = withSample.filter((row) => row.signalVariant === 'green').length
-    const efetividade = withSample.length > 0 ? Math.round((controlled / withSample.length) * 100) : null
-    const reviewed = rows.filter((row) => row.signalVariant === 'red' || row.signalVariant === 'amber').length
-    return { spent, avoidable, reviewed, efetividade, controlled, withSample: withSample.length }
-  }, [rows])
-
-  const signalCounts = useMemo(() => ({
-    red: rows.filter((row) => row.signalVariant === 'red').length,
-    amber: rows.filter((row) => row.signalVariant === 'amber').length,
-    green: rows.filter((row) => row.signalVariant === 'green').length,
-  }), [rows])
+    saveMutation.mutate({
+      projectId: selectedProject.id,
+      payload: {
+        name: form.name.trim(),
+        code: form.code.trim(),
+        description: form.description.trim(),
+        policyText: form.policyText.trim(),
+        revenue: form.revenue.trim() || null,
+        managerId: form.managerId || null,
+        employeeIds: form.employeeIds,
+      },
+    })
+  }
 
   return (
-    <DesktopShell title="Governanca de politicas" role="CFO">
-      <div className="space-y-4">
-        {error && <Card className="border-[#F09595] bg-[#FCEBEB]"><p className="text-[13px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar governanca CFO.'}</p></Card>}
-
-        {/* ── Importar política de reembolso ── */}
+    <DesktopShell title="Projetos" role="CFO">
+      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
-          <div className="mb-4">
-            <p className="text-[14px] font-medium text-[#1a1a2e]">Importar politica de reembolso</p>
-            <p className="mt-0.5 text-[12px] text-gray-400">Envie um documento (.txt ou .pdf) com as regras da empresa. A IA extraira automaticamente os limites por categoria e salvara as politicas.</p>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos da empresa</p>
+              <p className="mt-1 text-[12px] text-gray-400">Escolha um projeto para definir politica, gestor e participantes.</p>
+            </div>
+            <Badge variant="purple">{projects.length}</Badge>
           </div>
 
-          <div>
-            <label className="block text-[12px] font-medium text-gray-500 mb-1">Arquivo de politica</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.pdf,text/plain,application/pdf"
-              onChange={handleFileChange}
-              disabled={uploadMutation.isPending}
-              className="w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] file:mr-3 file:rounded-[6px] file:border-0 file:bg-[#1a1a2e] file:px-3 file:py-1 file:text-[12px] file:font-medium file:text-white outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15 disabled:opacity-50"
-            />
-            <p className="mt-1 text-[11px] text-gray-400">
-              {uploadMutation.isPending ? 'Processando com IA...' : 'Formatos aceitos: .txt e .pdf — maximo 5 MB. O envio comeca automaticamente ao selecionar o arquivo.'}
-            </p>
-          </div>
+          {isLoading && <p className="py-6 text-[13px] text-gray-400">Carregando projetos...</p>}
+          {error && <p className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar projetos.'}</p>}
 
-          {uploadMessage && (
-            <p className="mt-3 rounded-[8px] border border-[#97C459] bg-[#EAF3DE] p-3 text-[12px] text-[#27500A]">{uploadMessage}</p>
-          )}
-          {uploadError && (
-            <p className="mt-3 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{uploadError}</p>
-          )}
+          <div className="space-y-2">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => setSelectedId(project.id)}
+                className={`w-full rounded-[8px] border p-3 text-left transition-colors ${
+                  project.id === selectedProject?.id ? 'border-[#3C3489] bg-[#F8F8FC]' : 'border-black/[0.07] bg-white hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium text-[#1a1a2e]">{project.name}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-gray-400">{project.managerName ?? 'Sem gestor definido'}</p>
+                  </div>
+                  <Badge variant={project.members.length > 0 ? 'green' : 'gray'}>{project.members.length} func.</Badge>
+                </div>
+                <p className="mt-2 text-[12px] font-medium text-[#1a1a2e]">{fmt(project.revenue ?? 0)}</p>
+              </button>
+            ))}
+            {!isLoading && projects.length === 0 && <p className="py-6 text-[13px] text-gray-400">Nenhum projeto encontrado.</p>}
+          </div>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Politicas ativas" value={isLoading ? '...' : policies.length} subtext="categorias monitoradas" />
-          <MetricCard label="Gasto monitorado" value={isLoading ? '...' : fmt(totals.spent)} subtext="periodo CFO" />
-          <MetricCard label="Valor evitavel" value={isLoading ? '...' : fmt(totals.avoidable)} subtext={`${totals.reviewed} regra(s) em atencao`} />
-          <MetricCard label="Efetividade" value={isLoading ? '...' : totals.efetividade != null ? `${totals.efetividade}%` : 'N/A'} subtext={totals.withSample > 0 ? `${totals.controlled} de ${totals.withSample} regras controladas` : 'sem dados de gasto'} trend={totals.efetividade != null ? (totals.efetividade >= 70 ? 'up' : 'down') : undefined} trendValue={totals.efetividade != null ? (totals.efetividade >= 70 ? 'saudavel' : 'atencao') : undefined} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-black/[0.07] bg-white px-4 py-3">
-          <p className="text-[12px] font-medium text-gray-500">Distribuicao de sinais:</p>
-          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#F09595]" /><span className="font-medium text-[#791F1F]">{signalCounts.red}</span><span className="text-gray-400">Revisar agora</span></span>
-          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#FAC775]" /><span className="font-medium text-[#633806]">{signalCounts.amber}</span><span className="text-gray-400">Monitorar</span></span>
-          <span className="flex items-center gap-1.5 text-[12px]"><span className="h-2.5 w-2.5 rounded-full bg-[#97C459]" /><span className="font-medium text-[#27500A]">{signalCounts.green}</span><span className="text-gray-400">Controlada</span></span>
-        </div>
-
         <Card>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[14px] font-medium text-[#1a1a2e]">Politicas ativas de reembolso</p>
-              <p className="mt-1 text-[12px] text-gray-400">Contrato atual mais leitura de desempenho para decisao executiva.</p>
-            </div>
-            <Badge variant={isLoading ? 'gray' : 'purple'}>{isLoading ? 'Carregando' : `${policies.length} politica(s)`}</Badge>
-          </div>
+          {!selectedProject || !form ? (
+            <p className="py-8 text-[13px] text-gray-400">Selecione um projeto para editar.</p>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[14px] font-medium text-[#1a1a2e]">{selectedProject.name}</p>
+                  <p className="mt-1 text-[12px] text-gray-400">Atualize a politica do projeto, o gestor responsavel e os funcionarios vinculados.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {message && <Badge variant="green">{message}</Badge>}
+                  {saveMutation.error && <Badge variant="red">{saveMutation.error instanceof Error ? saveMutation.error.message : 'Erro ao salvar'}</Badge>}
+                  <Button type="submit" disabled={saveMutation.isPending || !form.name.trim() || !form.managerId}>
+                    {saveMutation.isPending ? 'Salvando...' : 'Salvar projeto'}
+                  </Button>
+                </div>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[780px] text-[13px]">
-              <thead>
-                <tr className="border-b border-black/[0.06]">
-                  {['Categoria', 'Limite', 'Recibo', 'Gasto', 'Evitavel', 'Risco', 'Sinal', 'Recomendacao'].map((header) => (
-                    <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.policy.id} className="border-b border-black/[0.04] hover:bg-gray-50">
-                    <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#1a1a2e]">{categoryLabels[row.policy.category] ?? row.policy.category}</td>
-                    <td className="whitespace-nowrap py-3 pr-3 font-medium">{fmt(row.policy.maxAmount)}</td>
-                    <td className="py-3 pr-3">{row.policy.requiresReceipt ? <Badge variant="green">Obrigatorio</Badge> : <Badge variant="gray">Opcional</Badge>}</td>
-                    <td className="whitespace-nowrap py-3 pr-3 font-medium">{fmt(row.spent)}</td>
-                    <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#633806]">{fmt(row.avoidableLosses)}</td>
-                    <td className="py-3 pr-3"><RiskMeter score={row.riskScore} /></td>
-                    <td className="py-3 pr-3"><Badge variant={row.signalVariant}>{row.signal}</Badge></td>
-                    <td className="max-w-[260px] py-3 pr-3 text-[12px] leading-snug text-gray-500">{row.recommendation}</td>
-                  </tr>
-                ))}
-                {!isLoading && rows.length === 0 && <tr><td colSpan={8} className="py-5 text-[13px] text-gray-400">Nenhuma politica ativa encontrada.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <label className={labelClass}>
+                  Nome do projeto
+                  <input value={form.name} onChange={(event) => updateField('name', event.target.value)} className={fieldClass} required />
+                </label>
+                <label className={labelClass}>
+                  Codigo
+                  <input value={form.code} onChange={(event) => updateField('code', event.target.value)} className={fieldClass} />
+                </label>
+                <label className={labelClass}>
+                  Receita esperada
+                  <input value={form.revenue} onChange={(event) => updateField('revenue', event.target.value.replace(',', '.'))} className={fieldClass} inputMode="decimal" placeholder="100000" />
+                </label>
+              </div>
+
+              <label className={labelClass}>
+                Gestor do projeto
+                <select value={form.managerId} onChange={(event) => updateField('managerId', event.target.value)} className={fieldClass} required>
+                  <option value="">Selecione um gestor</option>
+                  {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name} - {manager.email}</option>)}
+                </select>
+              </label>
+
+              <label className={labelClass}>
+                Politica do projeto
+                <textarea
+                  value={form.policyText}
+                  onChange={(event) => updateField('policyText', event.target.value)}
+                  className={`${fieldClass} min-h-[130px] resize-y leading-relaxed`}
+                  placeholder="Ex: viagens aprovadas pelo gestor; limites de transporte, hospedagem e alimentacao; regras de comprovante."
+                />
+              </label>
+
+              <label className={labelClass}>
+                Observacoes internas
+                <textarea value={form.description} onChange={(event) => updateField('description', event.target.value)} className={`${fieldClass} min-h-[90px] resize-y leading-relaxed`} />
+              </label>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-[12px] font-medium text-gray-500">Funcionarios participantes</p>
+                  <Badge variant={form.employeeIds.length > 0 ? 'purple' : 'gray'}>{form.employeeIds.length} selecionado(s)</Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {employees.map((employee) => {
+                    const checked = form.employeeIds.includes(employee.id)
+                    return (
+                      <label key={employee.id} className={`flex cursor-pointer items-center gap-3 rounded-[8px] border p-3 ${checked ? 'border-[#3C3489] bg-[#F8F8FC]' : 'border-black/[0.07] bg-white'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleEmployee(employee.id)} className="h-4 w-4 accent-[#3C3489]" />
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13px] font-medium text-[#1a1a2e]">{employee.name}</span>
+                          <span className="block truncate text-[11px] font-normal text-gray-400">{employee.email}</span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {employees.length === 0 && <p className="rounded-[8px] border border-black/[0.07] p-4 text-[13px] text-gray-400">Nenhum funcionario disponivel para vincular.</p>}
+              </div>
+            </form>
+          )}
         </Card>
       </div>
     </DesktopShell>

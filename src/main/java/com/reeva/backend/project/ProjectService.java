@@ -55,6 +55,15 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
+    public List<TeamMemberResponse> listCompanyEmployees(User currentUser) {
+        return userRepository.findByCompanyIdAndActiveTrueOrderByNameAsc(currentUser.getCompany().getId())
+            .stream()
+            .filter(user -> user.getRole() == UserRole.EMPLOYEE)
+            .map(TeamMemberResponse::from)
+            .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<TeamMemberResponse> listTeamMembers(User currentUser, UUID managerId) {
         User responsibleManager = resolveResponsibleManager(currentUser, managerId);
         return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(responsibleManager.getId())
@@ -109,6 +118,7 @@ public class ProjectService {
         project.setName(request.name());
         project.setCode(request.code());
         project.setDescription(request.description());
+        project.setPolicyText(request.policyText());
         project.setRevenue(request.revenue());
     }
 
@@ -138,8 +148,10 @@ public class ProjectService {
         for (UUID employeeId : employeeIds) {
             User employee = userRepository.findById(employeeId)
                 .orElseThrow(() -> BusinessException.notFound("Employee not found"));
-            if (employee.getManager() == null || !employee.getManager().getId().equals(responsibleManager.getId())) {
-                throw BusinessException.badRequest("Employee is not managed by the responsible manager");
+            if (!employee.isActive()
+                || !employee.getCompany().getId().equals(project.getCompany().getId())
+                || employee.getRole() != UserRole.EMPLOYEE) {
+                throw BusinessException.badRequest("Employee must be an active employee in the same company");
             }
             memberRepository.findByProjectIdAndUserId(project.getId(), employeeId)
                 .orElseGet(() -> memberRepository.save(new ProjectMember(project, employee, assignedBy)));
