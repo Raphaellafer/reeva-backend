@@ -24,7 +24,7 @@ const trendArrows = {
 
 export function MetricCard({ label, value, subtext, trend, trendValue, className = '' }: MetricCardProps) {
   return (
-    <Card className={className}>
+    <Card className={`relative z-10 overflow-hidden ${className}`}>
       <p className="text-[12px] text-gray-500 font-medium uppercase tracking-wide mb-1">{label}</p>
       <p className="text-[30px] font-medium leading-none text-[#1a1a2e]">{value}</p>
       {(subtext || trend) && (

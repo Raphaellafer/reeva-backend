@@ -318,6 +318,14 @@ export async function getCfoProjects(token: string) {
   return request<ProjectResponse[]>('/cfo/projects', { token });
 }
 
+export async function createCfoProject(token: string, payload: ProjectPayload) {
+  return request<ProjectResponse>('/cfo/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
 export async function updateCfoProject(token: string, projectId: string, payload: ProjectPayload) {
   return request<ProjectResponse>(`/cfo/projects/${projectId}`, {
     method: 'PUT',

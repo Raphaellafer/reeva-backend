@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getCfoProjectEmployees, getCfoProjectManagers, getCfoProjects, updateCfoProject } from '../../api'
+import { createCfoProject, getCfoProjectEmployees, getCfoProjectManagers, getCfoProjects, updateCfoProject } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
@@ -11,6 +11,7 @@ import type { ProjectPayload, ProjectResponse } from '../../types'
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
 const labelClass = 'block text-[12px] font-medium text-gray-500'
+const newProjectId = '__new__'
 
 type ProjectForm = {
   name: string
@@ -31,6 +32,18 @@ function formFromProject(project: ProjectResponse): ProjectForm {
     description: project.description ?? '',
     policyText: project.policyText ?? '',
     employeeIds: project.members.map((member) => member.id),
+  }
+}
+
+function emptyForm(managerId = ''): ProjectForm {
+  return {
+    name: '',
+    code: '',
+    revenue: '',
+    managerId,
+    description: '',
+    policyText: '',
+    employeeIds: [],
   }
 }
 
@@ -60,11 +73,14 @@ export function C05Config() {
   })
 
   const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedId) ?? projects[0] ?? null,
+    () => selectedId === newProjectId ? null : projects.find((project) => project.id === selectedId) ?? projects[0] ?? null,
     [projects, selectedId]
   )
 
+  const isCreating = selectedId === newProjectId
+
   useEffect(() => {
+    if (isCreating) return
     if (!selectedProject) {
       setSelectedId(null)
       setForm(null)
@@ -73,19 +89,26 @@ export function C05Config() {
     setSelectedId(selectedProject.id)
     setForm(formFromProject(selectedProject))
     setMessage(null)
-  }, [selectedProject?.id])
+  }, [isCreating, selectedProject?.id])
 
   const saveMutation = useMutation({
-    mutationFn: ({ projectId, payload }: { projectId: string; payload: ProjectPayload }) => updateCfoProject(token!, projectId, payload),
+    mutationFn: ({ projectId, payload }: { projectId: string | null; payload: ProjectPayload }) =>
+      projectId ? updateCfoProject(token!, projectId, payload) : createCfoProject(token!, payload),
     onSuccess: (saved) => {
       void queryClient.invalidateQueries({ queryKey: ['cfo-projects'] })
       setSelectedId(saved.id)
-      setMessage('Projeto atualizado com sucesso.')
+      setMessage(isCreating ? 'Projeto criado com sucesso.' : 'Projeto atualizado com sucesso.')
     },
   })
 
   function updateField<K extends keyof ProjectForm>(field: K, value: ProjectForm[K]) {
     setForm((current) => current ? { ...current, [field]: value } : current)
+    setMessage(null)
+  }
+
+  function startCreate() {
+    setSelectedId(newProjectId)
+    setForm(emptyForm(managers[0]?.id ?? ''))
     setMessage(null)
   }
 
@@ -105,10 +128,10 @@ export function C05Config() {
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!selectedProject || !form) return
+    if (!form) return
 
     saveMutation.mutate({
-      projectId: selectedProject.id,
+      projectId: isCreating ? null : selectedProject?.id ?? null,
       payload: {
         name: form.name.trim(),
         code: form.code.trim(),
@@ -130,7 +153,10 @@ export function C05Config() {
               <p className="text-[14px] font-medium text-[#1a1a2e]">Projetos da empresa</p>
               <p className="mt-1 text-[12px] text-gray-400">Escolha um projeto para definir politica, gestor e participantes.</p>
             </div>
-            <Badge variant="purple">{projects.length}</Badge>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge variant="purple">{projects.length}</Badge>
+              <Button type="button" size="sm" onClick={startCreate}>Novo</Button>
+            </div>
           </div>
 
           {isLoading && <p className="py-6 text-[13px] text-gray-400">Carregando projetos...</p>}
@@ -143,7 +169,7 @@ export function C05Config() {
                 type="button"
                 onClick={() => setSelectedId(project.id)}
                 className={`w-full rounded-[8px] border p-3 text-left transition-colors ${
-                  project.id === selectedProject?.id ? 'border-[#3C3489] bg-[#F8F8FC]' : 'border-black/[0.07] bg-white hover:bg-gray-50'
+                  !isCreating && project.id === selectedProject?.id ? 'border-[#3C3489] bg-[#F8F8FC]' : 'border-black/[0.07] bg-white hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -161,20 +187,20 @@ export function C05Config() {
         </Card>
 
         <Card>
-          {!selectedProject || !form ? (
+          {!form ? (
             <p className="py-8 text-[13px] text-gray-400">Selecione um projeto para editar.</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-[14px] font-medium text-[#1a1a2e]">{selectedProject.name}</p>
-                  <p className="mt-1 text-[12px] text-gray-400">Atualize a politica do projeto, o gestor responsavel e os funcionarios vinculados.</p>
+                  <p className="text-[14px] font-medium text-[#1a1a2e]">{isCreating ? 'Novo projeto' : selectedProject?.name}</p>
+                  <p className="mt-1 text-[12px] text-gray-400">{isCreating ? 'Crie o projeto e defina gestor, politica e participantes.' : 'Atualize a politica do projeto, o gestor responsavel e os funcionarios vinculados.'}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {message && <Badge variant="green">{message}</Badge>}
                   {saveMutation.error && <Badge variant="red">{saveMutation.error instanceof Error ? saveMutation.error.message : 'Erro ao salvar'}</Badge>}
                   <Button type="submit" disabled={saveMutation.isPending || !form.name.trim() || !form.managerId}>
-                    {saveMutation.isPending ? 'Salvando...' : 'Salvar projeto'}
+                    {saveMutation.isPending ? 'Salvando...' : isCreating ? 'Criar projeto' : 'Salvar projeto'}
                   </Button>
                 </div>
               </div>

@@ -177,6 +177,16 @@ public class CfoController {
         return projectService.listManagedProjects(currentUser);
     }
 
+    @PostMapping("/projects")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Create a project for CFO administration")
+    public ProjectResponse createProject(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody ProjectRequest request
+    ) {
+        return projectService.createProject(currentUser, request);
+    }
+
     @PutMapping("/projects/{projectId}")
     @Operation(summary = "Update project policy, manager and employee assignments")
     public ProjectResponse updateProject(
