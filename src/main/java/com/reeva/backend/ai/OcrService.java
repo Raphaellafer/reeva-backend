@@ -914,7 +914,7 @@ public class OcrService {
         if (result.totalAmount() != null && result.totalAmount().compareTo(BigDecimal.ZERO) > 0) {
             expense.setAmount(result.totalAmount());
         }
-        if (result.issueDate() != null) expense.setExpenseDate(result.issueDate());
+        if (result.issueDate() != null && !expense.isDemoDateOverride()) expense.setExpenseDate(result.issueDate());
         String imageHash = result.imageSha256();
         if (imageHash != null && !imageHash.isBlank() && !expense.getAttachments().isEmpty()) {
             var attachment = expense.getAttachments().get(0);

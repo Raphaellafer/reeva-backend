@@ -20,6 +20,7 @@ import com.reeva.backend.storage.StorageService;
 import com.reeva.backend.user.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDate;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,9 @@ public class ExpenseService {
     private final OcrQueuePublisher ocrQueuePublisher;
     private final AttachmentRepository attachmentRepository;
     private final ProjectService projectService;
+
+    @Value("${app.demo.allow-test-expense-date:false}")
+    private boolean allowTestExpenseDate;
 
     public ExpenseService(ExpenseRepository expenseRepository, StorageService storageService,
                           CommentService commentService, AuditService auditService,
@@ -73,11 +78,19 @@ public class ExpenseService {
         if (category == null) {
             throw BusinessException.badRequest("Categoria invalida");
         }
+        boolean dateOverrideRequested = Boolean.TRUE.equals(request.testExpenseDateOverride());
+        if (dateOverrideRequested && !allowTestExpenseDate) {
+            throw BusinessException.badRequest("Data de teste nao esta habilitada neste ambiente");
+        }
+        if (!dateOverrideRequested && !request.expenseDate().equals(LocalDate.now())) {
+            throw BusinessException.badRequest("Data manual de despesa nao esta habilitada neste ambiente");
+        }
         Expense expense = new Expense(
             currentUser.getCompany(), currentUser, project, request.title(), category,
             request.amount(), request.expenseDate(),
             request.paymentMethod() != null ? request.paymentMethod() : PaymentMethod.OTHER
         );
+        expense.setDemoDateOverride(dateOverrideRequested);
         expense.setDescription(request.description());
 
         expense.getStatusHistory().add(
@@ -97,6 +110,10 @@ public class ExpenseService {
         auditMetadata.put("title", request.title());
         auditMetadata.put("amount", request.amount());
         auditMetadata.put("projectId", project.getId());
+        if (dateOverrideRequested) {
+            auditMetadata.put("testExpenseDateOverride", true);
+            auditMetadata.put("testExpenseDate", request.expenseDate());
+        }
 
         auditService.log(
             currentUser.getCompany().getId(), currentUser.getId(),

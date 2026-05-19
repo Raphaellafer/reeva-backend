@@ -8,6 +8,7 @@ import { getToken } from '../../session'
 import type { ExpenseCategory, ProjectResponse } from '../../types'
 
 const defaultCategoryOptions = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
+const allowTestExpenseDate = import.meta.env.VITE_ALLOW_TEST_EXPENSE_DATE === 'true'
 
 function todayLocalDate() {
   const now = new Date()
@@ -15,6 +16,11 @@ function todayLocalDate() {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function formatDisplayDate(value: string) {
+  if (!value) return 'Pendente'
+  return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR')
 }
 
 export function F02EnviarNF() {
@@ -27,6 +33,7 @@ export function F02EnviarNF() {
   const [categoryOptions, setCategoryOptions] = useState(defaultCategoryOptions)
   const [projectId, setProjectId] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
+  const [testExpenseDate, setTestExpenseDate] = useState(todayLocalDate())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,9 +115,10 @@ export function F02EnviarNF() {
         category,
         projectId,
         amount: null,
-        expenseDate: todayLocalDate(),
+        expenseDate: allowTestExpenseDate ? testExpenseDate : todayLocalDate(),
         paymentMethod: 'OTHER',
         description: 'Enviado pelo app para análise da IA',
+        testExpenseDateOverride: allowTestExpenseDate,
       }, file)
       await submitExpense(token, expense.id)
       navigate(`/funcionario/nota/${expense.id}`)
@@ -193,6 +201,20 @@ export function F02EnviarNF() {
                 ))}
               </select>
             </label>
+
+            {allowTestExpenseDate && (
+              <label className="block text-[12px] font-medium text-gray-500">
+                Data para teste
+                <input
+                  type="date"
+                  value={testExpenseDate}
+                  max={todayLocalDate()}
+                  onChange={(event) => setTestExpenseDate(event.target.value)}
+                  className="mt-1 w-full rounded-[8px] border border-[#FAC775] bg-[#FFFBF2] px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#EF9F27] focus:ring-2 focus:ring-[#EF9F27]/15"
+                />
+                <span className="mt-1 block text-[11px] font-normal text-[#633806]">Modo demo: esta data sera usada nos relatorios, sem alterar o arquivo enviado.</span>
+              </label>
+            )}
           </div>
         </StepCard>
 
@@ -202,6 +224,7 @@ export function F02EnviarNF() {
             <ReviewRow label="Foto conferida" value={photoConfirmed ? 'Confirmada' : 'Pendente'} pending={!photoConfirmed} />
             <ReviewRow label="Projeto" value={selectedProject?.name ?? 'Pendente'} pending={!selectedProject} />
             <ReviewRow label="Categoria" value={category ? categoryLabel(category) : 'Pendente'} pending={!category} />
+            {allowTestExpenseDate && <ReviewRow label="Data de teste" value={formatDisplayDate(testExpenseDate)} pending={!testExpenseDate} />}
           </div>
           <p className="mt-3 rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3 text-[12px] text-gray-500">
             O valor e os itens serão lidos automaticamente. Se algum campo obrigatório ficar inseguro, você poderá corrigir antes da decisão final.

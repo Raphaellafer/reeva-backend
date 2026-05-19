@@ -63,6 +63,9 @@ public class Expense {
     @Column(name = "expense_date", nullable = false)
     private LocalDate expenseDate;
 
+    @Column(name = "demo_date_override", nullable = false)
+    private boolean demoDateOverride = false;
+
     // ── Status e fluxo ───────────────────────────────────────────────
 
     @Enumerated(EnumType.STRING)
@@ -214,6 +217,7 @@ public class Expense {
     public String getCurrency() { return currency; }
     public PaymentMethod getPaymentMethod() { return paymentMethod; }
     public LocalDate getExpenseDate() { return expenseDate; }
+    public boolean isDemoDateOverride() { return demoDateOverride; }
     public ExpenseStatus getStatus() { return status; }
     public Short getAiScore() { return aiScore; }
     public Short getComplianceScore() { return complianceScore; }
@@ -254,6 +258,7 @@ public class Expense {
     public void setAmount(java.math.BigDecimal amount) { this.amount = amount; }
     public void setCategory(String category) { this.category = category; }
     public void setExpenseDate(java.time.LocalDate expenseDate) { this.expenseDate = expenseDate; }
+    public void setDemoDateOverride(boolean demoDateOverride) { this.demoDateOverride = demoDateOverride; }
     public void setOcrData(String ocrData) { this.ocrData = ocrData; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public void setAiScore(Short aiScore) { this.aiScore = aiScore; }

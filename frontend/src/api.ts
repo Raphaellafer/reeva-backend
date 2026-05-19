@@ -78,6 +78,7 @@ interface ExpensePayload {
   expenseDate: string;
   paymentMethod: PaymentMethod;
   description: string;
+  testExpenseDateOverride?: boolean;
 }
 
 interface EmployeeCorrectionPayload {

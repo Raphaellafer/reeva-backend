@@ -30,5 +30,7 @@ public record ExpenseRequest(
     PaymentMethod paymentMethod,
 
     @Size(max = 500)
-    String description
+    String description,
+
+    Boolean testExpenseDateOverride
 ) {}
