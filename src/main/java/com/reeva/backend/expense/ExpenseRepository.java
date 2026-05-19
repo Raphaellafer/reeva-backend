@@ -91,6 +91,30 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         Pageable pageable
     );
 
+    @Query(
+        value = """
+            SELECT e FROM Expense e
+            JOIN FETCH e.user u
+            JOIN FETCH e.project p
+            LEFT JOIN FETCH u.department
+            WHERE u.id = :userId
+              AND u.company.id = :companyId
+              AND e.deleted = false
+            ORDER BY e.createdAt DESC
+            """,
+        countQuery = """
+            SELECT COUNT(e) FROM Expense e
+            WHERE e.user.id = :userId
+              AND e.user.company.id = :companyId
+              AND e.deleted = false
+            """
+    )
+    Page<Expense> findByUserIdAndCompanyId(
+        @Param("userId") UUID userId,
+        @Param("companyId") UUID companyId,
+        Pageable pageable
+    );
+
     @Query("""
         SELECT COUNT(e) FROM Expense e
         WHERE e.user.manager.id = :managerId
@@ -270,6 +294,22 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         """)
     List<Object[]> aggregateStatsByManagerId(
         @Param("managerId") UUID managerId,
+        @Param("pendingStatuses") List<ExpenseStatus> pendingStatuses,
+        @Param("approvedStatuses") List<ExpenseStatus> approvedStatuses
+    );
+
+    @Query("""
+        SELECT e.user.id,
+               SUM(CASE WHEN e.status IN :pendingStatuses THEN 1 ELSE 0 END),
+               SUM(CASE WHEN e.status IN :approvedStatuses THEN 1 ELSE 0 END),
+               COALESCE(SUM(CASE WHEN e.status IN :approvedStatuses THEN e.amount ELSE 0 END), 0)
+        FROM Expense e
+        WHERE e.user.company.id = :companyId
+          AND e.deleted = false
+        GROUP BY e.user.id
+        """)
+    List<Object[]> aggregateStatsByCompanyId(
+        @Param("companyId") UUID companyId,
         @Param("pendingStatuses") List<ExpenseStatus> pendingStatuses,
         @Param("approvedStatuses") List<ExpenseStatus> approvedStatuses
     );

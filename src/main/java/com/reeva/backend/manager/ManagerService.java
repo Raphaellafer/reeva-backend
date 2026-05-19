@@ -483,8 +483,8 @@ public class ManagerService {
             ExpenseStatus.MANAGER_APPROVED, ExpenseStatus.FINANCE_APPROVED, ExpenseStatus.PAID
         );
 
-        List<Object[]> aggregates = expenseRepository.aggregateStatsByManagerId(
-            manager.getId(), pendingStatuses, approvedStatuses
+        List<Object[]> aggregates = expenseRepository.aggregateStatsByCompanyId(
+            manager.getCompany().getId(), pendingStatuses, approvedStatuses
         );
 
         Map<UUID, Object[]> statsByUserId = new java.util.HashMap<>();
@@ -492,8 +492,9 @@ public class ManagerService {
             statsByUserId.put((UUID) row[0], row);
         }
 
-        return userRepository.findByManagerIdAndActiveTrueOrderByNameAsc(manager.getId())
+        return userRepository.findByCompanyIdAndActiveTrueOrderByNameAsc(manager.getCompany().getId())
             .stream()
+            .filter(emp -> emp.getRole() == UserRole.EMPLOYEE)
             .map(emp -> {
                 Object[] stats = statsByUserId.get(emp.getId());
                 long pending = stats != null ? ((Number) stats[1]).longValue() : 0L;
@@ -507,7 +508,9 @@ public class ManagerService {
     @Transactional(readOnly = true)
     public EmployeeProfileResponse getEmployee(User manager, UUID employeeId) {
         User employee = userRepository.findById(employeeId)
-            .filter(u -> u.getManager() != null && u.getManager().getId().equals(manager.getId()))
+            .filter(u -> u.isActive()
+                && u.getCompany().getId().equals(manager.getCompany().getId())
+                && u.getRole() == UserRole.EMPLOYEE)
             .orElseThrow(() -> BusinessException.notFound("Employee not found"));
 
         List<ExpenseStatus> pendingStatuses = List.of(
@@ -519,7 +522,7 @@ public class ManagerService {
 
         Pageable recent = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
         List<ExpenseResponse> expenses = expenseRepository
-            .findByUserIdAndManagerId(employeeId, manager.getId(), recent)
+            .findByUserIdAndCompanyId(employeeId, manager.getCompany().getId(), recent)
             .map(ExpenseResponse::from)
             .toList();
 
