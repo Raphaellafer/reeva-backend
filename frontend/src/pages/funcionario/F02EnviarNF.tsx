@@ -8,7 +8,6 @@ import { getToken } from '../../session'
 import type { ExpenseCategory, ProjectResponse } from '../../types'
 
 const defaultCategoryOptions = Object.entries(categoryLabels) as Array<[ExpenseCategory, string]>
-const allowTestExpenseDate = import.meta.env.VITE_ALLOW_TEST_EXPENSE_DATE === 'true'
 
 function todayLocalDate() {
   const now = new Date()
@@ -34,6 +33,7 @@ export function F02EnviarNF() {
   const [projectId, setProjectId] = useState('')
   const [category, setCategory] = useState<ExpenseCategory | ''>('')
   const [testExpenseDate, setTestExpenseDate] = useState(todayLocalDate())
+  const [ignoreDateCheck, setIgnoreDateCheck] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -115,10 +115,10 @@ export function F02EnviarNF() {
         category,
         projectId,
         amount: null,
-        expenseDate: allowTestExpenseDate ? testExpenseDate : todayLocalDate(),
+        expenseDate: ignoreDateCheck ? testExpenseDate : todayLocalDate(),
         paymentMethod: 'OTHER',
         description: 'Enviado pelo app para análise da IA',
-        testExpenseDateOverride: allowTestExpenseDate,
+        testExpenseDateOverride: ignoreDateCheck,
       }, file)
       await submitExpense(token, expense.id)
       navigate(`/funcionario/nota/${expense.id}`)
@@ -202,17 +202,26 @@ export function F02EnviarNF() {
               </select>
             </label>
 
-            {allowTestExpenseDate && (
+            <label className="flex items-center gap-2 rounded-[8px] border border-dashed border-[#FAC775] bg-[#FFFBF2] p-3 text-[12px] text-[#633806] cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={ignoreDateCheck}
+                onChange={(event) => setIgnoreDateCheck(event.target.checked)}
+              />
+              <span>Ignorar verificação de data (teste)</span>
+            </label>
+
+            {ignoreDateCheck && (
               <label className="block text-[12px] font-medium text-gray-500">
-                Data para teste
+                Data da despesa
                 <input
                   type="date"
                   value={testExpenseDate}
-                  max={todayLocalDate()}
                   onChange={(event) => setTestExpenseDate(event.target.value)}
                   className="mt-1 w-full rounded-[8px] border border-[#FAC775] bg-[#FFFBF2] px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#EF9F27] focus:ring-2 focus:ring-[#EF9F27]/15"
                 />
-                <span className="mt-1 block text-[11px] font-normal text-[#633806]">Modo demo: esta data sera usada nos relatorios, sem alterar o arquivo enviado.</span>
+                <span className="mt-1 block text-[11px] font-normal text-[#633806]">A política de 30 dias será ignorada neste envio.</span>
               </label>
             )}
           </div>
@@ -224,7 +233,7 @@ export function F02EnviarNF() {
             <ReviewRow label="Foto conferida" value={photoConfirmed ? 'Confirmada' : 'Pendente'} pending={!photoConfirmed} />
             <ReviewRow label="Projeto" value={selectedProject?.name ?? 'Pendente'} pending={!selectedProject} />
             <ReviewRow label="Categoria" value={category ? categoryLabel(category) : 'Pendente'} pending={!category} />
-            {allowTestExpenseDate && <ReviewRow label="Data de teste" value={formatDisplayDate(testExpenseDate)} pending={!testExpenseDate} />}
+            {ignoreDateCheck && <ReviewRow label="Data (teste)" value={formatDisplayDate(testExpenseDate)} pending={!testExpenseDate} />}
           </div>
           <p className="mt-3 rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3 text-[12px] text-gray-500">
             O valor e os itens serão lidos automaticamente. Se algum campo obrigatório ficar inseguro, você poderá corrigir antes da decisão final.

@@ -143,7 +143,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     if (response.status === 401) {
       handleAuthFailure(path);
-      throw new Error('Sessão expirada. Entre novamente para continuar.');
+      const isAuthEndpoint = path.startsWith('/auth/');
+      throw new Error(
+        isAuthEndpoint
+          ? 'Email ou senha incorretos.'
+          : 'Sessão expirada. Entre novamente para continuar.'
+      );
     }
     if (response.status === 403) {
       throw new Error('Você não tem permissão para acessar este recurso.');

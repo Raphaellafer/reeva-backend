@@ -181,7 +181,7 @@ public class AiExpenseDecisionService {
                     return new PolicyCheck(false, "Valor acima do limite de " + policy.getMaxAmount() + " para " + category);
                 }
 
-                PolicyCheck textRuleCheck = checkTextPolicyRules(policy, result);
+                PolicyCheck textRuleCheck = checkTextPolicyRules(policy, result, expense.isDemoDateOverride());
                 if (!textRuleCheck.compliant()) {
                     return textRuleCheck;
                 }
@@ -191,7 +191,7 @@ public class AiExpenseDecisionService {
             .orElseGet(() -> new PolicyCheck(true, null));
     }
 
-    private PolicyCheck checkTextPolicyRules(ExpensePolicy policy, OcrResult result) {
+    private PolicyCheck checkTextPolicyRules(ExpensePolicy policy, OcrResult result, boolean demoDateOverride) {
         String description = policy.getDescription();
         if (description == null || description.isBlank()) {
             return new PolicyCheck(true, null);
@@ -200,7 +200,7 @@ public class AiExpenseDecisionService {
         String normalized = normalizeText(description);
         if (containsReimbursementBlock(normalized)) {
             var matcher = MAX_RECEIPT_AGE_PATTERN.matcher(normalized);
-            if (matcher.find() && result.issueDate() != null) {
+            if (matcher.find() && result.issueDate() != null && !demoDateOverride) {
                 long maxAgeDays = Long.parseLong(matcher.group(1));
                 LocalDate oldestAllowedDate = LocalDate.now().minusDays(maxAgeDays);
                 if (result.issueDate().isBefore(oldestAllowedDate)) {
