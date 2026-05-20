@@ -9,6 +9,10 @@ security:
     secret: reeva-dev-secret-key-that-is-long-enough-for-hs256-256-bits-ok
     expiration-ms: 86400000
 
+app:
+  demo:
+    allow-test-expense-date: true
+
 storage:
   provider: ${STORAGE_PROVIDER:local}
   upload-dir: ${UPLOAD_DIR:./uploads}
