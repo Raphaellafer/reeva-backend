@@ -269,7 +269,7 @@ public class CfoExecutiveService {
                 expense.getUser().getId(),
                 expense.getUser().getName(),
                 expense.getUser().getDepartment() != null ? expense.getUser().getDepartment().getName() : null,
-                expense.getUser().getManager() != null ? expense.getUser().getManager().getName() : null
+                expense.getProject().getCreatedBy() != null ? expense.getProject().getCreatedBy().getName() : null
             )))
             .entrySet()
             .stream()

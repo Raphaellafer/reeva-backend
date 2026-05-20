@@ -46,14 +46,15 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
             JOIN FETCH e.user u
             JOIN FETCH e.project p
             LEFT JOIN FETCH u.department
-            WHERE u.manager.id = :managerId
+            WHERE p.createdBy.id = :managerId
               AND e.deleted = false
               AND (:status IS NULL OR e.status = :status)
             ORDER BY e.createdAt DESC
             """,
         countQuery = """
             SELECT COUNT(e) FROM Expense e
-            WHERE e.user.manager.id = :managerId
+            JOIN e.project p
+            WHERE p.createdBy.id = :managerId
               AND e.deleted = false
               AND (:status IS NULL OR e.status = :status)
             """
@@ -64,7 +65,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
         Pageable pageable
     );
 
-    @Query("SELECT e FROM Expense e WHERE e.id = :id AND e.user.manager.id = :managerId AND e.deleted = false")
+    @Query("SELECT e FROM Expense e WHERE e.id = :id AND e.project.createdBy.id = :managerId AND e.deleted = false")
     Optional<Expense> findByIdAndManagerId(@Param("id") UUID id, @Param("managerId") UUID managerId);
 
     @Query(
@@ -74,14 +75,14 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
             JOIN FETCH e.project p
             LEFT JOIN FETCH u.department
             WHERE u.id = :userId
-              AND u.manager.id = :managerId
+              AND p.createdBy.id = :managerId
               AND e.deleted = false
             ORDER BY e.createdAt DESC
             """,
         countQuery = """
             SELECT COUNT(e) FROM Expense e
             WHERE e.user.id = :userId
-              AND e.user.manager.id = :managerId
+              AND e.project.createdBy.id = :managerId
               AND e.deleted = false
             """
     )
@@ -117,7 +118,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("""
         SELECT COUNT(e) FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        WHERE e.project.createdBy.id = :managerId
           AND e.status IN :statuses
           AND e.deleted = false
         """)
@@ -125,7 +126,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("""
         SELECT COALESCE(SUM(e.amount), 0) FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        WHERE e.project.createdBy.id = :managerId
           AND e.status = :status
           AND e.deleted = false
         """)
@@ -133,7 +134,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("""
         SELECT COUNT(e) FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        WHERE e.project.createdBy.id = :managerId
           AND e.aiDecision = :decision
           AND e.deleted = false
         """)
@@ -141,7 +142,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
 
     @Query("""
         SELECT COUNT(e) FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        WHERE e.project.createdBy.id = :managerId
           AND e.policyCompliant = false
           AND (e.aiDecision IS NULL OR e.aiDecision <> com.reeva.backend.expense.AiDecision.REJECTED_BY_FISCAL_VALIDATION)
           AND e.deleted = false
@@ -151,7 +152,8 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
     @Query("""
         SELECT e FROM Expense e
         JOIN FETCH e.user u
-        WHERE u.manager.id = :managerId
+        JOIN e.project p
+        WHERE p.createdBy.id = :managerId
           AND e.status = :status
           AND e.deleted = false
           AND e.expenseDate >= :from
@@ -288,7 +290,7 @@ public interface ExpenseRepository extends JpaRepository<Expense, UUID> {
                SUM(CASE WHEN e.status IN :approvedStatuses THEN 1 ELSE 0 END),
                COALESCE(SUM(CASE WHEN e.status IN :approvedStatuses THEN e.amount ELSE 0 END), 0)
         FROM Expense e
-        WHERE e.user.manager.id = :managerId
+        WHERE e.project.createdBy.id = :managerId
           AND e.deleted = false
         GROUP BY e.user.id
         """)

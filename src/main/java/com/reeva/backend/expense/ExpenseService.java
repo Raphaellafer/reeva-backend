@@ -325,8 +325,8 @@ public class ExpenseService {
         Expense expense = attachment.getExpense();
 
         boolean owner = expense.getUser().getId().equals(currentUser.getId());
-        boolean manager = expense.getUser().getManager() != null
-            && expense.getUser().getManager().getId().equals(currentUser.getId());
+        boolean manager = expense.getProject().getCreatedBy() != null
+            && expense.getProject().getCreatedBy().getId().equals(currentUser.getId());
         boolean admin = currentUser.getRole().name().equals("ADMIN");
         if (!owner && !manager && !admin) {
             throw BusinessException.notFound("Attachment not found");

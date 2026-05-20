@@ -36,9 +36,9 @@ public record CfoExpenseResponse(
 ) {
     public static CfoExpenseResponse from(Expense expense) {
         var user = expense.getUser();
-        var manager = user.getManager();
         var department = user.getDepartment();
         var project = expense.getProject();
+        var manager = project.getCreatedBy();
         var duplicateOf = expense.getDuplicateOfExpense();
         return new CfoExpenseResponse(
             expense.getId(),
