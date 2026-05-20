@@ -29,6 +29,7 @@ import { C04Notas } from '../pages/cfo/C04Notas'
 import { C05Config } from '../pages/cfo/C05Config'
 import { C06Gestores } from '../pages/cfo/C06Gestores'
 import { C07FluxoCaixa } from '../pages/cfo/C07FluxoCaixa'
+import { C08Politicas } from '../pages/cfo/C08Politicas'
 
 function RootRedirect() {
   if (!isAuthenticated()) return <Navigate to="/login" replace />
@@ -80,6 +81,7 @@ export function AppRouter() {
         <Route path="/cfo/notas"         element={<RequireRole role="CFO"><C04Notas /></RequireRole>} />
         <Route path="/cfo/fluxo-caixa"   element={<RequireRole role="CFO"><C07FluxoCaixa /></RequireRole>} />
         <Route path="/cfo/configuracoes" element={<RequireRole role="CFO"><C05Config /></RequireRole>} />
+        <Route path="/cfo/politicas"     element={<RequireRole role="CFO"><C08Politicas /></RequireRole>} />
         <Route path="/cfo/gestores"      element={<RequireRole role="CFO"><C06Gestores /></RequireRole>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

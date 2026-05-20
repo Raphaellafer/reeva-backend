@@ -53,6 +53,7 @@ export function C05Config() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<ProjectForm | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [employeeSearch, setEmployeeSearch] = useState('')
 
   const { data: projects = [], isLoading, error } = useQuery({
     queryKey: ['cfo-projects'],
@@ -78,6 +79,16 @@ export function C05Config() {
   )
 
   const isCreating = selectedId === newProjectId
+
+  const filteredEmployees = useMemo(() => {
+    const term = normalizeSearch(employeeSearch)
+    if (!term) return employees
+    return employees.filter((employee) => {
+      const name = normalizeSearch(employee.name)
+      const email = normalizeSearch(employee.email)
+      return name.includes(term) || email.includes(term)
+    })
+  }, [employees, employeeSearch])
 
   useEffect(() => {
     if (isCreating) return
@@ -248,8 +259,17 @@ export function C05Config() {
                   <p className="text-[12px] font-medium text-gray-500">Funcionarios participantes</p>
                   <Badge variant={form.employeeIds.length > 0 ? 'purple' : 'gray'}>{form.employeeIds.length} selecionado(s)</Badge>
                 </div>
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  {employees.map((employee) => {
+                <label className={labelClass}>
+                  Pesquisar por nome ou email
+                  <input
+                    value={employeeSearch}
+                    onChange={(event) => setEmployeeSearch(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Digite nome ou email do funcionário"
+                  />
+                </label>
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {filteredEmployees.map((employee) => {
                     const checked = form.employeeIds.includes(employee.id)
                     return (
                       <label key={employee.id} className={`flex cursor-pointer items-center gap-3 rounded-[8px] border p-3 ${checked ? 'border-[#3C3489] bg-[#F8F8FC]' : 'border-black/[0.07] bg-white'}`}>
@@ -263,6 +283,7 @@ export function C05Config() {
                   })}
                 </div>
                 {employees.length === 0 && <p className="rounded-[8px] border border-black/[0.07] p-4 text-[13px] text-gray-400">Nenhum funcionario disponivel para vincular.</p>}
+                {employees.length > 0 && filteredEmployees.length === 0 && <p className="rounded-[8px] border border-black/[0.07] p-4 text-[13px] text-gray-400">Nenhum funcionario encontrado para a busca.</p>}
               </div>
             </form>
           )}
@@ -270,4 +291,12 @@ export function C05Config() {
       </div>
     </DesktopShell>
   )
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
 }
