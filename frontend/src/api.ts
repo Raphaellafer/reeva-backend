@@ -52,9 +52,12 @@ export async function getAttachmentBlob(token: string, attachmentId: string) {
   });
 
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       handleAuthFailure('/expenses/attachments');
       throw new Error('Sessão expirada. Entre novamente para continuar.');
+    }
+    if (response.status === 403) {
+      throw new Error('Você não tem permissão para acessar este recurso.');
     }
     throw new Error('Falha ao carregar anexo.');
   }
@@ -138,9 +141,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       handleAuthFailure(path);
       throw new Error('Sessão expirada. Entre novamente para continuar.');
+    }
+    if (response.status === 403) {
+      throw new Error('Você não tem permissão para acessar este recurso.');
     }
     const error = (await response.json().catch(() => null)) as ApiError | null;
     const details = error?.errors?.length ? `: ${error.errors.join(', ')}` : '';
@@ -280,7 +286,7 @@ export async function requestRevision(token: string, expenseId: string, notes: s
 }
 
 export async function getPolicies(token: string) {
-  return request<PolicyResponse[]>('/manager/policies', { token });
+  return request<PolicyResponse[]>('/policies', { token });
 }
 
 export async function getPolicyAuditLogs(token: string) {
