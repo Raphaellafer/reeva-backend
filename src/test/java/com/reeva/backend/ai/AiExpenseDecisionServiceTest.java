@@ -189,8 +189,10 @@ class AiExpenseDecisionServiceTest {
         AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
 
         Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.TRANSPORT.name(), new BigDecimal("300.00"));
+        policy.setDescription("Regra textual da politica violada.");
         when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT.name()))
-            .thenReturn(Optional.empty());
+            .thenReturn(Optional.of(policy));
 
         OcrResult result = readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"), LocalDate.now());
         result = new OcrResult(
@@ -219,6 +221,47 @@ class AiExpenseDecisionServiceTest {
         assertThat(decision.decision()).isEqualTo(AiDecision.PENDING_MANUAL_REVIEW);
         assertThat(decision.policyCompliant()).isFalse();
         assertThat(decision.summary()).contains("Regra textual da politica violada");
+    }
+
+    @Test
+    void aiOldReceiptPolicyViolationShouldBeIgnoredWhenPolicyDoesNotContainAgeRule() throws Exception {
+        ExpensePolicyRepository policyRepository = mock(ExpensePolicyRepository.class);
+        AiExpenseDecisionService service = new AiExpenseDecisionService(policyRepository);
+
+        Expense expense = expense(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"));
+        ExpensePolicy policy = new ExpensePolicy(expense.getCompany(), ExpenseCategory.TRANSPORT.name(), new BigDecimal("300.00"));
+        policy.setAutoApprovalMinScore((short) 90);
+        policy.setDescription("Reembolsar apenas despesas de transporte corporativo com comprovante legivel.");
+        when(policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), ExpenseCategory.TRANSPORT.name()))
+            .thenReturn(Optional.of(policy));
+
+        OcrResult result = readableResult(ExpenseCategory.TRANSPORT, new BigDecimal("42.88"), LocalDate.now().minusDays(60));
+        result = new OcrResult(
+            result.readable(),
+            result.reason(),
+            result.supplierName(),
+            result.supplierCnpj(),
+            result.totalAmount(),
+            result.issueDate(),
+            result.category(),
+            result.description(),
+            result.score(),
+            result.confidenceReason(),
+            false,
+            "A data da despesa é anterior a 30 dias da data atual, violando a regra de reembolso para despesas antigas.",
+            result.sefazVerificationCode(),
+            result.sefazReason(),
+            "Enviar para revisao do gestor.",
+            result.lineItems(),
+            result.rawJson(),
+            result.imageSha256()
+        );
+
+        AiExpenseDecision decision = service.decide(expense, result);
+
+        assertThat(decision.decision()).isEqualTo(AiDecision.AUTO_APPROVED);
+        assertThat(decision.policyCompliant()).isTrue();
+        assertThat(decision.policyViolationReason()).isNull();
     }
 
     @Test

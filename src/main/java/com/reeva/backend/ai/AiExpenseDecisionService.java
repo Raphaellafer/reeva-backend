@@ -36,7 +36,7 @@ public class AiExpenseDecisionService {
         PolicyCheck policy = checkPolicy(expense, result, category);
         boolean categoryMismatch = isCategoryMismatch(result, expense.getCategory());
         boolean trustedAiPolicyViolation = Boolean.FALSE.equals(result.policyCompliant())
-            && shouldTrustAiPolicyViolation(result, category);
+            && shouldTrustAiPolicyViolation(expense, result, category);
         short complianceScore = complianceScore(result, policy, categoryMismatch, trustedAiPolicyViolation);
 
         if (categoryMismatch) {
@@ -105,14 +105,45 @@ public class AiExpenseDecisionService {
             "Revisao do gestor recomendada: " + reason);
     }
 
-    private boolean shouldTrustAiPolicyViolation(OcrResult result, String category) {
+    private boolean shouldTrustAiPolicyViolation(Expense expense, OcrResult result, String category) {
         String reason = normalizeText(result.policyReason() == null ? "" : result.policyReason());
+        if (reason.isBlank()) {
+            return false;
+        }
         for (ExpenseCategory otherCategory : ExpenseCategory.values()) {
             if (!otherCategory.name().equals(category) && mentionsCategory(reason, otherCategory)) {
                 return false;
             }
         }
-        return true;
+        return policyRepository.findByCompanyIdAndCategoryAndActiveTrue(expense.getCompany().getId(), category)
+            .map(policy -> policyTextSupportsAiReason(policy, reason))
+            .orElse(false);
+    }
+
+    private boolean policyTextSupportsAiReason(ExpensePolicy policy, String normalizedAiReason) {
+        String description = normalizeText(policy.getDescription() == null ? "" : policy.getDescription());
+        if (description.isBlank()) {
+            return false;
+        }
+
+        if (mentionsReceiptAgeRule(normalizedAiReason)) {
+            var aiMatcher = MAX_RECEIPT_AGE_PATTERN.matcher(normalizedAiReason);
+            var policyMatcher = MAX_RECEIPT_AGE_PATTERN.matcher(description);
+            return aiMatcher.find()
+                && policyMatcher.find()
+                && aiMatcher.group(1).equals(policyMatcher.group(1))
+                && containsReimbursementBlock(description);
+        }
+
+        return description.contains(normalizedAiReason)
+            || normalizedAiReason.contains(description);
+    }
+
+    private boolean mentionsReceiptAgeRule(String normalizedText) {
+        return normalizedText.contains("dias")
+            && (normalizedText.contains("atras")
+                || normalizedText.contains("antig")
+                || normalizedText.contains("anterior"));
     }
 
     private boolean mentionsCategory(String normalizedText, ExpenseCategory category) {
