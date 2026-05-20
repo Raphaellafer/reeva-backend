@@ -27,7 +27,6 @@ const labelClass = 'block text-[12px] font-medium text-gray-500'
 const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
 
 type PolicyApi = {
-  queryScope: string
   getPolicies: (token: string) => Promise<PolicyResponse[]>
   getPolicyAuditLogs: (token: string) => Promise<PolicyAuditLogResponse[]>
   savePolicy: (token: string, payload: PolicyPayload) => Promise<PolicyResponse>
@@ -36,7 +35,6 @@ type PolicyApi = {
 }
 
 const managerPolicyApi: PolicyApi = {
-  queryScope: 'manager',
   getPolicies,
   getPolicyAuditLogs,
   savePolicy,
@@ -80,8 +78,8 @@ export function PolicyManagementPage({
   const [drawerError, setDrawerError] = useState<string | null>(null)
   const [deletingPolicyId, setDeletingPolicyId] = useState<string | null>(null)
   const responsibleName = getStoredUser()?.name ?? responsibleFallback
-  const policyQueryKey = [api.queryScope, 'policies']
-  const auditQueryKey = [api.queryScope, 'policy-audit-logs']
+  const policyQueryKey = ['company-policies']
+  const auditQueryKey = ['company-policy-audit-logs']
 
   const uploadMutation = useMutation({
     mutationFn: (file: File) => api.uploadPolicyFile(token!, file),
