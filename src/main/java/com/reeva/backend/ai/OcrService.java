@@ -297,11 +297,14 @@ public class OcrService {
         )), extractionResponseFormat());
 
         String policyContext = buildPolicyContext(expense);
-        LocalDate referenceDate = expense.isDemoDateOverride() ? expense.getExpenseDate() : LocalDate.now();
+        String dateOverrideNote = expense.isDemoDateOverride()
+            ? "\n\nNOTA DE AMBIENTE: Este envio esta em modo de teste. Ignore completamente quaisquer regras de prazo ou data de emissao (ex: 'nao reembolsar notas de mais de X dias'). Avalie apenas valor e categoria."
+            : "";
         String analysisJson = callOpenAi(java.util.List.of(java.util.Map.of(
             "role", "user",
             "content", ANALYSIS_PROMPT
-                + "\n\nData atual para regras relativas: " + referenceDate
+                + "\n\nData atual para regras relativas: " + LocalDate.now()
+                + dateOverrideNote
                 + "\n\nPolitica cadastrada da categoria enviada:\n" + policyContext
                 + "\n\nExtracao OCR:\n" + extractionJson
         )), analysisResponseFormat());
