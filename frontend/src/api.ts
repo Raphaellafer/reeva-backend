@@ -466,6 +466,25 @@ export async function getCfoPolicies(token: string) {
   return request<PolicyResponse[]>('/cfo/policies', { token });
 }
 
+export async function getCfoPolicyAuditLogs(token: string) {
+  return request<PolicyAuditLogResponse[]>('/cfo/policies/audit-logs', { token });
+}
+
+export async function saveCfoPolicy(token: string, payload: PolicyPayload) {
+  return request<PolicyResponse>('/cfo/policies', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    token
+  });
+}
+
+export async function deleteCfoPolicy(token: string, policyId: string) {
+  return request<void>(`/cfo/policies/${policyId}`, {
+    method: 'DELETE',
+    token
+  });
+}
+
 export interface CfoExpenseFilters {
   status?: ExpenseStatus | '';
   projectId?: string;

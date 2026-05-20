@@ -12,6 +12,9 @@ import com.reeva.backend.finance.dto.ProjectFinancialEntryRequest;
 import com.reeva.backend.finance.dto.ProjectFinancialEntryResponse;
 import com.reeva.backend.finance.dto.ProjectPerformanceResponse;
 import com.reeva.backend.manager.dto.PolicyResponse;
+import com.reeva.backend.manager.dto.PolicyAuditLogResponse;
+import com.reeva.backend.manager.dto.PolicyUpdateRequest;
+import com.reeva.backend.manager.ManagerService;
 import com.reeva.backend.project.ProjectService;
 import com.reeva.backend.project.dto.ProjectRequest;
 import com.reeva.backend.project.dto.ProjectResponse;
@@ -44,6 +47,7 @@ public class CfoController {
     private final CfoProjectMetricsService metricsService;
     private final CfoExecutiveService executiveService;
     private final CfoManagerService managerService;
+    private final ManagerService policyService;
     private final PolicyUploadService policyUploadService;
     private final CfoCashFlowService cashFlowService;
     private final ProjectService projectService;
@@ -51,12 +55,14 @@ public class CfoController {
     public CfoController(CfoProjectMetricsService metricsService,
                          CfoExecutiveService executiveService,
                          CfoManagerService managerService,
+                         ManagerService policyService,
                          PolicyUploadService policyUploadService,
                          CfoCashFlowService cashFlowService,
                          ProjectService projectService) {
         this.metricsService = metricsService;
         this.executiveService = executiveService;
         this.managerService = managerService;
+        this.policyService = policyService;
         this.policyUploadService = policyUploadService;
         this.cashFlowService = cashFlowService;
         this.projectService = projectService;
@@ -76,6 +82,34 @@ public class CfoController {
     @Operation(summary = "List active reimbursement policies for CFO")
     public List<PolicyResponse> listPolicies(@AuthenticationPrincipal User currentUser) {
         return executiveService.policies(currentUser);
+    }
+
+    @GetMapping("/policies/audit-logs")
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "List company expense policy audit logs for CFO")
+    public List<PolicyAuditLogResponse> listPolicyAuditLogs(@AuthenticationPrincipal User currentUser) {
+        return policyService.listPolicyAuditLogs(currentUser);
+    }
+
+    @PutMapping("/policies")
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "Create or update a company expense policy for CFO")
+    public PolicyResponse savePolicy(
+        @AuthenticationPrincipal User currentUser,
+        @Valid @RequestBody PolicyUpdateRequest request
+    ) {
+        return policyService.savePolicy(currentUser, request);
+    }
+
+    @DeleteMapping("/policies/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('FINANCE') or hasRole('ADMIN')")
+    @Operation(summary = "Deactivate a company expense policy category for CFO")
+    public void deletePolicy(
+        @AuthenticationPrincipal User currentUser,
+        @PathVariable UUID id
+    ) {
+        policyService.deletePolicy(currentUser, id);
     }
 
     @PostMapping(value = "/policies/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

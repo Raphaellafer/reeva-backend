@@ -26,7 +26,46 @@ const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-whit
 const labelClass = 'block text-[12px] font-medium text-gray-500'
 const sectionTitleClass = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
 
+type PolicyApi = {
+  queryScope: string
+  getPolicies: (token: string) => Promise<PolicyResponse[]>
+  getPolicyAuditLogs: (token: string) => Promise<PolicyAuditLogResponse[]>
+  savePolicy: (token: string, payload: PolicyPayload) => Promise<PolicyResponse>
+  deletePolicy: (token: string, policyId: string) => Promise<void>
+  uploadPolicyFile: (token: string, file: File) => Promise<PolicyResponse[]>
+}
+
+const managerPolicyApi: PolicyApi = {
+  queryScope: 'manager',
+  getPolicies,
+  getPolicyAuditLogs,
+  savePolicy,
+  deletePolicy,
+  uploadPolicyFile: uploadManagerPolicyFile,
+}
+
 export function G06Politicas() {
+  return (
+    <PolicyManagementPage
+      role="GERENTE"
+      title="Políticas de reembolso"
+      responsibleFallback="Gestor responsável"
+      api={managerPolicyApi}
+    />
+  )
+}
+
+export function PolicyManagementPage({
+  role,
+  title,
+  responsibleFallback,
+  api,
+}: {
+  role: 'GERENTE' | 'CFO'
+  title: string
+  responsibleFallback: string
+  api: PolicyApi
+}) {
   const token = getToken()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -40,13 +79,15 @@ export function G06Politicas() {
   const [message, setMessage] = useState<string | null>(null)
   const [drawerError, setDrawerError] = useState<string | null>(null)
   const [deletingPolicyId, setDeletingPolicyId] = useState<string | null>(null)
-  const managerName = getStoredUser()?.name ?? 'Gestor responsável'
+  const responsibleName = getStoredUser()?.name ?? responsibleFallback
+  const policyQueryKey = [api.queryScope, 'policies']
+  const auditQueryKey = [api.queryScope, 'policy-audit-logs']
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadManagerPolicyFile(token!, file),
+    mutationFn: (file: File) => api.uploadPolicyFile(token!, file),
     onSuccess: (savedPolicies) => {
-      void queryClient.invalidateQueries({ queryKey: ['policies'] })
-      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      void queryClient.invalidateQueries({ queryKey: policyQueryKey })
+      void queryClient.invalidateQueries({ queryKey: auditQueryKey })
       setUploadMessage(`${savedPolicies.length} política(s) importada(s) com sucesso a partir do documento.`)
       setUploadError(null)
       setSelectedFile(null)
@@ -67,22 +108,22 @@ export function G06Politicas() {
   }
 
   const { data: policies = [], error: policiesError } = useQuery({
-    queryKey: ['policies'],
-    queryFn: () => getPolicies(token!),
+    queryKey: policyQueryKey,
+    queryFn: () => api.getPolicies(token!),
     enabled: !!token,
   })
 
   const { data: auditLogs = [] } = useQuery({
-    queryKey: ['policy-audit-logs'],
-    queryFn: () => getPolicyAuditLogs(token!),
+    queryKey: auditQueryKey,
+    queryFn: () => api.getPolicyAuditLogs(token!),
     enabled: !!token,
   })
 
   const saveMutation = useMutation({
-    mutationFn: (payload: PolicyPayload) => savePolicy(token!, payload),
+    mutationFn: (payload: PolicyPayload) => api.savePolicy(token!, payload),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['policies'] })
-      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      void queryClient.invalidateQueries({ queryKey: policyQueryKey })
+      void queryClient.invalidateQueries({ queryKey: auditQueryKey })
       setMessage('Política salva.')
       setDrawerError(null)
     },
@@ -90,10 +131,10 @@ export function G06Politicas() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (policyId: string) => deletePolicy(token!, policyId),
+    mutationFn: (policyId: string) => api.deletePolicy(token!, policyId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['policies'] })
-      void queryClient.invalidateQueries({ queryKey: ['policy-audit-logs'] })
+      void queryClient.invalidateQueries({ queryKey: policyQueryKey })
+      void queryClient.invalidateQueries({ queryKey: auditQueryKey })
       setDeletingPolicyId(null)
       setMessage('Categoria excluída.')
     },
@@ -172,7 +213,7 @@ export function G06Politicas() {
   }
 
   return (
-    <DesktopShell title="Políticas de reembolso" role="GERENTE">
+    <DesktopShell title={title} role={role}>
       <Card className="mb-5">
         <div className="mb-4">
           <p className="text-[14px] font-medium text-[#1a1a2e]">Importar política de reembolso</p>
@@ -327,7 +368,7 @@ export function G06Politicas() {
             <p className="text-[11px] text-gray-400">O sistema salva a categoria como código normalizado, sem acentos e em maiúsculo. Ex: "Treinamento externo" vira TREINAMENTO_EXTERNO.</p>
             <div className="rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">Responsável pela alteração</p>
-              <p className="mt-1 text-[13px] font-medium text-[#1a1a2e]">{managerName}</p>
+              <p className="mt-1 text-[13px] font-medium text-[#1a1a2e]">{responsibleName}</p>
             </div>
           </section>
 
@@ -338,7 +379,7 @@ export function G06Politicas() {
               <label className={labelClass}>Diário<input value={form.dailyLimit ?? ''} onChange={(event) => updateDailyLimit(event.target.value)} className={fieldClass} /></label>
               <label className={labelClass}>Mensal<input value={form.monthlyLimit ?? ''} onChange={(event) => updateMonthlyLimit(event.target.value)} className={fieldClass} /></label>
             </div>
-            <p className="text-[11px] text-gray-400">O mensal sugerido usa {BUSINESS_DAYS_PER_MONTH} dias úteis: limite diário x {BUSINESS_DAYS_PER_MONTH}. O gestor pode aumentar os limites, mas não salvar valores menores que a base financeira.</p>
+            <p className="text-[11px] text-gray-400">O mensal sugerido usa {BUSINESS_DAYS_PER_MONTH} dias úteis: limite diário x {BUSINESS_DAYS_PER_MONTH}. O responsável pode aumentar os limites, mas não salvar valores menores que a base financeira.</p>
           </section>
 
           <section className="space-y-3">
