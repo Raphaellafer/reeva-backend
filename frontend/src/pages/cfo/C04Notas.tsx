@@ -32,7 +32,7 @@ const statusOptions: Array<{ value: '' | ExpenseStatus; label: string }> = [
   { value: 'MANAGER_REJECTED', label: statusLabels.MANAGER_REJECTED },
   { value: 'FINANCE_APPROVED', label: statusLabels.FINANCE_APPROVED },
   { value: 'FINANCE_REJECTED', label: statusLabels.FINANCE_REJECTED },
-  { value: 'PAID', label: statusLabels.PAID },
+  { value: 'PAID', label: 'Pagas' },
   { value: 'OCR_FAILED', label: statusLabels.OCR_FAILED },
 ]
 

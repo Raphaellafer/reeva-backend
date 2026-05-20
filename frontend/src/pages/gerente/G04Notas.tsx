@@ -16,6 +16,7 @@ const statusFilters: { id: StatusFilter; label: string }[] = [
   { id: 'TODOS', label: 'Todas' },
   { id: 'FILA', label: 'Na fila' },
   { id: 'APROVADAS', label: 'Aprovadas' },
+  { id: 'PAID', label: 'Pagas' },
   { id: 'REJEITADAS', label: 'Rejeitadas' },
   { id: 'NEEDS_REVISION', label: 'Com correção' },
   { id: 'OCR_FAILED', label: 'Leitura falhou' },
@@ -46,7 +47,7 @@ export function G04Notas() {
     const normalizedQuery = query.trim().toLowerCase()
     return expenses.filter((expense) => {
       if (statusFilter === 'FILA' && !reviewStatuses.includes(expense.status)) return false
-      if (statusFilter === 'APROVADAS' && !['AI_APPROVED', 'MANAGER_APPROVED', 'FINANCE_APPROVED', 'PAID'].includes(expense.status)) return false
+      if (statusFilter === 'APROVADAS' && !['AI_APPROVED', 'MANAGER_APPROVED', 'FINANCE_APPROVED'].includes(expense.status)) return false
       if (statusFilter === 'REJEITADAS' && !['MANAGER_REJECTED', 'FINANCE_REJECTED', 'CANCELLED'].includes(expense.status)) return false
       if (!['TODOS', 'FILA', 'APROVADAS', 'REJEITADAS'].includes(statusFilter) && expense.status !== statusFilter) return false
       if (categoryFilter !== 'TODOS' && expense.category !== categoryFilter) return false
