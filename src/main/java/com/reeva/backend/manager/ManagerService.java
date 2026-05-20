@@ -213,9 +213,9 @@ public class ManagerService {
     }
 
     @Transactional(readOnly = true)
-    public List<PolicyAuditLogResponse> listPolicyAuditLogs(User manager) {
+    public List<PolicyAuditLogResponse> listPolicyAuditLogs(User currentUser) {
         List<AuditLog> logs = auditRepository.findByCompanyIdAndEntityTypeOrderByCreatedAtDesc(
-                manager.getCompany().getId(),
+                currentUser.getCompany().getId(),
                 "ExpensePolicy",
                 PageRequest.of(0, 100)
             )
