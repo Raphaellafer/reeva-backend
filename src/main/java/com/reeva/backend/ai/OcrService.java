@@ -297,10 +297,11 @@ public class OcrService {
         )), extractionResponseFormat());
 
         String policyContext = buildPolicyContext(expense);
+        LocalDate referenceDate = expense.isDemoDateOverride() ? expense.getExpenseDate() : LocalDate.now();
         String analysisJson = callOpenAi(java.util.List.of(java.util.Map.of(
             "role", "user",
             "content", ANALYSIS_PROMPT
-                + "\n\nData atual para regras relativas: " + LocalDate.now()
+                + "\n\nData atual para regras relativas: " + referenceDate
                 + "\n\nPolitica cadastrada da categoria enviada:\n" + policyContext
                 + "\n\nExtracao OCR:\n" + extractionJson
         )), analysisResponseFormat());
