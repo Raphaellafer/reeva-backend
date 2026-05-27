@@ -99,7 +99,7 @@ public class CfoProjectMetricsService {
             companyId, project.getId(), range.from(), range.to());
         Map<String, ExpensePolicy> policies = policiesByCategory(companyId);
 
-        BigDecimal revenue = sumEntries(entries, FinancialEntryType.REVENUE);
+        BigDecimal revenue = CfoMetricCalculator.money(project.getRevenue());
         BigDecimal generalExpenses = sumEntries(entries, FinancialEntryType.GENERAL_EXPENSE);
         BigDecimal reimbursableExpenses = expenses.stream()
             .filter(expense -> REIMBURSED_STATUSES.contains(expense.getStatus()))

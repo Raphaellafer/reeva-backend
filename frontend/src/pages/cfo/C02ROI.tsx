@@ -5,29 +5,20 @@ import { getCfoProjectPerformance } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
-import { HorizontalBarChart } from '../../components/ui/HorizontalBarChart'
 import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt } from '../../data/mock'
 import { getToken } from '../../session'
 import type { ProjectPerformanceResponse } from '../../types'
-import { formatMonthLabel, multiple } from './cfoUtils'
+import { formatMonthLabel } from './cfoUtils'
 import { MultiSeriesTrendChart } from './cfoVisuals'
-
-function roiColor(roi: number): string {
-  if (roi > 2) return '#27500A'
-  if (roi >= 1) return '#97C459'
-  if (roi > 0) return '#EF9F27'
-  return '#F09595'
-}
 
 function buildTrend(project: ProjectPerformanceResponse | null) {
   if (!project) return []
   return project.monthlyTrend.map((item) => ({
     label: formatMonthLabel(item.month),
     values: {
-      revenue: item.revenue,
-      totalCost: item.totalCost,
-      profit: item.profit,
+      estimated: project.revenue,
+      reimbursed: item.reimbursableExpenses,
     },
   }))
 }
@@ -48,112 +39,84 @@ export function C02ROI() {
   )
 
   const trend = useMemo(() => buildTrend(project), [project])
-  const latestTrend = trend[trend.length - 1]
+  const estimatedReimbursementAmount = project?.revenue ?? 0
+  const reimbursedAmount = project?.reimbursableExpenses ?? 0
+  const openReimbursementAmount = Math.max(0, estimatedReimbursementAmount - reimbursedAmount)
+  const reimbursedRatio = estimatedReimbursementAmount > 0
+    ? Math.round((reimbursedAmount / estimatedReimbursementAmount) * 100)
+    : 0
 
-  const roiDelta = useMemo(() => {
-    if (trend.length < 2) return null
-    const last = trend[trend.length - 1]
-    const prev = trend[trend.length - 2]
-    if (!last || !prev) return null
-    const lastRoi = last.values.totalCost > 0 ? last.values.profit / last.values.totalCost : null
-    const prevRoi = prev.values.totalCost > 0 ? prev.values.profit / prev.values.totalCost : null
-    if (lastRoi === null || prevRoi === null) return null
-    return { delta: lastRoi - prevRoi, prevLabel: prev.label }
-  }, [trend])
-
-  const roiBarItems = useMemo(
-    () => project ? [{ label: project.projectCode ?? project.projectName, value: project.roi ?? 0, color: roiColor(project.roi ?? 0) }] : [],
-    [project]
-  )
+  const forecast = useMemo(() => {
+    const rows = project?.monthlyTrend ?? []
+    if (rows.length === 0) return null
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const currentData = rows.find((item) => item.month === currentMonth)
+    if (!currentData) return null
+    const dayOfMonth = now.getDate()
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const remainingDays = daysInMonth - dayOfMonth
+    const projected = currentData.reimbursableExpenses + (currentData.reimbursableExpenses / dayOfMonth) * remainingDays
+    return {
+      current: currentData.reimbursableExpenses,
+      projected,
+      daysRemaining: remainingDays,
+      label: formatMonthLabel(currentMonth),
+    }
+  }, [project])
 
   return (
-    <DesktopShell title={project ? `ROI - ${project.projectName}` : 'ROI do projeto'} role="CFO">
+    <DesktopShell title={project ? `Dashboard - ${project.projectName}` : 'Dashboard do projeto'} role="CFO">
       {error && <p className="mb-4 rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3 text-[12px] text-[#791F1F]">{error instanceof Error ? error.message : 'Falha ao carregar performance.'}</p>}
 
       {!isLoading && !project && (
         <Card className="mb-4 border-[#FAC775] bg-[#FAEEDA]">
-          <p className="text-[13px] text-[#633806]">Projeto nao encontrado. Volte ao dashboard e abra o ROI por um projeto da lista.</p>
+          <p className="text-[13px] text-[#633806]">Projeto nao encontrado. Volte ao dashboard e abra um projeto da lista.</p>
         </Card>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Receita" value={isLoading ? '...' : fmt(project?.revenue ?? 0)} subtext="contexto financeiro" />
-        <MetricCard label="Gastos" value={isLoading ? '...' : fmt(project?.totalCost ?? 0)} subtext="custos e reembolsos pagos" />
-        <MetricCard label="ROI" value={isLoading ? '...' : multiple(project?.roi ?? null)} subtext={roiDelta ? `vs ${roiDelta.prevLabel}` : 'retorno sobre gastos'} trend={roiDelta ? (roiDelta.delta >= 0 ? 'up' : 'down') : undefined} trendValue={roiDelta ? `${roiDelta.delta >= 0 ? '+' : ''}${roiDelta.delta.toFixed(1)}x` : undefined} />
-        <MetricCard label="Economia IA" value={isLoading ? '...' : fmt(project?.aiSavings ?? 0)} subtext={`compliance ${project?.complianceRate ?? 0}%`} />
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <MetricCard label="Total estimado de reembolso" value={isLoading ? '...' : fmt(estimatedReimbursementAmount)} subtext="definido na criacao do projeto" />
+        <MetricCard label="Total ja reembolsado" value={isLoading ? '...' : fmt(reimbursedAmount)} subtext={`${reimbursedRatio}% do total estimado`} />
+        <MetricCard label="Total em aberto" value={isLoading ? '...' : fmt(openReimbursementAmount)} subtext="a ser reembolsado" />
+        <MetricCard label="Economia pela IA" value={isLoading ? '...' : fmt(project?.aiSavings ?? 0)} subtext={`compliance ${project?.complianceRate ?? 0}%`} />
+        <MetricCard label="Percentual ja reembolsado" value={isLoading ? '...' : `${reimbursedRatio}%`} subtext="sobre o total estimado de reembolso" />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[14px] font-medium text-[#1a1a2e]">Tendencia financeira</p>
-              <p className="mt-1 text-[12px] text-gray-400">Receita e gastos por mes do projeto selecionado no dashboard.</p>
+              <p className="text-[14px] font-medium text-[#1a1a2e]">Evolucao mensal dos reembolsos</p>
+              <p className="mt-1 text-[12px] text-gray-400">Total estimado do projeto e reembolsos pagos por mes.</p>
             </div>
-            <Badge variant={(project?.roi ?? 0) >= 1 ? 'green' : 'amber'}>{multiple(project?.roi ?? null)} ROI</Badge>
+            <Badge variant={reimbursedRatio >= 80 ? 'green' : 'amber'}>{reimbursedRatio}% reembolsado</Badge>
           </div>
-          <MultiSeriesTrendChart points={trend} series={[{ key: 'revenue', label: 'Receita', color: '#85B7EB' }, { key: 'totalCost', label: 'Gastos', color: '#FAC775' }]} formatValue={(value) => fmt(value)} emptyText="Nenhum mes com movimentacao financeira." />
+          <MultiSeriesTrendChart
+            points={trend}
+            series={[
+              { key: 'estimated', label: 'Estimado', color: '#85B7EB' },
+              { key: 'reimbursed', label: 'Reembolsado', color: '#97C459' },
+            ]}
+            formatValue={(value) => fmt(value)}
+            emptyText="Nenhum mes com reembolso pago."
+          />
         </Card>
 
         <div className="rounded-[10px] border border-[#97C459] bg-[#EAF3DE] p-4">
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#27500A]">Ultimo periodo</p>
-          <p className="text-[15px] font-medium text-[#27500A]">{latestTrend?.label ?? 'Sem periodo'}</p>
-          <p className="my-1 text-[32px] font-medium leading-none text-[#27500A]">{fmt(latestTrend?.values.totalCost ?? 0)}</p>
-          <p className="text-[12px] text-[#27500A]/60">gastos do periodo</p>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#27500A]">Previsao de fechamento do mes</p>
+          <p className="text-[15px] font-medium text-[#27500A]">{forecast?.label ?? 'Periodo atual'}</p>
+          <p className="my-1 text-[32px] font-medium leading-none text-[#27500A]">
+            {isLoading ? '...' : fmt(forecast?.projected ?? reimbursedAmount)}
+          </p>
+          <p className="text-[12px] text-[#27500A]/60">{forecast ? 'projecao com base no ritmo atual do projeto' : 'total ja reembolsado no projeto'}</p>
           <div className="mt-3 space-y-1.5 text-[12px]">
-            <div className="flex justify-between"><span className="text-[#27500A]/60">Receita</span><span className="font-medium text-[#27500A]">{fmt(latestTrend?.values.revenue ?? 0)}</span></div>
-            <div className="flex justify-between"><span className="text-[#27500A]/60">Gastos</span><span className="font-medium text-[#27500A]">{fmt(latestTrend?.values.totalCost ?? 0)}</span></div>
-            {roiDelta && <div className="flex justify-between"><span className="text-[#27500A]/60">ROI vs mes anterior</span><span className={`font-medium ${roiDelta.delta >= 0 ? 'text-[#27500A]' : 'text-[#791F1F]'}`}>{roiDelta.delta >= 0 ? '+' : ''}{roiDelta.delta.toFixed(2)}x</span></div>}
+            <div className="flex justify-between"><span className="text-[#27500A]/60">Reembolsado ate hoje</span><span className="font-medium text-[#27500A]">{fmt(forecast?.current ?? reimbursedAmount)}</span></div>
+            {forecast && <div className="flex justify-between"><span className="text-[#27500A]/60">Dias restantes no mes</span><span className="font-medium text-[#27500A]">{forecast.daysRemaining}</span></div>}
+            <div className="flex justify-between"><span className="text-[#27500A]/60">Total em aberto</span><span className="font-medium text-[#27500A]">{fmt(openReimbursementAmount)}</span></div>
             <div className="flex justify-between"><span className="text-[#27500A]/60">Compliance</span><span className="font-medium text-[#27500A]">{project?.complianceRate ?? 0}%</span></div>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <Card>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[14px] font-medium text-[#1a1a2e]">Detalhe do projeto</p>
-              <p className="mt-1 text-[12px] text-gray-400">Resumo financeiro do projeto aberto pelo dashboard.</p>
-            </div>
-            <Badge variant={project ? 'purple' : 'gray'}>{project ? '1 projeto' : 'sem projeto'}</Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px] text-[13px]">
-              <thead>
-                <tr className="border-b border-black/[0.06]">
-                  {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance'].map((header) => (
-                    <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {project && (
-                  <tr className="border-b border-black/[0.04] bg-[#F5F8FF]">
-                    <td className="py-3 pr-3"><p className="whitespace-nowrap font-medium text-[#1a1a2e]">{project.projectName}</p>{project.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{project.projectCode}</p>}</td>
-                    <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(project.revenue)}</td>
-                    <td className="whitespace-nowrap py-3 pr-3">{fmt(project.totalCost)}</td>
-                    <td className="py-3 pr-3"><span className="font-medium" style={{ color: roiColor(project.roi ?? 0) }}>{multiple(project.roi)}</span></td>
-                    <td className="py-3 pr-3"><Badge variant={project.complianceRate >= 90 ? 'green' : project.complianceRate >= 70 ? 'amber' : 'red'}>{project.complianceRate}%</Badge></td>
-                  </tr>
-                )}
-                {!isLoading && !project && <tr><td colSpan={5} className="py-8 text-center text-gray-400">Nenhum projeto encontrado.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <Card>
-          <p className="mb-1 text-[14px] font-medium text-[#1a1a2e]">ROI do projeto</p>
-          <div className="mb-3 flex flex-wrap gap-3 text-[11px] text-gray-500">
-            {[['#27500A', '>2x'], ['#97C459', '1-2x'], ['#EF9F27', '0-1x'], ['#F09595', 'negativo']].map(([color, label]) => (
-              <span key={label} className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: color }} /> {label}</span>
-            ))}
-          </div>
-          {roiBarItems.length > 0
-            ? <HorizontalBarChart items={roiBarItems} formatValue={(value) => `${value.toFixed(1)}x`} />
-            : <p className="py-4 text-[12px] text-gray-400">Nenhum dado financeiro ainda.</p>}
-        </Card>
       </div>
     </DesktopShell>
   )

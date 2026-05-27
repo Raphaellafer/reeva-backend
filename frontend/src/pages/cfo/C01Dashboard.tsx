@@ -20,7 +20,6 @@ import {
   categoryColors,
   categoryLabels,
   formatMonthLabel,
-  multiple,
   severityRank,
   severityVariant,
 } from './cfoUtils'
@@ -33,27 +32,20 @@ const PROJECT_PALETTE = [
   '#FFD6A5', '#CAFFBF',
 ]
 
-function roiColor(roi: number): string {
-  if (roi > 2) return '#27500A'
-  if (roi >= 1) return '#97C459'
-  if (roi > 0) return '#EF9F27'
-  return '#F09595'
-}
-
-type SortKey = 'roi-desc' | 'roi-asc' | 'cost-desc' | 'cost-asc' | 'revenue-desc'
+type SortKey = 'percent-desc' | 'percent-asc' | 'reimbursed-desc' | 'reimbursed-asc' | 'estimated-desc'
 
 const sortOptions: { value: SortKey; label: string }[] = [
-  { value: 'roi-desc',     label: 'Maior ROI' },
-  { value: 'roi-asc',      label: 'Menor ROI' },
-  { value: 'cost-desc',    label: 'Maior custo' },
-  { value: 'cost-asc',     label: 'Menor custo' },
-  { value: 'revenue-desc', label: 'Maior receita' },
+  { value: 'percent-desc',    label: 'Maior percentual' },
+  { value: 'percent-asc',     label: 'Menor percentual' },
+  { value: 'reimbursed-desc', label: 'Maior reembolsado' },
+  { value: 'reimbursed-asc',  label: 'Menor reembolsado' },
+  { value: 'estimated-desc',  label: 'Maior estimado' },
 ]
 
 export function C01Dashboard() {
   const token = getToken()
   const navigate = useNavigate()
-  const [sortKey, setSortKey] = useState<SortKey>('roi-desc')
+  const [sortKey, setSortKey] = useState<SortKey>('percent-desc')
   const [from, setFrom] = useState(yearStart())
   const [to, setTo] = useState(today())
   const [queryFrom, setQueryFrom] = useState(from)
@@ -75,12 +67,14 @@ export function C01Dashboard() {
 
   const sortedProjects = useMemo(() => {
     const list = [...projects]
+    const reimbursedPercent = (project: typeof projects[number]) =>
+      project.revenue > 0 ? project.reimbursableExpenses / project.revenue : 0
     switch (sortKey) {
-      case 'roi-desc':     return list.sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0))
-      case 'roi-asc':      return list.sort((a, b) => (a.roi ?? 0) - (b.roi ?? 0))
-      case 'cost-desc':    return list.sort((a, b) => b.totalCost - a.totalCost)
-      case 'cost-asc':     return list.sort((a, b) => a.totalCost - b.totalCost)
-      case 'revenue-desc': return list.sort((a, b) => b.revenue - a.revenue)
+      case 'percent-desc':    return list.sort((a, b) => reimbursedPercent(b) - reimbursedPercent(a))
+      case 'percent-asc':     return list.sort((a, b) => reimbursedPercent(a) - reimbursedPercent(b))
+      case 'reimbursed-desc': return list.sort((a, b) => b.reimbursableExpenses - a.reimbursableExpenses)
+      case 'reimbursed-asc':  return list.sort((a, b) => a.reimbursableExpenses - b.reimbursableExpenses)
+      case 'estimated-desc':  return list.sort((a, b) => b.revenue - a.revenue)
       default:             return list
     }
   }, [projects, sortKey])
@@ -296,7 +290,7 @@ export function C01Dashboard() {
               <table className="w-full min-w-[540px] text-[13px]">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    {['Projeto', 'Receita', 'Gastos', 'ROI', 'Compliance', ''].map((header) => (
+                    {['Projeto', 'Total estimado', 'Total ja reembolsado', '% ja reembolsado', 'Compliance', ''].map((header) => (
                       <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                     ))}
                   </tr>
@@ -313,9 +307,11 @@ export function C01Dashboard() {
                         {p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}
                       </td>
                       <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
-                      <td className="whitespace-nowrap py-3 pr-3">{fmt(p.totalCost)}</td>
+                      <td className="whitespace-nowrap py-3 pr-3">{fmt(p.reimbursableExpenses)}</td>
                       <td className="py-3 pr-3">
-                        <span className="font-medium" style={{ color: roiColor(p.roi ?? 0) }}>{multiple(p.roi)}</span>
+                        <Badge variant={p.revenue > 0 && p.reimbursableExpenses / p.revenue >= 0.8 ? 'green' : 'amber'}>
+                          {p.revenue > 0 ? Math.round((p.reimbursableExpenses / p.revenue) * 100) : 0}%
+                        </Badge>
                       </td>
                       <td className="py-3 pr-3">
                         <Badge variant={p.complianceRate >= 90 ? 'green' : p.complianceRate >= 70 ? 'amber' : 'red'}>{p.complianceRate}%</Badge>
