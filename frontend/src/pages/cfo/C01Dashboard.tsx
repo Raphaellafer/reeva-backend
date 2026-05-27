@@ -118,6 +118,10 @@ export function C01Dashboard() {
   const reimbursedRatio = overview && overview.totalSubmittedAmount > 0
     ? Math.round((overview.totalReimbursedAmount / overview.totalSubmittedAmount) * 100)
     : 0
+  const openReimbursementAmount = Math.max(
+    0,
+    (overview?.totalSubmittedAmount ?? 0) - (overview?.totalReimbursedAmount ?? 0)
+  )
 
   const forecast = useMemo(() => {
     const trend = overview?.monthlyReimbursementTrend ?? []
@@ -133,27 +137,6 @@ export function C01Dashboard() {
     const projected = currentData.reimbursedAmount + (currentData.reimbursedAmount / dayOfMonth) * remainingDays
     return { projected, current: currentData.reimbursedAmount, daysRemaining: remainingDays, label: formatMonthLabel(currentMonth) }
   }, [overview])
-
-  const consolidatedRoi = useMemo(() => {
-    const totalCost = projects.reduce((s, p) => s + p.totalCost, 0)
-    const totalProfit = projects.reduce((s, p) => s + p.profit, 0)
-    return totalCost > 0 ? totalProfit / totalCost : null
-  }, [projects])
-
-  const roiTrend = useMemo((): 'up' | 'down' | null => {
-    const allMonths = Array.from(new Set(projects.flatMap((p) => p.monthlyTrend.map((t) => t.month)))).sort()
-    if (allMonths.length < 2) return null
-    const last = allMonths[allMonths.length - 1]
-    const prev = allMonths[allMonths.length - 2]
-    const roiFor = (month: string) => {
-      const cost = projects.reduce((s, p) => s + (p.monthlyTrend.find((t) => t.month === month)?.totalCost ?? 0), 0)
-      const profit = projects.reduce((s, p) => s + (p.monthlyTrend.find((t) => t.month === month)?.profit ?? 0), 0)
-      return cost > 0 ? profit / cost : null
-    }
-    const lastRoi = roiFor(last), prevRoi = roiFor(prev)
-    if (lastRoi === null || prevRoi === null) return null
-    return lastRoi >= prevRoi ? 'up' : 'down'
-  }, [projects])
 
   // Pie charts — cores distintas por fatia (paleta por projeto, categoryColors por categoria)
   const projectPieSegments = useMemo((): PieSegment[] =>
@@ -188,7 +171,7 @@ export function C01Dashboard() {
   )
 
   return (
-    <DesktopShell title="Dashboard executivo" role="CFO">
+    <DesktopShell title="Dashboard" role="CFO">
       {/* Filtro de período */}
       <Card className="mb-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -228,16 +211,15 @@ export function C01Dashboard() {
         </Card>
       )}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Total submetido" value={isLoading ? '...' : fmt(overview?.totalSubmittedAmount ?? 0)} subtext="base do fechamento" />
-        <MetricCard label="Total reembolsado" value={isLoading ? '...' : fmt(overview?.totalReimbursedAmount ?? 0)} subtext={`${reimbursedRatio}% do submetido`} />
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <MetricCard label="Total geral de reembolsos" value={isLoading ? '...' : fmt(overview?.totalSubmittedAmount ?? 0)} subtext="base do fechamento" />
+        <MetricCard label="Total ja reembolsado" value={isLoading ? '...' : fmt(overview?.totalReimbursedAmount ?? 0)} subtext={`${reimbursedRatio}% do total geral`} />
+        <MetricCard label="Total em aberto" value={isLoading ? '...' : fmt(openReimbursementAmount)} subtext="a ser reembolsado" />
         <MetricCard label="Economia pela IA" value={isLoading ? '...' : fmt(overview?.aiSavings ?? 0)} subtext="politica, OCR e duplicidade" />
         <MetricCard
-          label="ROI consolidado"
-          value={isLoading ? '...' : multiple(consolidatedRoi)}
-          subtext={`${projects.length} projeto(s)`}
-          trend={roiTrend ?? undefined}
-          trendValue={roiTrend === 'up' ? 'melhorou' : roiTrend === 'down' ? 'piorou' : undefined}
+          label="Percentual ja reembolsado"
+          value={isLoading ? '...' : `${reimbursedRatio}%`}
+          subtext="sobre o total geral de reembolsos"
         />
       </div>
 
@@ -272,20 +254,6 @@ export function C01Dashboard() {
               <div className="flex justify-between"><span className="text-[#27500A]/60">Reembolsado ate hoje</span><span className="font-medium text-[#27500A]">{fmt(forecast?.current ?? overview?.totalReimbursedAmount ?? 0)}</span></div>
               {forecast && <div className="flex justify-between"><span className="text-[#27500A]/60">Dias restantes no mes</span><span className="font-medium text-[#27500A]">{forecast.daysRemaining}</span></div>}
               <div className="flex justify-between"><span className="text-[#27500A]/60">Autoaprovacao</span><span className="font-medium text-[#27500A]">{overview?.autoApprovalRate ?? 0}%</span></div>
-            </div>
-          </div>
-
-          <div className="rounded-[10px] border border-black/[0.07] bg-white p-4">
-            <p className="mb-3 text-[13px] font-medium text-[#1a1a2e]">Sinais de controle</p>
-            <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-[8px] border border-[#F09595] bg-[#FCEBEB] p-3">
-                <p className="text-[22px] font-medium text-[#791F1F]">{overview?.duplicateRejectedCount ?? 0}</p>
-                <p className="text-[11px] text-[#791F1F]/70">duplicadas</p>
-              </div>
-              <div className="rounded-[8px] border border-[#FAC775] bg-[#FAEEDA] p-3">
-                <p className="text-[22px] font-medium text-[#633806]">{overview?.policyViolationCount ?? 0}</p>
-                <p className="text-[11px] text-[#633806]/70">violacoes</p>
-              </div>
             </div>
           </div>
         </div>
