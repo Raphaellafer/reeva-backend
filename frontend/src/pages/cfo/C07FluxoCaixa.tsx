@@ -8,7 +8,6 @@ import { Card } from '../../components/ui/Card'
 import { MetricCard } from '../../components/ui/MetricCard'
 import { fmt, fmtDate } from '../../realData'
 import { getToken } from '../../session'
-import { multiple } from './cfoUtils'
 
 function yearStart() {
   const now = new Date()
@@ -94,19 +93,30 @@ export function C07FluxoCaixa() {
     [data]
   )
 
+  const manualProjectOptions = useMemo(() => {
+    if (!selectedProjectId) return projects
+    return projects.filter((project) => project.projectId === selectedProjectId)
+  }, [projects, selectedProjectId])
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      setForm((current) => ({ ...current, projectId: selectedProjectId }))
+    }
+  }, [selectedProjectId])
+
   // Projeto selecionado — dados do fluxo de caixa
   const selectedProjectFlow = useMemo(() => {
     if (!selectedProjectId) return null
     return (data?.projectCashFlows ?? []).find((p) => p.projectId === selectedProjectId) ?? null
   }, [data, selectedProjectId])
 
-  // Projeto selecionado — dados de performance (ROI, receita, etc.)
+  // Projeto selecionado — dados de performance, receita e despesa estimada
   const selectedProjectPerf = useMemo(() => {
     if (!selectedProjectId) return null
     return projects.find((p) => p.projectId === selectedProjectId) ?? null
   }, [projects, selectedProjectId])
 
-  // Tabela de fluxo por projeto — ordenada por custo descrescente + coluna ROI
+  // Tabela de fluxo por projeto — ordenada por saida descrescente
   const sortedProjects = useMemo(() => {
     const flows = data?.projectCashFlows ?? []
     return [...flows]
@@ -114,7 +124,11 @@ export function C07FluxoCaixa() {
       .sort((a, b) => b.outflow - a.outflow)
       .map((pf) => {
         const perf = projects.find((p) => p.projectId === pf.projectId)
-        return { ...pf, roi: perf?.roi ?? null }
+        return {
+          ...pf,
+          estimatedExpense: perf?.estimatedExpense ?? 0,
+          outflowPercent: pf.inflow > 0 ? (pf.outflow / pf.inflow) * 100 : 0,
+        }
       })
   }, [data, projects, selectedProjectId])
 
@@ -128,14 +142,20 @@ export function C07FluxoCaixa() {
   // Métricas — quando projeto selecionado mostra dados do projeto
   const metrics = useMemo(() => {
     if (selectedProjectFlow && selectedProjectPerf) {
-      const roi = selectedProjectPerf.totalCost > 0
-        ? selectedProjectPerf.profit / selectedProjectPerf.totalCost
-        : null
+      const outflowPercent = selectedProjectFlow.inflow > 0
+        ? (selectedProjectFlow.outflow / selectedProjectFlow.inflow) * 100
+        : 0
+      const estimatedExpense = selectedProjectPerf.estimatedExpense ?? 0
+      const remainingExpensePercent = estimatedExpense > 0
+        ? Math.max(0, ((estimatedExpense - selectedProjectFlow.outflow) / estimatedExpense) * 100)
+        : 0
       return {
         inflow: selectedProjectFlow.inflow,
         outflow: selectedProjectFlow.outflow,
         net: selectedProjectFlow.netCashFlow,
-        roi,
+        outflowPercent,
+        estimatedExpense,
+        remainingExpensePercent,
         label: selectedProjectPerf.projectName,
       }
     }
@@ -143,10 +163,18 @@ export function C07FluxoCaixa() {
       inflow: data?.periodInflow ?? 0,
       outflow: data?.periodOutflow ?? 0,
       net: data?.netCashFlow ?? 0,
-      roi: null,
+      outflowPercent: null,
+      estimatedExpense: 0,
+      remainingExpensePercent: null,
       label: null,
     }
   }, [data, selectedProjectFlow, selectedProjectPerf])
+
+  const remainingExpenseVariant =
+    metrics.remainingExpensePercent == null ? undefined :
+    metrics.remainingExpensePercent <= 0 ? 'down' :
+    metrics.remainingExpensePercent <= 10 ? 'neutral' :
+    'up'
 
   const projectOptions = useMemo(
     () => projects.map((p) => ({ id: p.projectId, name: p.projectName, code: p.projectCode })),
@@ -210,21 +238,28 @@ export function C07FluxoCaixa() {
       )}
 
       {/* Métricas — gerais ou por projeto */}
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
         {selectedProjectId && metrics.label ? (
           <>
             <MetricCard label="Entradas do projeto" value={isLoading ? '...' : fmt(metrics.inflow)} subtext={metrics.label} />
             <MetricCard label="Saidas do projeto" value={isLoading ? '...' : fmt(metrics.outflow)} subtext="custos e reembolsos" />
-            <MetricCard label="Fluxo liquido" value={isLoading ? '...' : fmt(metrics.net)} subtext="entradas - saidas" trend={metrics.net >= 0 ? 'up' : 'down'} />
-            <MetricCard label="ROI do projeto" value={isLoading ? '...' : multiple(metrics.roi)} subtext={selectedProjectPerf ? `margem ${selectedProjectPerf.margin != null ? `${Math.round(selectedProjectPerf.margin * 100)}%` : 'N/A'}` : ''} />
-            <MetricCard label="A pagar" value={isLoading ? '...' : fmt(data?.pendingReimbursementAmount ?? 0)} subtext={`${data?.pendingReimbursementCount ?? 0} reembolso(s)`} />
+            <MetricCard label="Saldo do projeto" value={isLoading ? '...' : fmt(metrics.net)} subtext="entradas - saidas" trend={metrics.net >= 0 ? 'up' : 'down'} />
+            <MetricCard label="Percentual pela saida" value={isLoading ? '...' : `${(metrics.outflowPercent ?? 0).toFixed(1)}%`} subtext="saidas sobre entradas" />
+            <MetricCard label="Despesa estimada" value={isLoading ? '...' : fmt(metrics.estimatedExpense)} subtext="definida no projeto" />
+            <MetricCard
+              label="Falta para despesa estimada"
+              value={isLoading ? '...' : `${(metrics.remainingExpensePercent ?? 0).toFixed(1)}%`}
+              subtext={metrics.remainingExpensePercent === 0 ? 'limite atingido ou ultrapassado' : 'percentual restante'}
+              trend={remainingExpenseVariant}
+            />
           </>
         ) : (
           <>
-            <MetricCard label="Saldo atual" value={isLoading ? '...' : fmt(data?.totalBalance ?? 0)} subtext={`saldo inicial ${fmt(openingBalance)}`} />
+            <MetricCard label="Saldo de caixa da empresa" value={isLoading ? '...' : fmt(data?.totalBalance ?? 0)} subtext={`em ${queryTo}`} />
+            <MetricCard label="Saldo inicial" value={isLoading ? '...' : fmt(openingBalance)} subtext="definido no banco" />
             <MetricCard label="Entradas" value={isLoading ? '...' : fmt(metrics.inflow)} subtext="no periodo" />
             <MetricCard label="Saidas" value={isLoading ? '...' : fmt(metrics.outflow)} subtext="no periodo" />
-            <MetricCard label="Fluxo liquido" value={isLoading ? '...' : fmt(metrics.net)} subtext="entradas - saidas" trend={metrics.net >= 0 ? 'up' : 'down'} />
+            <MetricCard label="Saldo total" value={isLoading ? '...' : fmt(metrics.net)} subtext="entradas - saidas" trend={metrics.net >= 0 ? 'up' : 'down'} />
             <MetricCard label="A pagar" value={isLoading ? '...' : fmt(data?.pendingReimbursementAmount ?? 0)} subtext={`${data?.pendingReimbursementCount ?? 0} reembolso(s)`} />
           </>
         )}
@@ -248,8 +283,8 @@ export function C07FluxoCaixa() {
             <label className="text-[12px] text-gray-500">
               Projeto
               <select value={form.projectId} onChange={(e) => setForm((c) => ({ ...c, projectId: e.target.value }))} className="mt-1 block w-full rounded-[8px] border border-black/[0.07] bg-white px-3 py-2 text-[13px] text-[#1a1a2e]">
-                <option value="">Sem projeto</option>
-                {projects.map((p) => <option key={p.projectId} value={p.projectId}>{p.projectName}</option>)}
+                {!selectedProjectId && <option value="">Sem projeto</option>}
+                {manualProjectOptions.map((p) => <option key={p.projectId} value={p.projectId}>{p.projectName}</option>)}
               </select>
             </label>
             <label className="text-[12px] text-gray-500">
@@ -304,43 +339,53 @@ export function C07FluxoCaixa() {
         </Card>
       </div>
 
-      {/* Fluxo por projeto — com ROI e ordenado por maior custo */}
+      {/* Fluxo por projeto */}
       <Card className="mb-4">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[14px] font-medium text-[#1a1a2e]">Fluxo por projeto</p>
             <p className="mt-1 text-[12px] text-gray-400">
               {selectedProjectId ? 'Projeto filtrado · ' : 'Todos os projetos · '}
-              entradas, saidas, liquido e ROI. Ordenado por maior custo.
+              entradas, saidas, saldo e percentual pela saida. Ordenado por maior saida.
             </p>
           </div>
           <Badge variant="blue">{sortedProjects.length} projeto(s)</Badge>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-[13px]">
+          <table className="w-full min-w-[860px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Projeto', 'Entradas', 'Saidas', 'Liquido', 'ROI'].map((header) => (
+                {['Projeto', 'Entradas', 'Saidas', 'Saldo do projeto', '% pela saida', 'Despesa estimada', '% restante'].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {sortedProjects.map((project) => {
-                const roi = project.roi
-                const roiColor = roi == null ? 'text-gray-400' : roi > 2 ? 'text-[#27500A]' : roi >= 1 ? 'text-[#97C459]' : roi > 0 ? 'text-[#EF9F27]' : 'text-[#F09595]'
+                const remainingPercent = project.estimatedExpense > 0
+                  ? Math.max(0, ((project.estimatedExpense - project.outflow) / project.estimatedExpense) * 100)
+                  : 0
+                const remainingColor = project.estimatedExpense <= 0
+                  ? 'text-gray-400'
+                  : remainingPercent <= 0
+                    ? 'text-[#791F1F]'
+                    : remainingPercent <= 10
+                      ? 'text-[#633806]'
+                      : 'text-[#27500A]'
                 return (
                   <tr key={project.projectId} className="border-b border-black/[0.04]">
                     <td className="py-3 pr-3 font-medium text-[#1a1a2e]">{project.projectName}</td>
                     <td className="py-3 pr-3 text-[#27500A]">{fmt(project.inflow)}</td>
                     <td className="py-3 pr-3 text-[#791F1F]">{fmt(project.outflow)}</td>
                     <td className="py-3 pr-3 font-medium">{fmt(project.netCashFlow)}</td>
-                    <td className={`py-3 pr-3 font-medium ${roiColor}`}>{multiple(roi)}</td>
+                    <td className="py-3 pr-3 font-medium">{project.outflowPercent.toFixed(1)}%</td>
+                    <td className="py-3 pr-3">{fmt(project.estimatedExpense)}</td>
+                    <td className={`py-3 pr-3 font-medium ${remainingColor}`}>{project.estimatedExpense > 0 ? `${remainingPercent.toFixed(1)}%` : '-'}</td>
                   </tr>
                 )
               })}
               {!isLoading && sortedProjects.length === 0 && (
-                <tr><td colSpan={5} className="py-6 text-center text-gray-400">Nenhum lancamento por projeto no periodo.</td></tr>
+                <tr><td colSpan={7} className="py-6 text-center text-gray-400">Nenhum lancamento por projeto no periodo.</td></tr>
               )}
             </tbody>
           </table>

@@ -27,4 +27,14 @@ public interface CashTransactionRepository extends JpaRepository<CashTransaction
         @Param("from") LocalDate from,
         @Param("to") LocalDate to
     );
+
+    @Query("""
+        SELECT t FROM CashTransaction t
+        WHERE t.company.id = :companyId
+          AND t.transactionDate > :date
+        """)
+    List<CashTransaction> findByCompanyAfterDate(
+        @Param("companyId") UUID companyId,
+        @Param("date") LocalDate date
+    );
 }

@@ -129,6 +129,7 @@ public class CfoProjectMetricsService {
             project.getName(),
             project.getCode(),
             revenue,
+            CfoMetricCalculator.money(project.getEstimatedExpense()),
             generalExpenses,
             reimbursableExpenses,
             totalSubmittedAmount,

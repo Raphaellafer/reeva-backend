@@ -172,6 +172,7 @@ export interface ProjectResponse {
   description: string | null;
   policyText: string | null;
   revenue: number | null;
+  estimatedExpense: number | null;
   active: boolean;
   managerId: string | null;
   managerName: string | null;
@@ -185,6 +186,7 @@ export interface ProjectPayload {
   description: string;
   policyText: string;
   revenue: string | null;
+  estimatedExpense: string | null;
   managerId: string | null;
   employeeIds: string[];
 }
@@ -244,6 +246,7 @@ export interface ProjectPerformanceResponse {
   projectName: string;
   projectCode: string | null;
   revenue: number;
+  estimatedExpense: number;
   generalExpenses: number;
   reimbursableExpenses: number;
   totalSubmittedAmount: number;

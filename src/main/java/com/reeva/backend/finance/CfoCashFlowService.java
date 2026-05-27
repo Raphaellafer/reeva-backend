@@ -84,12 +84,20 @@ public class CfoCashFlowService {
         List<BankAccount> accounts = bankAccountRepository.findByCompanyIdAndActiveTrueOrderByAccountNameAsc(companyId);
         List<CashTransaction> transactions = cashTransactionRepository.findByCompanyAndDateRange(
             companyId, effectiveFrom, effectiveTo);
+        List<CashTransaction> transactionsAfterPeriod = cashTransactionRepository.findByCompanyAfterDate(
+            companyId, effectiveTo);
         List<Expense> pendingPayments = expenseRepository.findByCompanyAndStatusesBetween(
             companyId, PENDING_PAYMENT_STATUSES, effectiveFrom, effectiveTo);
 
-        BigDecimal totalBalance = accounts.stream()
+        BigDecimal currentTotalBalance = accounts.stream()
             .map(BankAccount::getCurrentBalance)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal balanceAfterPeriod = transactionsAfterPeriod.stream()
+            .map(transaction -> transaction.getType() == CashTransactionType.INFLOW
+                ? transaction.getAmount()
+                : transaction.getAmount().negate())
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalBalance = currentTotalBalance.subtract(balanceAfterPeriod);
         BigDecimal inflow = sumByType(transactions, CashTransactionType.INFLOW);
         BigDecimal outflow = sumByType(transactions, CashTransactionType.OUTFLOW);
         BigDecimal paidReimbursements = transactions.stream()

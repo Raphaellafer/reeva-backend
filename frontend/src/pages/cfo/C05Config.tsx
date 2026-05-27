@@ -17,6 +17,7 @@ type ProjectForm = {
   name: string
   code: string
   revenue: string
+  estimatedExpense: string
   managerId: string
   description: string
   policyText: string
@@ -28,6 +29,7 @@ function formFromProject(project: ProjectResponse): ProjectForm {
     name: project.name,
     code: project.code ?? '',
     revenue: project.revenue != null ? String(project.revenue) : '',
+    estimatedExpense: project.estimatedExpense != null ? String(project.estimatedExpense) : '',
     managerId: project.managerId ?? '',
     description: project.description ?? '',
     policyText: project.policyText ?? '',
@@ -40,6 +42,7 @@ function emptyForm(managerId = ''): ProjectForm {
     name: '',
     code: '',
     revenue: '',
+    estimatedExpense: '',
     managerId,
     description: '',
     policyText: '',
@@ -149,6 +152,7 @@ export function C05Config() {
         description: form.description.trim(),
         policyText: form.policyText.trim(),
         revenue: form.revenue.trim() || null,
+        estimatedExpense: form.estimatedExpense.trim() || null,
         managerId: form.managerId || null,
         employeeIds: form.employeeIds,
       },
@@ -228,6 +232,10 @@ export function C05Config() {
                 <label className={labelClass}>
                   Receita esperada
                   <input value={form.revenue} onChange={(event) => updateField('revenue', event.target.value.replace(',', '.'))} className={fieldClass} inputMode="decimal" placeholder="100000" />
+                </label>
+                <label className={labelClass}>
+                  Despesa estimada
+                  <input value={form.estimatedExpense} onChange={(event) => updateField('estimatedExpense', event.target.value.replace(',', '.'))} className={fieldClass} inputMode="decimal" placeholder="5000" />
                 </label>
               </div>
 

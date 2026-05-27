@@ -35,6 +35,9 @@ public class Project {
     @Column(precision = 14, scale = 2)
     private BigDecimal revenue;
 
+    @Column(name = "estimated_expense", precision = 14, scale = 2)
+    private BigDecimal estimatedExpense;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
@@ -63,6 +66,7 @@ public class Project {
     public String getDescription() { return description; }
     public String getPolicyText() { return policyText; }
     public BigDecimal getRevenue() { return revenue; }
+    public BigDecimal getEstimatedExpense() { return estimatedExpense; }
     public boolean isActive() { return active; }
     public User getCreatedBy() { return createdBy; }
     public Instant getCreatedAt() { return createdAt; }
@@ -73,6 +77,7 @@ public class Project {
     public void setDescription(String description) { this.description = description; }
     public void setPolicyText(String policyText) { this.policyText = policyText; }
     public void setRevenue(BigDecimal revenue) { this.revenue = revenue; }
+    public void setEstimatedExpense(BigDecimal estimatedExpense) { this.estimatedExpense = estimatedExpense; }
     public void setActive(boolean active) { this.active = active; }
     public void setCreatedBy(User createdBy) { this.createdBy = createdBy; }
 }

@@ -9,6 +9,7 @@ public record ProjectPerformanceResponse(
     String projectName,
     String projectCode,
     BigDecimal revenue,
+    BigDecimal estimatedExpense,
     BigDecimal generalExpenses,
     BigDecimal reimbursableExpenses,
     BigDecimal totalSubmittedAmount,

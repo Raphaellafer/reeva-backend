@@ -11,7 +11,7 @@ import { getToken } from '../../session'
 import type { ProjectPayload, ProjectResponse, TeamMemberResponse } from '../../types'
 
 function buildEmptyForm(managerId: string | null): ProjectPayload {
-  return { name: '', code: '', description: '', policyText: '', revenue: null, managerId, employeeIds: [] }
+  return { name: '', code: '', description: '', policyText: '', revenue: null, estimatedExpense: null, managerId, employeeIds: [] }
 }
 
 const fieldClass = 'mt-1 w-full rounded-[8px] border border-black/[0.08] bg-white px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#3C3489] focus:ring-2 focus:ring-[#3C3489]/15'
@@ -95,7 +95,16 @@ export function G07Projetos() {
   function edit(project: ProjectResponse) {
     const managerId = project.managerId ?? defaultManagerId()
     setEditingId(project.id)
-    setForm({ name: project.name, code: project.code ?? '', description: project.description ?? '', policyText: project.policyText ?? '', revenue: project.revenue == null ? null : String(project.revenue), managerId, employeeIds: project.members.map((member) => member.id) })
+    setForm({
+      name: project.name,
+      code: project.code ?? '',
+      description: project.description ?? '',
+      policyText: project.policyText ?? '',
+      revenue: project.revenue == null ? null : String(project.revenue),
+      estimatedExpense: project.estimatedExpense == null ? null : String(project.estimatedExpense),
+      managerId,
+      employeeIds: project.members.map((member) => member.id),
+    })
     setEmployeeQuery('')
     setMessage(null)
     setError(null)
@@ -135,7 +144,7 @@ export function G07Projetos() {
     if (form.employeeIds.length === 0) { setError('Selecione pelo menos um funcionário para o projeto.'); return }
     setError(null)
     setMessage(null)
-    saveMutation.mutate({ id: editingId, data: { ...form, revenue: form.revenue || null } })
+    saveMutation.mutate({ id: editingId, data: { ...form, revenue: form.revenue || null, estimatedExpense: form.estimatedExpense || null } })
   }
 
   return (
@@ -222,7 +231,10 @@ export function G07Projetos() {
                 {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name} · {manager.email}</option>)}
               </select>
             </label>
-            <label className={labelClass}>Faturamento previsto/real<input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className={fieldClass} /></label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className={labelClass}>Faturamento previsto/real<input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className={fieldClass} /></label>
+              <label className={labelClass}>Despesa estimada<input value={form.estimatedExpense ?? ''} onChange={(event) => setForm((current) => ({ ...current, estimatedExpense: event.target.value }))} className={fieldClass} /></label>
+            </div>
             <label className={labelClass}>Descrição<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={4} className={fieldClass} /></label>
           </section>
 

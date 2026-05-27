@@ -23,6 +23,8 @@ public record ProjectRequest(
 
     BigDecimal revenue,
 
+    BigDecimal estimatedExpense,
+
     UUID managerId,
 
     List<UUID> employeeIds

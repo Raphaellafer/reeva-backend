@@ -120,6 +120,7 @@ public class ProjectService {
         project.setDescription(request.description());
         project.setPolicyText(request.policyText());
         project.setRevenue(request.revenue());
+        project.setEstimatedExpense(request.estimatedExpense());
     }
 
     private User resolveResponsibleManager(User currentUser, UUID managerId) {
