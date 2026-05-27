@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -196,6 +198,39 @@ public class CfoProjectMetricsService {
                                                            List<Expense> expenses) {
         YearMonth first = YearMonth.from(range.from());
         YearMonth last = YearMonth.from(range.to());
+        long days = ChronoUnit.DAYS.between(range.from(), range.to()) + 1;
+        if (first.equals(last)) {
+            List<ProjectMonthlyTrendResponse> items = new ArrayList<>();
+            LocalDate start = range.from();
+            while (!start.isAfter(range.to())) {
+                LocalDate end = days <= 10 ? start : start.plusDays(4);
+                if (end.isAfter(range.to())) {
+                    end = range.to();
+                }
+                LocalDate bucketStart = start;
+                LocalDate bucketEnd = end;
+                BigDecimal revenue = sumEntriesBetween(entries, FinancialEntryType.REVENUE, bucketStart, bucketEnd);
+                BigDecimal generalExpenses = sumEntriesBetween(entries, FinancialEntryType.GENERAL_EXPENSE, bucketStart, bucketEnd);
+                BigDecimal reimbursements = expenses.stream()
+                    .filter(expense -> REIMBURSED_STATUSES.contains(expense.getStatus()))
+                    .filter(expense -> !expense.getExpenseDate().isBefore(bucketStart)
+                        && !expense.getExpenseDate().isAfter(bucketEnd))
+                    .map(Expense::getAmount)
+                    .map(CfoMetricCalculator::money)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal submitted = submittedAmount(expenses.stream()
+                    .filter(expense -> !expense.getExpenseDate().isBefore(bucketStart)
+                        && !expense.getExpenseDate().isAfter(bucketEnd))
+                    .toList());
+                BigDecimal totalCost = CfoMetricCalculator.totalCost(generalExpenses, reimbursements);
+                BigDecimal profit = CfoMetricCalculator.profit(revenue, totalCost);
+                items.add(new ProjectMonthlyTrendResponse(
+                    formatDayBucket(bucketStart, bucketEnd), revenue, generalExpenses, reimbursements, submitted, totalCost, profit));
+                start = end.plusDays(1);
+            }
+            return items;
+        }
+
         return Stream.iterate(first, month -> !month.isAfter(last), month -> month.plusMonths(1))
             .map(month -> {
                 LocalDate monthStart = month.atDay(1);
@@ -219,6 +254,13 @@ public class CfoProjectMetricsService {
                     month.toString(), revenue, generalExpenses, reimbursements, submitted, totalCost, profit);
             })
             .toList();
+    }
+
+    private String formatDayBucket(LocalDate start, LocalDate end) {
+        if (start.equals(end)) {
+            return "%02d/%02d".formatted(start.getDayOfMonth(), start.getMonthValue());
+        }
+        return "%02d-%02d/%02d".formatted(start.getDayOfMonth(), end.getDayOfMonth(), start.getMonthValue());
     }
 
     private BigDecimal submittedAmount(List<Expense> expenses) {

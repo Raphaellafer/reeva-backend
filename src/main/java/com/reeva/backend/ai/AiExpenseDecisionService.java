@@ -39,6 +39,18 @@ public class AiExpenseDecisionService {
             && shouldTrustAiPolicyViolation(expense, result, category);
         short complianceScore = complianceScore(result, policy, categoryMismatch, trustedAiPolicyViolation);
 
+        if (!isAcceptedExpenseDocument(result)) {
+            String type = result.documentType() == null || result.documentType().isBlank()
+                ? "nao identificado"
+                : result.documentType();
+            String reason = "A IA nao identificou uma nota fiscal, cupom, recibo ou comprovante valido. Tipo detectado: "
+                + type + ".";
+            return decision(AiDecision.PENDING_MANUAL_REVIEW, ExpenseStatus.PENDING_REVIEW,
+                AiAlertLevel.HIGH, score, complianceScore, true, null, sefaz, false,
+                "Documento precisa de confirmacao manual antes da aprovacao.",
+                "Revisao obrigatoria: " + reason);
+        }
+
         if (categoryMismatch) {
             String reason = "Categoria enviada nao confere com a nota: enviado como "
                 + expense.getCategory() + ", mas a IA identificou " + result.category() + ".";
@@ -103,6 +115,19 @@ public class AiExpenseDecisionService {
         return decision(AiDecision.READY_FOR_MANAGER, ExpenseStatus.PENDING_REVIEW,
             AiAlertLevel.MEDIUM, score, complianceScore, true, null, sefaz, false, reason,
             "Revisao do gestor recomendada: " + reason);
+    }
+
+    private boolean isAcceptedExpenseDocument(OcrResult result) {
+        if (!result.documentDetected()) {
+            return false;
+        }
+        if (result.documentType() == null || result.documentType().isBlank()) {
+            return false;
+        }
+        return switch (result.documentType().toUpperCase(Locale.ROOT)) {
+            case "NFE", "NFCE", "SAT", "CUPOM", "RECIBO", "HOTEL", "APP_RIDE", "PEDAGIO", "PARKING" -> true;
+            default -> false;
+        };
     }
 
     private boolean shouldTrustAiPolicyViolation(Expense expense, OcrResult result, String category) {

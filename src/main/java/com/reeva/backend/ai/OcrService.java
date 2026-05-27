@@ -573,6 +573,8 @@ public class OcrService {
                 validationReason != null
                     ? validationReason
                     : analysis.path("reason").asText(readable ? null : "Documento nao detectado"),
+                extraction.path("document_detected").asBoolean(false),
+                readFieldText(extraction, "document_type"),
                 readFieldText(extraction, "supplier_name"),
                 readFieldText(extraction, "supplier_cnpj"),
                 amount,
@@ -594,9 +596,9 @@ public class OcrService {
             );
         } catch (Exception e) {
             log.warn("Failed to parse OCR JSON: extraction={} analysis={}", extractionJson, analysisJson, e);
-            return new OcrResult(false, "Resposta da IA veio incompleta ou fora do formato esperado. Tente reenviar para nova analise OCR.", null, null, null,
-                null, null, null, (short) 0, null, null, null, null, null,
-                null, java.util.List.of(), extractionJson, imageSha256);
+            return new OcrResult(false, "Resposta da IA veio incompleta ou fora do formato esperado. Tente reenviar para nova analise OCR.",
+                false, null, null, null, null, null, null, null, (short) 0, null, null, null,
+                null, null, null, java.util.List.of(), extractionJson, imageSha256);
         }
     }
 

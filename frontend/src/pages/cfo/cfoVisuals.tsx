@@ -28,6 +28,49 @@ export function MultiSeriesTrendChart({
     return <p className="py-8 text-center text-[13px] text-gray-400">{emptyText}</p>
   }
 
+  if (points.length === 1) {
+    const point = points[0]
+    const singleValues = series.map((item) => ({
+      ...item,
+      value: point.values[item.key] ?? 0,
+    }))
+    const maxSingleValue = Math.max(...singleValues.map((item) => item.value), 1)
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+          {series.map((item) => (
+            <span key={item.key} className="inline-flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex min-h-[238px] flex-col justify-center gap-5">
+          {singleValues.map((item) => {
+            const width = Math.max(4, Math.round((item.value / maxSingleValue) * 100))
+            return (
+              <div key={item.key} className="space-y-2">
+                <div className="flex items-center justify-between gap-3 text-[12px]">
+                  <span className="font-medium text-[#1a1a2e]">{item.label}</span>
+                  <span className="shrink-0 text-gray-500">{formatValue(item.value)}</span>
+                </div>
+                <div className="h-[18px] overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${width}%`, background: item.color }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+          <p className="pt-2 text-center text-[11px] text-gray-400">{point.label}</p>
+        </div>
+      </div>
+    )
+  }
+
   const width = 640
   const height = 238
   const top = 20

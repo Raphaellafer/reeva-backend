@@ -7,6 +7,8 @@ import java.util.List;
 public record OcrResult(
     boolean readable,
     String reason,
+    boolean documentDetected,
+    String documentType,
     String supplierName,
     String supplierCnpj,
     BigDecimal totalAmount,

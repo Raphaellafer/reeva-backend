@@ -123,14 +123,19 @@ export function C01Dashboard() {
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const currentData = trend.find((t) => t.month === currentMonth)
-    if (!currentData) return null
-    const dayOfMonth = now.getDate()
+    const selectedMonth = queryTo.slice(0, 7)
+    const selectedDay = Number(queryTo.slice(8, 10))
+    const isCurrentMonthSelection = selectedMonth === currentMonth
+    const current = currentData?.reimbursedAmount
+      ?? (isCurrentMonthSelection ? overview?.totalReimbursedAmount : null)
+    if (current == null) return null
+    const dayOfMonth = currentData ? now.getDate() : Math.min(selectedDay || now.getDate(), now.getDate())
     if (dayOfMonth === 0) return null
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const remainingDays = daysInMonth - dayOfMonth
-    const projected = currentData.reimbursedAmount + (currentData.reimbursedAmount / dayOfMonth) * remainingDays
-    return { projected, current: currentData.reimbursedAmount, daysRemaining: remainingDays, label: formatMonthLabel(currentMonth) }
-  }, [overview])
+    const projected = current + (current / dayOfMonth) * remainingDays
+    return { projected, current, daysRemaining: remainingDays, label: formatMonthLabel(currentMonth) }
+  }, [overview, queryTo])
 
   // Pie charts — cores distintas por fatia (paleta por projeto, categoryColors por categoria)
   const projectPieSegments = useMemo((): PieSegment[] =>

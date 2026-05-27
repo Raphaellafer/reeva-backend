@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -183,6 +184,32 @@ public class CfoExecutiveService {
         DateRange range, List<Expense> expenses, Map<String, ExpensePolicy> policies) {
         YearMonth first = YearMonth.from(range.from());
         YearMonth last = YearMonth.from(range.to());
+        long days = ChronoUnit.DAYS.between(range.from(), range.to()) + 1;
+        if (first.equals(last)) {
+            List<CfoOverviewResponse.MonthlyReimbursementTrendItem> items = new ArrayList<>();
+            LocalDate start = range.from();
+            while (!start.isAfter(range.to())) {
+                LocalDate end = days <= 10 ? start : start.plusDays(4);
+                if (end.isAfter(range.to())) {
+                    end = range.to();
+                }
+                LocalDate bucketStart = start;
+                LocalDate bucketEnd = end;
+                List<Expense> rows = expenses.stream()
+                    .filter(expense -> !expense.getExpenseDate().isBefore(bucketStart)
+                        && !expense.getExpenseDate().isAfter(bucketEnd))
+                    .toList();
+                items.add(new CfoOverviewResponse.MonthlyReimbursementTrendItem(
+                    formatDayBucket(bucketStart, bucketEnd),
+                    sum(rows.stream().filter(expense -> REIMBURSED_STATUSES.contains(expense.getStatus())).toList()),
+                    sum(rows),
+                    rows.stream().map(expense -> avoidableLoss(expense, policies)).reduce(BigDecimal.ZERO, BigDecimal::add)
+                ));
+                start = end.plusDays(1);
+            }
+            return items;
+        }
+
         return java.util.stream.Stream.iterate(first, month -> !month.isAfter(last), month -> month.plusMonths(1))
             .map(month -> {
                 LocalDate start = month.atDay(1);
@@ -198,6 +225,13 @@ public class CfoExecutiveService {
                 );
             })
             .toList();
+    }
+
+    private String formatDayBucket(LocalDate start, LocalDate end) {
+        if (start.equals(end)) {
+            return "%02d/%02d".formatted(start.getDayOfMonth(), start.getMonthValue());
+        }
+        return "%02d-%02d/%02d".formatted(start.getDayOfMonth(), end.getDayOfMonth(), start.getMonthValue());
     }
 
     private List<CfoRecommendationResponse> recommendations(List<Expense> expenses, Map<String, ExpensePolicy> policies) {
