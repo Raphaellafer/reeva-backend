@@ -32,14 +32,14 @@ const PROJECT_PALETTE = [
   '#FFD6A5', '#CAFFBF',
 ]
 
-type SortKey = 'percent-desc' | 'percent-asc' | 'reimbursed-desc' | 'reimbursed-asc' | 'revenue-desc'
+type SortKey = 'percent-desc' | 'percent-asc' | 'reimbursed-desc' | 'reimbursed-asc' | 'expected-expense-desc'
 
 const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'percent-desc',    label: 'Maior percentual' },
   { value: 'percent-asc',     label: 'Menor percentual' },
   { value: 'reimbursed-desc', label: 'Maior reembolsado' },
   { value: 'reimbursed-asc',  label: 'Menor reembolsado' },
-  { value: 'revenue-desc',    label: 'Maior receita estimada' },
+  { value: 'expected-expense-desc', label: 'Maior gasto esperado' },
 ]
 
 export function C01Dashboard() {
@@ -74,7 +74,7 @@ export function C01Dashboard() {
       case 'percent-asc':     return list.sort((a, b) => reimbursedPercent(a) - reimbursedPercent(b))
       case 'reimbursed-desc': return list.sort((a, b) => b.reimbursableExpenses - a.reimbursableExpenses)
       case 'reimbursed-asc':  return list.sort((a, b) => a.reimbursableExpenses - b.reimbursableExpenses)
-      case 'revenue-desc':    return list.sort((a, b) => b.revenue - a.revenue)
+      case 'expected-expense-desc': return list.sort((a, b) => b.estimatedExpense - a.estimatedExpense)
       default:             return list
     }
   }, [projects, sortKey])
@@ -290,7 +290,7 @@ export function C01Dashboard() {
               <table className="w-full min-w-[540px] text-[13px]">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    {['Projeto', 'Receita estimada', 'Total ja reembolsado', '% ja reembolsado', 'Compliance', ''].map((header) => (
+                    {['Projeto', 'Gastos esperados', 'Total ja reembolsado', '% ja reembolsado', 'Compliance', ''].map((header) => (
                       <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                     ))}
                   </tr>
@@ -305,11 +305,11 @@ export function C01Dashboard() {
                       <td className="py-3 pr-3">
                         <p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>
                         {p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}
-                        {p.revenue > 0 && p.reimbursableExpenses / p.revenue > 0.05 && (
-                          <p className="mt-1 text-[11px] font-medium text-[#791F1F]">Alerta: reembolso acima de 5% da receita</p>
+                        {p.estimatedExpense > 0 && p.reimbursableExpenses > p.estimatedExpense && (
+                          <p className="mt-1 text-[11px] font-medium text-[#791F1F]">Alerta: reembolso acima dos gastos esperados</p>
                         )}
                       </td>
-                      <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
+                      <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.estimatedExpense)}</td>
                       <td className="whitespace-nowrap py-3 pr-3">{fmt(p.reimbursableExpenses)}</td>
                       <td className="py-3 pr-3">
                         <Badge variant={p.totalSubmittedAmount > 0 && p.reimbursableExpenses / p.totalSubmittedAmount >= 0.8 ? 'green' : 'amber'}>

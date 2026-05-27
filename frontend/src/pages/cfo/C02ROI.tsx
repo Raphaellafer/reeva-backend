@@ -39,16 +39,16 @@ export function C02ROI() {
   )
 
   const trend = useMemo(() => buildTrend(project), [project])
-  const estimatedProjectRevenue = project?.revenue ?? 0
+  const expectedExpenseAmount = project?.estimatedExpense ?? 0
   const submittedAmount = project?.totalSubmittedAmount ?? 0
   const reimbursedAmount = project?.reimbursableExpenses ?? 0
   const reimbursedRatio = submittedAmount > 0
     ? Math.round((reimbursedAmount / submittedAmount) * 100)
     : 0
-  const reimbursementRevenueRatio = estimatedProjectRevenue > 0
-    ? (reimbursedAmount / estimatedProjectRevenue) * 100
+  const expectedExpenseUsageRatio = expectedExpenseAmount > 0
+    ? (reimbursedAmount / expectedExpenseAmount) * 100
     : 0
-  const reimbursementRevenueAlert = reimbursementRevenueRatio > 5
+  const expectedExpenseAlert = expectedExpenseUsageRatio > 100
 
   const forecast = useMemo(() => {
     const rows = project?.monthlyTrend ?? []
@@ -80,25 +80,25 @@ export function C02ROI() {
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <MetricCard label="Receita estimada do projeto" value={isLoading ? '...' : fmt(estimatedProjectRevenue)} subtext="definida na criacao do projeto" />
+        <MetricCard label="Gastos esperados" value={isLoading ? '...' : fmt(expectedExpenseAmount)} subtext="definidos na criacao do projeto" />
         <MetricCard label="Total ja reembolsado" value={isLoading ? '...' : fmt(reimbursedAmount)} subtext={`${reimbursedRatio}% do total enviado`} />
         <MetricCard
-          label="Reembolso sobre receita"
-          value={isLoading ? '...' : `${reimbursementRevenueRatio.toFixed(1)}%`}
-          subtext={reimbursementRevenueAlert ? 'acima dos 5% esperados' : 'dentro dos 5% esperados'}
-          className={reimbursementRevenueAlert ? 'border-[#F09595] bg-[#FCEBEB]' : ''}
+          label="Uso dos gastos esperados"
+          value={isLoading ? '...' : `${expectedExpenseUsageRatio.toFixed(1)}%`}
+          subtext={expectedExpenseAlert ? 'acima do previsto' : 'dentro do previsto'}
+          className={expectedExpenseAlert ? 'border-[#F09595] bg-[#FCEBEB]' : ''}
         />
         <MetricCard label="Economia pela IA" value={isLoading ? '...' : fmt(project?.aiSavings ?? 0)} subtext={`compliance ${project?.complianceRate ?? 0}%`} />
         <MetricCard label="Percentual ja reembolsado" value={isLoading ? '...' : `${reimbursedRatio}%`} subtext="sobre o total enviado para reembolso" />
       </div>
 
-      {reimbursementRevenueAlert && (
+      {expectedExpenseAlert && (
         <Card className="mb-4 border-[#F09595] bg-[#FCEBEB]">
           <p className="text-[13px] font-medium text-[#791F1F]">
-            Alerta: o gasto em reembolso ultrapassou os 5% em media esperados para este projeto.
+            Alerta: o gasto em reembolso ultrapassou os gastos esperados para este projeto.
           </p>
           <p className="mt-1 text-[12px] text-[#791F1F]/70">
-            Total ja reembolsado representa {reimbursementRevenueRatio.toFixed(1)}% da receita estimada do projeto.
+            Total ja reembolsado representa {expectedExpenseUsageRatio.toFixed(1)}% dos gastos esperados.
           </p>
         </Card>
       )}
@@ -133,7 +133,7 @@ export function C02ROI() {
           <div className="mt-3 space-y-1.5 text-[12px]">
             <div className="flex justify-between"><span className="text-[#27500A]/60">Reembolsado ate hoje</span><span className="font-medium text-[#27500A]">{fmt(forecast?.current ?? reimbursedAmount)}</span></div>
             {forecast && <div className="flex justify-between"><span className="text-[#27500A]/60">Dias restantes no mes</span><span className="font-medium text-[#27500A]">{forecast.daysRemaining}</span></div>}
-            <div className="flex justify-between"><span className="text-[#27500A]/60">Reembolso/receita</span><span className={`font-medium ${reimbursementRevenueAlert ? 'text-[#791F1F]' : 'text-[#27500A]'}`}>{reimbursementRevenueRatio.toFixed(1)}%</span></div>
+            <div className="flex justify-between"><span className="text-[#27500A]/60">Uso dos gastos esperados</span><span className={`font-medium ${expectedExpenseAlert ? 'text-[#791F1F]' : 'text-[#27500A]'}`}>{expectedExpenseUsageRatio.toFixed(1)}%</span></div>
             <div className="flex justify-between"><span className="text-[#27500A]/60">Compliance</span><span className="font-medium text-[#27500A]">{project?.complianceRate ?? 0}%</span></div>
           </div>
         </div>
