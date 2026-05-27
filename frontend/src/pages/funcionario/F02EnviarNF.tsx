@@ -117,7 +117,7 @@ export function F02EnviarNF() {
         amount: null,
         expenseDate: ignoreDateCheck ? testExpenseDate : todayLocalDate(),
         paymentMethod: 'OTHER',
-        description: 'Enviado pelo app para análise da IA',
+        description: 'Enviado pelo app para analise da IA',
         testExpenseDateOverride: ignoreDateCheck,
       }, file)
       await submitExpense(token, expense.id)
@@ -140,14 +140,14 @@ export function F02EnviarNF() {
         <button onClick={() => navigate('/funcionario')} className="text-xl leading-none text-gray-400">&lt;</button>
         <div>
           <p className="text-[15px] font-medium text-[#1a1a2e]">Enviar nota fiscal</p>
-          <p className="text-[11px] text-gray-400">A IA lê os dados e encaminha para aprovação.</p>
+          <p className="text-[11px] text-gray-400">A IA le os dados e encaminha para aprovacao.</p>
         </div>
       </div>
 
       <div className="space-y-4 px-4 py-4">
         <StepCard step="1" title="Anexe a nota">
           <div className="grid grid-cols-2 gap-3">
-            <FileOption title="Tirar foto" description="Usar câmera traseira">
+            <FileOption title="Tirar foto" description="Usar camera traseira">
               <input type="file" accept="image/*" capture="environment" hidden onChange={handleFile} />
             </FileOption>
             <FileOption title="Escolher arquivo" description="JPG, PNG ou WEBP">
@@ -202,15 +202,26 @@ export function F02EnviarNF() {
               </select>
             </label>
 
-            <label className="flex items-center gap-2 rounded-[8px] border border-dashed border-[#FAC775] bg-[#FFFBF2] p-3 text-[12px] text-[#633806] cursor-pointer">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={ignoreDateCheck}
-                onChange={(event) => setIgnoreDateCheck(event.target.checked)}
-              />
-              <span>Ignorar verificação de data (teste)</span>
-            </label>
+            <button
+              type="button"
+              aria-pressed={ignoreDateCheck}
+              onClick={() => setIgnoreDateCheck((current) => !current)}
+              className={`flex min-h-[64px] w-full items-center justify-between gap-3 rounded-[8px] border p-3 text-left transition-colors ${
+                ignoreDateCheck
+                  ? 'border-[#EF9F27] bg-[#FAEEDA] text-[#633806]'
+                  : 'border-dashed border-[#FAC775] bg-[#FFFBF2] text-[#633806]'
+              }`}
+            >
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] font-semibold">Ignorar verificacao de data</span>
+                <span className="mt-0.5 text-[11px] opacity-75">Use apenas no teste da banca.</span>
+              </span>
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[16px] font-semibold ${
+                ignoreDateCheck ? 'border-[#EF9F27] bg-white text-[#633806]' : 'border-[#FAC775] bg-white text-transparent'
+              }`}>
+                OK
+              </span>
+            </button>
 
             {ignoreDateCheck && (
               <label className="block text-[12px] font-medium text-gray-500">
@@ -221,7 +232,7 @@ export function F02EnviarNF() {
                   onChange={(event) => setTestExpenseDate(event.target.value)}
                   className="mt-1 w-full rounded-[8px] border border-[#FAC775] bg-[#FFFBF2] px-3 py-2 text-[13px] text-[#1a1a2e] outline-none focus:border-[#EF9F27] focus:ring-2 focus:ring-[#EF9F27]/15"
                 />
-                <span className="mt-1 block text-[11px] font-normal text-[#633806]">A política de 30 dias será ignorada neste envio.</span>
+                <span className="mt-1 block text-[11px] font-normal text-[#633806]">A politica de 30 dias sera ignorada neste envio.</span>
               </label>
             )}
           </div>
@@ -236,7 +247,7 @@ export function F02EnviarNF() {
             {ignoreDateCheck && <ReviewRow label="Data (teste)" value={formatDisplayDate(testExpenseDate)} pending={!testExpenseDate} />}
           </div>
           <p className="mt-3 rounded-[8px] border border-dashed border-black/[0.10] bg-[#F8F8FC] p-3 text-[12px] text-gray-500">
-            O valor e os itens serão lidos automaticamente. Se algum campo obrigatório ficar inseguro, você poderá corrigir antes da decisão final.
+            O valor e os itens serao lidos automaticamente. Se algum campo obrigatorio ficar inseguro, voce podera corrigir antes da decisao final.
           </p>
         </StepCard>
 
@@ -244,9 +255,9 @@ export function F02EnviarNF() {
           <div className="rounded-[10px] border border-[#AFA9EC] bg-[#EEEDFE] p-4 text-center">
             <div className="mb-2 flex items-center justify-center gap-2">
               <span className="h-2 w-2 rounded-full bg-[#3C3489] animate-ping" />
-              <p className="text-[13px] font-medium text-[#3C3489]">Enviando para análise...</p>
+              <p className="text-[13px] font-medium text-[#3C3489]">Enviando para analise...</p>
             </div>
-            <p className="text-[11px] text-[#3C3489]/60">Você será levado ao detalhe da nota ao terminar.</p>
+            <p className="text-[11px] text-[#3C3489]/60">Voce sera levado ao detalhe da nota ao terminar.</p>
           </div>
         )}
 
@@ -258,7 +269,7 @@ export function F02EnviarNF() {
           disabled={!canSubmit}
           onClick={() => void handleSubmit()}
         >
-          {submitting ? 'Enviando...' : 'Enviar para aprovação'}
+          {submitting ? 'Enviando...' : 'Enviar para aprovacao'}
         </Button>
       </div>
     </MobileShell>
@@ -322,16 +333,31 @@ function PhotoReview({
         </div>
       )}
 
-      <label className={`flex items-start gap-2 rounded-[8px] border p-3 text-[12px] ${confirmed ? 'border-[#97C459] bg-[#EAF3DE] text-[#27500A]' : 'border-black/[0.07] bg-[#F8F8FC] text-gray-600'}`}>
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={confirmed}
-          disabled={check?.status === 'checking' || check?.status === 'bad'}
-          onChange={(event) => onConfirmChange(event.target.checked)}
-        />
-        <span>Conferi a imagem e confirmo que os dados principais da nota estao legiveis.</span>
-      </label>
+      <button
+        type="button"
+        aria-pressed={confirmed}
+        disabled={check?.status === 'checking' || check?.status === 'bad'}
+        onClick={() => onConfirmChange(!confirmed)}
+        className={`flex min-h-[72px] w-full items-center justify-between gap-3 rounded-[8px] border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+          confirmed
+            ? 'border-[#97C459] bg-[#EAF3DE] text-[#27500A]'
+            : 'border-black/[0.07] bg-[#F8F8FC] text-[#1a1a2e]'
+        }`}
+      >
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[13px] font-semibold">
+            {confirmed ? 'Imagem confirmada' : 'Confirmar imagem'}
+          </span>
+          <span className="mt-0.5 text-[11px] leading-relaxed opacity-75">
+            Conferi a imagem e os dados principais da nota estao legiveis.
+          </span>
+        </span>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[18px] font-semibold ${
+          confirmed ? 'border-[#97C459] bg-white text-[#27500A]' : 'border-black/[0.16] bg-white text-transparent'
+        }`}>
+          OK
+        </span>
+      </button>
     </div>
   )
 }
@@ -407,8 +433,8 @@ function StepCard({ step, title, children }: { step: string; title: string; chil
 
 function FileOption({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <label className="flex cursor-pointer flex-col items-center justify-center rounded-[9px] border border-black/[0.07] bg-white p-4 text-center transition-colors hover:border-[#1a1a2e]/30 active:bg-gray-50">
-      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-[8px] border border-black/[0.10] bg-[#F8F8FC]">
+    <label className="flex min-h-[108px] cursor-pointer flex-col items-center justify-center rounded-[8px] border border-black/[0.10] bg-white p-3 text-center shadow-sm transition-colors hover:border-[#1a1a2e]/30 active:border-[#3C3489] active:bg-[#F8F8FC]">
+      <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-[8px] border border-black/[0.10] bg-[#F8F8FC]">
         <span className="h-4 w-5 rounded-[3px] border-2 border-[#1a1a2e]" />
       </span>
       <span className="text-[13px] font-medium text-[#1a1a2e]">{title}</span>
