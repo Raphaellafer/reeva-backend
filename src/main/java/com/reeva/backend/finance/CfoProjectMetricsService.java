@@ -106,6 +106,7 @@ public class CfoProjectMetricsService {
             .map(Expense::getAmount)
             .map(CfoMetricCalculator::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalSubmittedAmount = submittedAmount(expenses);
         BigDecimal totalCost = CfoMetricCalculator.totalCost(generalExpenses, reimbursableExpenses);
         BigDecimal profit = CfoMetricCalculator.profit(revenue, totalCost);
         BigDecimal avoidableLosses = avoidableLosses(expenses, policies);
@@ -130,6 +131,7 @@ public class CfoProjectMetricsService {
             revenue,
             generalExpenses,
             reimbursableExpenses,
+            totalSubmittedAmount,
             totalCost,
             profit,
             CfoMetricCalculator.margin(revenue, profit),
@@ -206,12 +208,25 @@ public class CfoProjectMetricsService {
                     .map(Expense::getAmount)
                     .map(CfoMetricCalculator::money)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal submitted = submittedAmount(expenses.stream()
+                    .filter(expense -> !expense.getExpenseDate().isBefore(monthStart)
+                        && !expense.getExpenseDate().isAfter(monthEnd))
+                    .toList());
                 BigDecimal totalCost = CfoMetricCalculator.totalCost(generalExpenses, reimbursements);
                 BigDecimal profit = CfoMetricCalculator.profit(revenue, totalCost);
                 return new ProjectMonthlyTrendResponse(
-                    month.toString(), revenue, generalExpenses, reimbursements, totalCost, profit);
+                    month.toString(), revenue, generalExpenses, reimbursements, submitted, totalCost, profit);
             })
             .toList();
+    }
+
+    private BigDecimal submittedAmount(List<Expense> expenses) {
+        return expenses.stream()
+            .filter(expense -> expense.getStatus() != ExpenseStatus.DRAFT
+                && expense.getStatus() != ExpenseStatus.CANCELLED)
+            .map(Expense::getAmount)
+            .map(CfoMetricCalculator::money)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal sumEntries(List<ProjectFinancialEntry> entries, FinancialEntryType type) {

@@ -32,14 +32,14 @@ const PROJECT_PALETTE = [
   '#FFD6A5', '#CAFFBF',
 ]
 
-type SortKey = 'percent-desc' | 'percent-asc' | 'reimbursed-desc' | 'reimbursed-asc' | 'estimated-desc'
+type SortKey = 'percent-desc' | 'percent-asc' | 'reimbursed-desc' | 'reimbursed-asc' | 'revenue-desc'
 
 const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'percent-desc',    label: 'Maior percentual' },
   { value: 'percent-asc',     label: 'Menor percentual' },
   { value: 'reimbursed-desc', label: 'Maior reembolsado' },
   { value: 'reimbursed-asc',  label: 'Menor reembolsado' },
-  { value: 'estimated-desc',  label: 'Maior estimado' },
+  { value: 'revenue-desc',    label: 'Maior receita estimada' },
 ]
 
 export function C01Dashboard() {
@@ -68,13 +68,13 @@ export function C01Dashboard() {
   const sortedProjects = useMemo(() => {
     const list = [...projects]
     const reimbursedPercent = (project: typeof projects[number]) =>
-      project.revenue > 0 ? project.reimbursableExpenses / project.revenue : 0
+      project.totalSubmittedAmount > 0 ? project.reimbursableExpenses / project.totalSubmittedAmount : 0
     switch (sortKey) {
       case 'percent-desc':    return list.sort((a, b) => reimbursedPercent(b) - reimbursedPercent(a))
       case 'percent-asc':     return list.sort((a, b) => reimbursedPercent(a) - reimbursedPercent(b))
       case 'reimbursed-desc': return list.sort((a, b) => b.reimbursableExpenses - a.reimbursableExpenses)
       case 'reimbursed-asc':  return list.sort((a, b) => a.reimbursableExpenses - b.reimbursableExpenses)
-      case 'estimated-desc':  return list.sort((a, b) => b.revenue - a.revenue)
+      case 'revenue-desc':    return list.sort((a, b) => b.revenue - a.revenue)
       default:             return list
     }
   }, [projects, sortKey])
@@ -290,7 +290,7 @@ export function C01Dashboard() {
               <table className="w-full min-w-[540px] text-[13px]">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    {['Projeto', 'Total estimado', 'Total ja reembolsado', '% ja reembolsado', 'Compliance', ''].map((header) => (
+                    {['Projeto', 'Receita estimada', 'Total ja reembolsado', '% ja reembolsado', 'Compliance', ''].map((header) => (
                       <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                     ))}
                   </tr>
@@ -305,12 +305,15 @@ export function C01Dashboard() {
                       <td className="py-3 pr-3">
                         <p className="whitespace-nowrap font-medium text-[#1a1a2e]">{p.projectName}</p>
                         {p.projectCode && <p className="mt-0.5 text-[11px] text-gray-400">{p.projectCode}</p>}
+                        {p.revenue > 0 && p.reimbursableExpenses / p.revenue > 0.05 && (
+                          <p className="mt-1 text-[11px] font-medium text-[#791F1F]">Alerta: reembolso acima de 5% da receita</p>
+                        )}
                       </td>
                       <td className="whitespace-nowrap py-3 pr-3 font-medium text-[#27500A]">{fmt(p.revenue)}</td>
                       <td className="whitespace-nowrap py-3 pr-3">{fmt(p.reimbursableExpenses)}</td>
                       <td className="py-3 pr-3">
-                        <Badge variant={p.revenue > 0 && p.reimbursableExpenses / p.revenue >= 0.8 ? 'green' : 'amber'}>
-                          {p.revenue > 0 ? Math.round((p.reimbursableExpenses / p.revenue) * 100) : 0}%
+                        <Badge variant={p.totalSubmittedAmount > 0 && p.reimbursableExpenses / p.totalSubmittedAmount >= 0.8 ? 'green' : 'amber'}>
+                          {p.totalSubmittedAmount > 0 ? Math.round((p.reimbursableExpenses / p.totalSubmittedAmount) * 100) : 0}%
                         </Badge>
                       </td>
                       <td className="py-3 pr-3">

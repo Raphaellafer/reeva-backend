@@ -7,6 +7,7 @@ public record ProjectMonthlyTrendResponse(
     BigDecimal revenue,
     BigDecimal generalExpenses,
     BigDecimal reimbursableExpenses,
+    BigDecimal submittedAmount,
     BigDecimal totalCost,
     BigDecimal profit
 ) {}

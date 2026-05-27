@@ -11,6 +11,7 @@ public record ProjectPerformanceResponse(
     BigDecimal revenue,
     BigDecimal generalExpenses,
     BigDecimal reimbursableExpenses,
+    BigDecimal totalSubmittedAmount,
     BigDecimal totalCost,
     BigDecimal profit,
     BigDecimal margin,

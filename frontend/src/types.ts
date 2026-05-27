@@ -234,6 +234,7 @@ export interface ProjectMonthlyTrendResponse {
   revenue: number;
   generalExpenses: number;
   reimbursableExpenses: number;
+  submittedAmount: number;
   totalCost: number;
   profit: number;
 }
@@ -245,6 +246,7 @@ export interface ProjectPerformanceResponse {
   revenue: number;
   generalExpenses: number;
   reimbursableExpenses: number;
+  totalSubmittedAmount: number;
   totalCost: number;
   profit: number;
   margin: number | null;
