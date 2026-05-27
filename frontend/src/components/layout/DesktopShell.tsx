@@ -12,7 +12,7 @@ const navByRole = (role: UserRole) => {
         items: [
           { label: 'Dashboard', href: '/gerente', exact: true, icon: <IconGrid /> },
           { label: 'Aprovações', href: '/gerente/aprovacoes', icon: <IconCheck /> },
-          { label: 'Aprovados', href: '/gerente/pagamentos', icon: <IconMoney /> },
+          { label: 'Aprovados', href: '/gerente/pagamentos', icon: <IconReimbursement /> },
           { label: 'Projetos', href: '/gerente/projetos', icon: <IconTrend /> },
           { label: 'Compliance', href: '/gerente/compliance', icon: <IconShield /> },
           { label: 'Políticas', href: '/gerente/politicas', icon: <IconSettings /> },
@@ -27,7 +27,7 @@ const navByRole = (role: UserRole) => {
     {
       items: [
         { label: 'Dashboard', href: '/cfo', exact: true, icon: <IconGrid /> },
-        { label: 'Fluxo de caixa', href: '/cfo/fluxo-caixa', icon: <IconMoney /> },
+        { label: 'Fluxo de caixa', href: '/cfo/fluxo-caixa', icon: <IconReimbursement /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
         { label: 'Projetos', href: '/cfo/configuracoes', icon: <IconBriefcase /> },
         { label: 'Políticas', href: '/cfo/politicas', icon: <IconShield /> },
@@ -131,7 +131,7 @@ function IconTrend() {
   )
 }
 
-function IconMoney() {
+function IconReimbursement() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5h18v9H3v-9z" />
