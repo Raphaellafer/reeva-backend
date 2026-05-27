@@ -29,9 +29,9 @@ const navByRole = (role: UserRole) => {
         { label: 'Dashboard', href: '/cfo', exact: true, icon: <IconGrid /> },
         { label: 'Fluxo de caixa', href: '/cfo/fluxo-caixa', icon: <IconMoney /> },
         { label: 'Todas as notas', href: '/cfo/notas', icon: <IconDoc /> },
-        { label: 'Gestores', href: '/cfo/gestores', icon: <IconUsers /> },
         { label: 'Projetos', href: '/cfo/configuracoes', icon: <IconBriefcase /> },
         { label: 'Políticas', href: '/cfo/politicas', icon: <IconShield /> },
+        { label: 'Gestores', href: '/cfo/gestores', icon: <IconUsers /> },
       ],
     },
   ]

@@ -230,11 +230,7 @@ export function C05Config() {
                   <input value={form.code} onChange={(event) => updateField('code', event.target.value)} className={fieldClass} />
                 </label>
                 <label className={labelClass}>
-                  Receita esperada
-                  <input value={form.revenue} onChange={(event) => updateField('revenue', event.target.value.replace(',', '.'))} className={fieldClass} inputMode="decimal" placeholder="100000" />
-                </label>
-                <label className={labelClass}>
-                  Despesa estimada
+                  Gastos esperados
                   <input value={form.estimatedExpense} onChange={(event) => updateField('estimatedExpense', event.target.value.replace(',', '.'))} className={fieldClass} inputMode="decimal" placeholder="5000" />
                 </label>
               </div>
