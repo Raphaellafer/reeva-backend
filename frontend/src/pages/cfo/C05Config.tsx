@@ -194,7 +194,7 @@ export function C05Config() {
                   </div>
                   <Badge variant={project.members.length > 0 ? 'green' : 'gray'}>{project.members.length} func.</Badge>
                 </div>
-                <p className="mt-2 text-[12px] font-medium text-[#1a1a2e]">{fmt(project.revenue ?? 0)}</p>
+                <p className="mt-2 text-[12px] font-medium text-[#1a1a2e]">{fmt(project.estimatedExpense ?? 0)}</p>
               </button>
             ))}
             {!isLoading && projects.length === 0 && <p className="py-6 text-[13px] text-gray-400">Nenhum projeto encontrado.</p>}
