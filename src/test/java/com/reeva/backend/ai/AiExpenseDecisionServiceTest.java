@@ -57,6 +57,8 @@ class AiExpenseDecisionServiceTest {
         OcrResult unreadableWithFiscalData = new OcrResult(
             false,
             "Valor total da nota nao foi lido com confianca.",
+            true,
+            "NFE",
             "Fornecedor Teste",
             "12.345.678/0001-90",
             null,
@@ -132,6 +134,8 @@ class AiExpenseDecisionServiceTest {
         OcrResult unreadable = new OcrResult(
             false,
             "Valor total da nota nao foi lido com confianca.",
+            true,
+            "NFE",
             null,
             null,
             null,
@@ -198,6 +202,8 @@ class AiExpenseDecisionServiceTest {
         result = new OcrResult(
             result.readable(),
             result.reason(),
+            result.documentDetected(),
+            result.documentType(),
             result.supplierName(),
             result.supplierCnpj(),
             result.totalAmount(),
@@ -239,6 +245,8 @@ class AiExpenseDecisionServiceTest {
         result = new OcrResult(
             result.readable(),
             result.reason(),
+            result.documentDetected(),
+            result.documentType(),
             result.supplierName(),
             result.supplierCnpj(),
             result.totalAmount(),
@@ -279,6 +287,8 @@ class AiExpenseDecisionServiceTest {
         result = new OcrResult(
             result.readable(),
             result.reason(),
+            result.documentDetected(),
+            result.documentType(),
             result.supplierName(),
             result.supplierCnpj(),
             result.totalAmount(),
@@ -350,6 +360,8 @@ class AiExpenseDecisionServiceTest {
         return new OcrResult(
             true,
             null,
+            true,
+            "NFE",
             "LESTE SUSHI BAR",
             "12.345.678/0001-90",
             amount,
