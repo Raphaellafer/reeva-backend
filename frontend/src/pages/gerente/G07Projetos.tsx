@@ -100,7 +100,7 @@ export function G07Projetos() {
       code: project.code ?? '',
       description: project.description ?? '',
       policyText: project.policyText ?? '',
-      revenue: project.revenue == null ? null : String(project.revenue),
+      revenue: null,
       estimatedExpense: project.estimatedExpense == null ? null : String(project.estimatedExpense),
       managerId,
       employeeIds: project.members.map((member) => member.id),
@@ -144,7 +144,7 @@ export function G07Projetos() {
     if (form.employeeIds.length === 0) { setError('Selecione pelo menos um funcionário para o projeto.'); return }
     setError(null)
     setMessage(null)
-    saveMutation.mutate({ id: editingId, data: { ...form, revenue: form.revenue || null, estimatedExpense: form.estimatedExpense || null } })
+    saveMutation.mutate({ id: editingId, data: { ...form, revenue: null, estimatedExpense: form.estimatedExpense || null } })
   }
 
   return (
@@ -167,7 +167,7 @@ export function G07Projetos() {
           <table className="w-full min-w-[880px] text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['Código', 'Projeto', 'Gestor responsável', 'Faturamento', 'Equipe', ''].map((header) => (
+                {['Codigo', 'Projeto', 'Gestor responsavel', 'Despesa esperada', 'Equipe', ''].map((header) => (
                   <th key={header} className="py-2.5 pr-3 text-left text-[11px] font-medium uppercase tracking-wide text-gray-400">{header}</th>
                 ))}
               </tr>
@@ -187,7 +187,7 @@ export function G07Projetos() {
                       <p className="font-medium text-[#1a1a2e]">{project.managerName ?? '-'}</p>
                       {project.managerEmail && <p className="text-[11px] text-gray-400">{project.managerEmail}</p>}
                     </td>
-                    <td className="py-4 pr-3 whitespace-nowrap">{project.revenue == null ? '-' : fmt(project.revenue)}</td>
+                    <td className="py-4 pr-3 whitespace-nowrap">{project.estimatedExpense == null ? '-' : fmt(project.estimatedExpense)}</td>
                     <td className="py-4 pr-3"><MemberSummary members={project.members} /></td>
                     <td className="py-4 pr-3 text-right">
                       <button onClick={() => edit(project)} className="text-[12px] font-medium text-[#3C3489]">Editar</button>
@@ -231,10 +231,7 @@ export function G07Projetos() {
                 {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name} · {manager.email}</option>)}
               </select>
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className={labelClass}>Faturamento previsto/real<input value={form.revenue ?? ''} onChange={(event) => setForm((current) => ({ ...current, revenue: event.target.value }))} className={fieldClass} /></label>
-              <label className={labelClass}>Despesa estimada<input value={form.estimatedExpense ?? ''} onChange={(event) => setForm((current) => ({ ...current, estimatedExpense: event.target.value }))} className={fieldClass} /></label>
-            </div>
+            <label className={labelClass}>Despesa esperada<input value={form.estimatedExpense ?? ''} onChange={(event) => setForm((current) => ({ ...current, estimatedExpense: event.target.value }))} className={fieldClass} /></label>
             <label className={labelClass}>Descrição<textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={4} className={fieldClass} /></label>
           </section>
 
