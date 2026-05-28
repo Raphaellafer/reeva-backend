@@ -9,7 +9,7 @@ import { Card } from '../../components/ui/Card'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { categoryLabels, fmt, fmtDate, reviewStatuses } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseResponse } from '../../types'
+import type { ExpenseResponse, PageResponse } from '../../types'
 
 type ManagerAction = 'reject' | 'revision'
 
@@ -49,16 +49,49 @@ export function G02Aprovacoes() {
 
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) => approveExpense(token!, expenseId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
-      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+    onMutate: async (expenseId) => {
+      await queryClient.cancelQueries({ queryKey: ['team-expenses'] })
+      const previousPages = queryClient.getQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] })
+      const approvedAt = new Date().toISOString()
+
+      queryClient.setQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          content: old.content.map((expense) =>
+            expense.id === expenseId
+              ? { ...expense, status: 'MANAGER_APPROVED', updatedAt: approvedAt }
+              : expense
+          ),
+        }
+      })
+
+      setSelected((current) => current?.id === expenseId ? null : current)
+      return { previousPages }
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          content: old.content.map((expense) => expense.id === updated.id ? updated : expense),
+        }
+      })
       setActionMode(null)
       setActionNotes('')
       setActionError(null)
     },
-    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+    onError: (err, _expenseId, context) => {
+      context?.previousPages?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data)
+      })
+      setActionError(err instanceof Error ? err.message : 'Acao nao concluida.')
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'], refetchType: 'inactive' })
+    },
   })
-
   const rejectMutation = useMutation({
     mutationFn: ({ expenseId, notes }: { expenseId: string; notes: string }) =>
       rejectExpense(token!, expenseId, notes),
