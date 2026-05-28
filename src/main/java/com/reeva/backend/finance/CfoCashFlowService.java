@@ -91,11 +91,12 @@ public class CfoCashFlowService {
 
         BigDecimal currentTotalBalance = accounts.stream()
             .map(BankAccount::getCurrentBalance)
+            .map(this::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal balanceAfterPeriod = transactionsAfterPeriod.stream()
             .map(transaction -> transaction.getType() == CashTransactionType.INFLOW
-                ? transaction.getAmount()
-                : transaction.getAmount().negate())
+                ? money(transaction.getAmount())
+                : money(transaction.getAmount()).negate())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalBalance = currentTotalBalance.subtract(balanceAfterPeriod);
         BigDecimal inflow = sumByType(transactions, CashTransactionType.INFLOW);
@@ -104,9 +105,11 @@ public class CfoCashFlowService {
             .filter(transaction -> transaction.getCategory() == CashTransactionCategory.REIMBURSEMENT)
             .filter(transaction -> transaction.getType() == CashTransactionType.OUTFLOW)
             .map(CashTransaction::getAmount)
+            .map(this::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal pendingReimbursementAmount = pendingPayments.stream()
             .map(Expense::getAmount)
+            .map(this::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return new CfoCashFlowResponse(
@@ -129,7 +132,12 @@ public class CfoCashFlowService {
         return transactions.stream()
             .filter(transaction -> transaction.getType() == type)
             .map(CashTransaction::getAmount)
+            .map(this::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal money(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 
     private List<CfoCashFlowResponse.ProjectCashFlowItem> projectCashFlows(List<CashTransaction> transactions) {
@@ -141,9 +149,9 @@ public class CfoCashFlowService {
                 ignored -> new ProjectBucket(transaction.getProject().getId(), transaction.getProject().getName())
             );
             if (transaction.getType() == CashTransactionType.INFLOW) {
-                bucket.inflow = bucket.inflow.add(transaction.getAmount());
+                bucket.inflow = bucket.inflow.add(money(transaction.getAmount()));
             } else {
-                bucket.outflow = bucket.outflow.add(transaction.getAmount());
+                bucket.outflow = bucket.outflow.add(money(transaction.getAmount()));
             }
         }
         return buckets.values().stream()
