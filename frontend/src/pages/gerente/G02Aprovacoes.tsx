@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { approveExpense, getApprovedPayments, getTeamExpenses, rejectExpense, requestRevision } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { ExpenseDetailPanel } from '../../components/manager/ExpenseDetailPanel'
@@ -9,7 +9,7 @@ import { Card } from '../../components/ui/Card'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { categoryLabels, fmt, fmtDate, reviewStatuses } from '../../realData'
 import { getToken } from '../../session'
-import type { ExpenseResponse, PageResponse } from '../../types'
+import type { ExpenseResponse, ExpenseStatus, PageResponse } from '../../types'
 
 type ManagerAction = 'reject' | 'revision'
 
@@ -58,6 +58,48 @@ export function G02Aprovacoes() {
 
   const expenses = page?.content ?? []
 
+  async function moveExpenseOutOfQueue(expenseId: string, status: ExpenseStatus) {
+    await queryClient.cancelQueries({ queryKey: ['team-expenses'] })
+    const previousPages = queryClient.getQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] })
+    const updatedAt = new Date().toISOString()
+
+    queryClient.setQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] }, (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        content: old.content.map((expense) =>
+          expense.id === expenseId ? { ...expense, status, updatedAt } : expense
+        ),
+      }
+    })
+
+    setSelected((current) => current?.id === expenseId ? null : current)
+    setActionMode(null)
+    setActionNotes('')
+    setActionError(null)
+    return { previousPages }
+  }
+
+  function restoreTeamExpenses(context: { previousPages?: [QueryKey, PageResponse<ExpenseResponse> | undefined][] } | undefined) {
+    context?.previousPages?.forEach(([queryKey, data]) => {
+      queryClient.setQueryData(queryKey, data)
+    })
+  }
+
+  function syncTeamExpense(updated: ExpenseResponse) {
+    queryClient.setQueriesData<PageResponse<ExpenseResponse>>({ queryKey: ['team-expenses'] }, (old) => {
+      if (!old) return old
+      return {
+        ...old,
+        content: old.content.map((expense) => expense.id === updated.id ? updated : expense),
+      }
+    })
+  }
+
+  function isAlreadyOutOfQueueError(err: unknown) {
+    return err instanceof Error && err.message.includes('not pending review')
+  }
+
   const approveMutation = useMutation({
     mutationFn: (expenseId: string) => approveExpense(token!, expenseId),
     onMutate: async (expenseId) => {
@@ -100,6 +142,10 @@ export function G02Aprovacoes() {
       })
     },
     onError: (err, _expenseId, context) => {
+      if (isAlreadyOutOfQueueError(err)) {
+        setActionError(null)
+        return
+      }
       context?.previousPages?.forEach(([queryKey, data]) => {
         queryClient.setQueryData(queryKey, data)
       })
@@ -114,29 +160,44 @@ export function G02Aprovacoes() {
   const rejectMutation = useMutation({
     mutationFn: ({ expenseId, notes }: { expenseId: string; notes: string }) =>
       rejectExpense(token!, expenseId, notes),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
-      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
-      setActionMode(null)
-      setActionNotes('')
-      setActionError(null)
+    onMutate: ({ expenseId }) => moveExpenseOutOfQueue(expenseId, 'MANAGER_REJECTED'),
+    onSuccess: (updated) => {
+      syncTeamExpense(updated)
     },
-    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+    onError: (err, _payload, context) => {
+      if (isAlreadyOutOfQueueError(err)) {
+        setActionError(null)
+        return
+      }
+      restoreTeamExpenses(context)
+      setActionError(err instanceof Error ? err.message : 'Acao nao concluida.')
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'], refetchType: 'inactive' })
+    },
   })
 
   const revisionMutation = useMutation({
     mutationFn: ({ expenseId, notes }: { expenseId: string; notes: string }) =>
       requestRevision(token!, expenseId, notes),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['team-expenses'] })
-      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
-      setActionMode(null)
-      setActionNotes('')
-      setActionError(null)
+    onMutate: ({ expenseId }) => moveExpenseOutOfQueue(expenseId, 'NEEDS_REVISION'),
+    onSuccess: (updated) => {
+      syncTeamExpense(updated)
     },
-    onError: (err) => setActionError(err instanceof Error ? err.message : 'Ação não concluída.'),
+    onError: (err, _payload, context) => {
+      if (isAlreadyOutOfQueueError(err)) {
+        setActionError(null)
+        return
+      }
+      restoreTeamExpenses(context)
+      setActionError(err instanceof Error ? err.message : 'Acao nao concluida.')
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['team-expenses'], refetchType: 'inactive' })
+    },
   })
-
   const isMutating = approveMutation.isPending || rejectMutation.isPending || revisionMutation.isPending
 
   function submitDecision() {
