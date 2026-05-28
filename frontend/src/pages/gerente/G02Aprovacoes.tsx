@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { approveExpense, getTeamExpenses, rejectExpense, requestRevision } from '../../api'
+import { approveExpense, getApprovedPayments, getTeamExpenses, rejectExpense, requestRevision } from '../../api'
 import { DesktopShell } from '../../components/layout/DesktopShell'
 import { ExpenseDetailPanel } from '../../components/manager/ExpenseDetailPanel'
 import { Badge } from '../../components/ui/Badge'
@@ -12,6 +12,15 @@ import { getToken } from '../../session'
 import type { ExpenseResponse, PageResponse } from '../../types'
 
 type ManagerAction = 'reject' | 'revision'
+
+function monthStart() {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 function risk(expense: ExpenseResponse): { label: string; variant: 'green' | 'amber' | 'red' } {
   if (expense.policyCompliant === false || expense.sefazStatus === 'INVALID') return { label: 'Alto', variant: 'red' }
@@ -39,6 +48,8 @@ export function G02Aprovacoes() {
     queryKey: ['team-expenses', 'queue'],
     queryFn: () => getTeamExpenses(token!, undefined, 0, 50),
     enabled: !!token,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
     select: (data) => ({
       ...data,
       content: data.content.filter((e) => reviewStatuses.includes(e.status)),
@@ -80,6 +91,13 @@ export function G02Aprovacoes() {
       setActionMode(null)
       setActionNotes('')
       setActionError(null)
+      const from = monthStart()
+      const to = today()
+      void queryClient.prefetchQuery({
+        queryKey: ['approved-payments', from, to],
+        queryFn: () => getApprovedPayments(token!, from, to),
+        staleTime: 60_000,
+      })
     },
     onError: (err, _expenseId, context) => {
       context?.previousPages?.forEach(([queryKey, data]) => {
@@ -90,6 +108,7 @@ export function G02Aprovacoes() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['manager-dashboard'] })
       void queryClient.invalidateQueries({ queryKey: ['team-expenses'], refetchType: 'inactive' })
+      void queryClient.invalidateQueries({ queryKey: ['approved-payments'], refetchType: 'inactive' })
     },
   })
   const rejectMutation = useMutation({

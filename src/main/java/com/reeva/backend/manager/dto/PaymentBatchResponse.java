@@ -39,9 +39,13 @@ public record PaymentBatchResponse(
                 expense.getTitle(),
                 expense.getProject() != null ? expense.getProject().getName() : null,
                 expense.getExpenseDate(),
-                expense.getAmount(),
+                money(expense.getAmount()),
                 expense.getAiDecision() == AiDecision.AUTO_APPROVED
             );
         }
+    }
+
+    public static BigDecimal money(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
     }
 }

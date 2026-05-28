@@ -368,6 +368,7 @@ public class ManagerService {
                 User user = rows.get(0).getUser();
                 BigDecimal total = rows.stream()
                     .map(Expense::getAmount)
+                    .map(PaymentBatchResponse::money)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
                 return new PaymentBatchResponse.EmployeePayment(
                     user.getId(),
@@ -382,6 +383,7 @@ public class ManagerService {
 
         BigDecimal total = expenses.stream()
             .map(Expense::getAmount)
+            .map(PaymentBatchResponse::money)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return new PaymentBatchResponse(from, to, total, employees.size(), expenses.size(), employees);

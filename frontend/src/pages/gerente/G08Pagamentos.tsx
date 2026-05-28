@@ -57,18 +57,24 @@ export function G08Pagamentos() {
     queryKey: ['approved-payments', queryFrom, queryTo],
     queryFn: () => getApprovedPayments(token!, queryFrom, queryTo),
     enabled: !!token,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 
   const { data: bankAccounts = [] } = useQuery({
     queryKey: ['manager-bank-accounts'],
     queryFn: () => getBankAccounts(token!),
     enabled: !!token,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 
   const { data: schedule } = useQuery({
     queryKey: ['payment-schedule'],
     queryFn: () => getPaymentSchedule(token!),
     enabled: !!token,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   })
 
   React.useEffect(() => {
